@@ -14,7 +14,7 @@ KleinClaw is an OpenClaw plugin for running a local
 helper tools. It does not store Kleinanzeigen credentials and it does not read
 the bot config. The bot stays installed and configured on the user's machine;
 this plugin just passes narrow commands to it and redacts the output before
-returning it to OpenClaw.
+returning it to your OpenClaw agent.
 
 ## What it adds
 
