@@ -30,6 +30,7 @@
     "src/"
   ],
   "scripts": {
+    "coverage": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info",
     "test": "node --test"
   },
   "peerDependencies": {
