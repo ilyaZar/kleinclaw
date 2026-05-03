@@ -22,7 +22,6 @@ describe("kleinanzeigen CLI argument builder", () => {
         configPath: "/secret/config.yaml",
         workspaceMode: "portable",
         lang: "en",
-        cliProfile: "legacy",
       },
     );
 
@@ -77,18 +76,48 @@ describe("kleinanzeigen CLI argument builder", () => {
         ),
       /selector must be one of/,
     );
+    assert.throws(
+      () =>
+        buildKleinanzeigenArgs(
+          "publish",
+          { confirm: true, selectors: ["changed", "--help"] },
+          { configPath: "config.yaml" },
+        ),
+      /selectors must contain only/,
+    );
   });
 
-  it("requires current CLI profile for update and extend", () => {
+  it("supports current update and extend selectors", () => {
+    assert.deepEqual(
+      buildKleinanzeigenArgs(
+        "update",
+        { confirm: true, selector: "all" },
+        { configPath: "config.yaml" },
+      ),
+      ["--config=config.yaml", "--logfile=", "update", "--ads=all"],
+    );
     assert.throws(
-      () => buildKleinanzeigenArgs("update", { confirm: true }, { configPath: "config.yaml" }),
-      /cliProfile=current/,
+      () =>
+        buildKleinanzeigenArgs(
+          "publish",
+          { confirm: true, adIds: ["123"], selector: "due" },
+          { configPath: "config.yaml" },
+        ),
+      /adIds cannot be combined/,
+    );
+    assert.deepEqual(
+      buildKleinanzeigenArgs(
+        "publish",
+        { confirm: true, selectors: ["changed", "due", "changed"] },
+        { configPath: "config.yaml" },
+      ),
+      ["--config=config.yaml", "--logfile=", "publish", "--ads=changed,due"],
     );
     assert.deepEqual(
       buildKleinanzeigenArgs(
         "extend",
         { confirm: true },
-        { configPath: "config.yaml", cliProfile: "current" },
+        { configPath: "config.yaml" },
       ),
       ["--config=config.yaml", "--logfile=", "extend", "--ads=all"],
     );

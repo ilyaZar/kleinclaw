@@ -41,14 +41,6 @@
         ],
         "description": "Optional kleinanzeigen-bot workspace mode."
       },
-      "cliProfile": {
-        "type": "string",
-        "enum": [
-          "legacy",
-          "current"
-        ],
-        "description": "Use legacy unless the installed CLI supports update and extend commands."
-      },
       "lang": {
         "type": "string",
         "enum": [
