@@ -13,6 +13,8 @@ export const OPTIONAL_TOOL_NAMES = new Set([
   ...SIDE_EFFECT_TOOL_NAMES,
 ]);
 
+export const APPROVAL_TOOL_NAMES = new Set(OPTIONAL_TOOL_NAMES);
+
 const adIdsSchema = {
   type: "array",
   minItems: 1,

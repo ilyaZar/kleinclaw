@@ -4,16 +4,18 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  APPROVAL_TOOL_NAMES,
   createKleinanzeigenTools,
   OPTIONAL_TOOL_NAMES,
   SIDE_EFFECT_TOOL_NAMES,
 } from "../src/tools.js";
 
 describe("kleinanzeigen plugin tools", () => {
-  it("keeps side-effect tools separate from optional local CLI tools", () => {
+  it("keeps mutating tools separate while approval gating local CLI tools", () => {
     const tools = createKleinanzeigenTools();
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_verify"), false);
     assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_verify"), true);
+    assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_verify"), true);
     assert.equal(tools.length, 6);
     assert.deepEqual(
       tools.filter((tool) => SIDE_EFFECT_TOOL_NAMES.has(tool.name)).map((tool) => tool.name),
@@ -25,6 +27,7 @@ describe("kleinanzeigen plugin tools", () => {
         "kleinanzeigen_extend",
       ],
     );
+    assert.deepEqual([...APPROVAL_TOOL_NAMES], [...OPTIONAL_TOOL_NAMES]);
   });
 
   it("runs a mock CLI and returns sanitized output", async () => {
