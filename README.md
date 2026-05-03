@@ -71,9 +71,9 @@ bot supports the newer `update` and `extend` commands.
 ## Notes
 
 The local bot owns browser/session behavior. If Kleinanzeigen asks for a normal
-account check, the user must handle that in the already configured local setup
-or during the local bot run when a browser window asks for it. **This plugin
-does not work around those checks.**
+account check, run the bot directly in a terminal/browser, handle it there, and
+then come back to `kleinanzeigen_verify`. **This plugin does not work around
+those checks.**
 
 **Keep passwords, cookies, browser profile data, and full bot config files out
 of chat**. Fix bot auth and account state locally, then run
