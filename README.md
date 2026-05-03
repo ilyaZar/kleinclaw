@@ -1,5 +1,14 @@
 # Kleinanzeigen Helper
 
+<p align="center">
+  <a href="https://github.com/ilyaZar/kleinanzeigen-helper-plugin/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/ilyaZar/kleinanzeigen-helper-plugin/ci.yml?branch=main&style=flat-square&logo=github&logoColor=white&label=CI&labelColor=2a7e3b&color=1b5e2a"></a>
+  <a href="https://codecov.io/gh/ilyaZar/kleinanzeigen-helper-plugin"><img alt="coverage" src="https://img.shields.io/codecov/c/github/ilyaZar/kleinanzeigen-helper-plugin/main?style=flat-square&logo=codecov&logoColor=white&labelColor=6b3fa0&color=4b2d73"></a>
+  <a href="https://github.com/ilyaZar/kleinanzeigen-helper-plugin/blob/main/package.json"><img alt="version" src="https://img.shields.io/github/package-json/v/ilyaZar/kleinanzeigen-helper-plugin?style=flat-square&label=version&labelColor=4a999d&color=346c6e"></a>
+  <a href="https://docs.openclaw.ai/tools/clawhub"><img alt="OpenClaw code plugin" src="https://img.shields.io/badge/OpenClaw-code%20plugin-346c6e?style=flat-square&labelColor=4a999d"></a>
+  <a href="https://nodejs.org"><img alt="JavaScript Node 22+" src="https://img.shields.io/badge/JavaScript-Node%2022%2B-264a6e?style=flat-square&logo=javascript&logoColor=111827&labelColor=f7df1e"></a>
+  <a href="https://github.com/ilyaZar/kleinanzeigen-helper-plugin/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/github/license/ilyaZar/kleinanzeigen-helper-plugin?style=flat-square&labelColor=629944&color=446a30"></a>
+</p>
+
 OpenClaw plugin for running a local `kleinanzeigen-bot` setup through typed
 tools. It does not store Kleinanzeigen credentials and it does not read the bot
 config. The bot stays installed and configured on the user's machine; this
@@ -25,12 +34,18 @@ addresses, and credential-like lines.
 
 ## Install
 
+### Kleinanzeigen tool
+
+Install and set up [`kleinanzeigen-bot`][kleinanzeigen-bot] separately first,
+then point this plugin at that local executable and config.
+
+[kleinanzeigen-bot]: https://github.com/Second-Hand-Friends/kleinanzeigen-bot#installation
+
+### This plugin
+
 ```bash
 openclaw plugins install clawhub:kleinanzeigen-helper
 ```
-
-Install and set up `kleinanzeigen-bot` separately first, then point this plugin
-at that local executable and config.
 
 Installing this plugin does not download or install the upstream bot. For a
 source checkout, point `cliPath` at a small executable wrapper script instead of
@@ -48,9 +63,9 @@ Restart the Gateway after installing plugin code.
 ## Configure
 
 Add the plugin config under `plugins.entries.kleinanzeigen-helper.config`.
-Either `configPath` or `workingDirectory` must be set.
-`workspaceMode` defaults to `portable`. Set it to `xdg` only when your local bot
-setup already uses user directories.
+Either `configPath` or `workingDirectory` must be set. `workspaceMode` defaults
+to `portable`. Set it to `xdg` only when your local bot setup already uses user
+directories.
 
 ```json
 {
