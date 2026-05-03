@@ -41,9 +41,9 @@ const SENSITIVE_LINE_RE =
   /\b(password|passwd|username|login|cookie|session|token|secret|credential|2fa|sms|user[_-]?data[_-]?dir|profile_name|browser profile)\b/i;
 const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const USER_ACTION_RE =
-  /\b(press (enter|a key)|when done|manual inspection|please solve|eof when reading a line|eoferror)\b/i;
+  /\b(press (enter|a key)|when done|manual inspection|please solve|eof when reading a line|eoferror|captcha (present|detected|recognized|erkannt|vorhanden)|captcha erkannt|bitte lösen|eingabetaste drücken)\b/i;
 const USER_ACTION_HINT = [
-  "The local bot stopped for a manual account step.",
+  "The local bot stopped or paused for an account check.",
   "Run it directly in a terminal/browser, finish that step, then retry this tool.",
 ].join(" ");
 const STATUS_TIMEOUT_MS = 15000;
@@ -214,7 +214,10 @@ export function buildRedactions(config = {}) {
   add(config.workingDirectory);
   add(config.configPath);
   if (typeof config.configPath === "string" && config.configPath.trim()) {
-    add(path.dirname(config.configPath.trim()));
+    const parent = path.dirname(config.configPath.trim());
+    if (parent !== "." && parent !== path.parse(parent).root) {
+      add(parent);
+    }
   }
 
   return [...new Set(values)].sort((a, b) => b.length - a.length);
