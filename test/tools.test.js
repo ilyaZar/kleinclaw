@@ -34,7 +34,7 @@ describe("kleinanzeigen plugin tools", () => {
   });
 
   it("runs a mock CLI and returns sanitized output", async () => {
-    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinanzeigen-helper-test-"));
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-test-"));
     const mockCli = path.join(tmp, "mock-cli.mjs");
     const mockConfig = path.join(tmp, "config.yaml");
     await fs.writeFile(mockConfig, "not read by the plugin\n", "utf8");

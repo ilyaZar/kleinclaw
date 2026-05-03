@@ -1,19 +1,20 @@
 {
-  "name": "kleinanzeigen-helper",
+  "name": "kleinclaw",
   "version": "0.1.0",
-  "description": "OpenClaw tools for a local kleinanzeigen-bot setup with redacted output",
+  "description": "Kleinanzeigen helper tools for a local kleinanzeigen-bot setup with redacted output",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ilyaZar/kleinanzeigen-helper-plugin.git"
+    "url": "git+https://github.com/ilyaZar/kleinclaw.git"
   },
   "bugs": {
-    "url": "https://github.com/ilyaZar/kleinanzeigen-helper-plugin/issues"
+    "url": "https://github.com/ilyaZar/kleinclaw/issues"
   },
-  "homepage": "https://github.com/ilyaZar/kleinanzeigen-helper-plugin#readme",
+  "homepage": "https://github.com/ilyaZar/kleinclaw#readme",
   "keywords": [
     "openclaw",
     "plugin",
+    "kleinclaw",
     "kleinanzeigen"
   ],
   "type": "module",

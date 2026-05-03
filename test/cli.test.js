@@ -126,7 +126,7 @@ describe("kleinanzeigen CLI argument builder", () => {
 
 describe("kleinanzeigen CLI status", () => {
   it("checks executable capabilities without reading config contents", async () => {
-    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinanzeigen-helper-status-"));
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-status-"));
     const mockCli = path.join(tmp, "mock-cli.mjs");
     const mockConfig = path.join(tmp, "config.yaml");
     await fs.writeFile(mockConfig, "password: should-not-be-read\n", "utf8");

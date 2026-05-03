@@ -1,7 +1,7 @@
 {
-  "id": "kleinanzeigen-helper",
-  "name": "Kleinanzeigen Helper",
-  "description": "Typed tools for a local kleinanzeigen-bot setup with redacted output.",
+  "id": "kleinclaw",
+  "name": "KleinClaw",
+  "description": "Kleinanzeigen helper tools for a local kleinanzeigen-bot setup with redacted output.",
   "version": "0.1.0",
   "activation": {
     "onStartup": true

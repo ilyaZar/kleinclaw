@@ -6,9 +6,10 @@ import {
 } from "./src/tools.js";
 
 export default definePluginEntry({
-  id: "kleinanzeigen-helper",
-  name: "Kleinanzeigen Helper",
-  description: "Typed tools for a local kleinanzeigen-bot setup with redacted output.",
+  id: "kleinclaw",
+  name: "KleinClaw",
+  description:
+    "Kleinanzeigen helper tools for a local kleinanzeigen-bot setup with redacted output.",
   register(api) {
     const tools = createKleinanzeigenTools(api.pluginConfig ?? {});
 
