@@ -8,6 +8,7 @@
   },
   "contracts": {
     "tools": [
+      "kleinanzeigen_status",
       "kleinanzeigen_verify",
       "kleinanzeigen_publish",
       "kleinanzeigen_update",

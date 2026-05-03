@@ -10,6 +10,7 @@ This is an unofficial helper. It is not affiliated with Kleinanzeigen.
 
 ## What it adds
 
+- `kleinanzeigen_status`: checks local bot availability and config wiring.
 - `kleinanzeigen_verify`: checks the configured local bot setup.
 - `kleinanzeigen_publish`: publishes or republishes selected ads.
 - `kleinanzeigen_update`: updates changed or selected ads.

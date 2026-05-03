@@ -1,4 +1,9 @@
-import { buildRedactions, runKleinanzeigenOperation, sanitizeText } from "./cli.js";
+import {
+  buildRedactions,
+  getKleinanzeigenStatus,
+  runKleinanzeigenOperation,
+  sanitizeText,
+} from "./cli.js";
 
 export const SIDE_EFFECT_TOOL_NAMES = new Set([
   "kleinanzeigen_publish",
@@ -9,6 +14,7 @@ export const SIDE_EFFECT_TOOL_NAMES = new Set([
 ]);
 
 export const OPTIONAL_TOOL_NAMES = new Set([
+  "kleinanzeigen_status",
   "kleinanzeigen_verify",
   ...SIDE_EFFECT_TOOL_NAMES,
 ]);
@@ -100,6 +106,37 @@ function bindToolConfig(tool, config) {
 
 export function createKleinanzeigenTools(config = {}) {
   return [
+    bindToolConfig(
+      {
+        name: "kleinanzeigen_status",
+        label: "Kleinanzeigen Status",
+        description:
+          "Check local kleinanzeigen-bot availability and config wiring without reading the config.",
+        parameters: objectSchema({}),
+        async execute(_toolCallId) {
+          try {
+            return textResult(await getKleinanzeigenStatus(this.config));
+          } catch (error) {
+            const stderr = sanitizeText(
+              error instanceof Error ? error.message : String(error),
+              buildRedactions(this.config),
+              2000,
+            );
+            return textResult({
+              ok: false,
+              operation: "status",
+              exitCode: null,
+              signal: null,
+              timedOut: false,
+              needsUserAction: false,
+              stdout: "",
+              stderr,
+            });
+          }
+        },
+      },
+      config,
+    ),
     bindToolConfig(
       operationTool({
         name: "kleinanzeigen_verify",

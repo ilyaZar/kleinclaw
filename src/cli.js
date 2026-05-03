@@ -46,6 +46,8 @@ const USER_ACTION_HINT = [
   "The local bot stopped for a manual account step.",
   "Run it directly in a terminal/browser, finish that step, then retry this tool.",
 ].join(" ");
+const STATUS_TIMEOUT_MS = 15000;
+const STATUS_OUTPUT_CHARS = 3000;
 
 function normalizeOptionalString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -262,6 +264,12 @@ export function resolveCliConfig(config = {}) {
   };
 }
 
+function resolveConfiguredConfigPath(config = {}) {
+  const configuredConfigPath = normalizeOptionalString(config.configPath);
+  const configuredCwd = normalizeOptionalString(config.workingDirectory);
+  return configuredConfigPath ?? (configuredCwd ? path.join(configuredCwd, "config.yaml") : undefined);
+}
+
 async function assertConfiguredFiles(config) {
   try {
     const stat = await fs.stat(config.configPath);
@@ -274,6 +282,20 @@ async function assertConfiguredFiles(config) {
     }
     throw error;
   }
+}
+
+function commandSupportFromHelp(text) {
+  const lower = String(text ?? "").toLowerCase();
+  return Object.fromEntries(
+    Object.keys(OPERATIONS).map((operation) => [operation, lower.includes(operation)]),
+  );
+}
+
+function firstNonEmptyLine(text) {
+  return String(text ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .find(Boolean) ?? "";
 }
 
 export function runProcess(command, args, options = {}) {
@@ -344,6 +366,76 @@ export function runProcess(command, args, options = {}) {
       });
     });
   });
+}
+
+export async function getKleinanzeigenStatus(config = {}) {
+  const cliPath = normalizeOptionalString(config.cliPath) ?? "kleinanzeigen-bot";
+  const configPath = resolveConfiguredConfigPath(config);
+  const cwd =
+    normalizeOptionalString(config.workingDirectory) ?? (configPath ? path.dirname(configPath) : undefined);
+  const redactions = buildRedactions({ ...config, cliPath, workingDirectory: cwd, configPath });
+
+  const configFile = {
+    configured: Boolean(configPath),
+    exists: false,
+    isFile: false,
+  };
+  if (configPath) {
+    try {
+      const stat = await fs.stat(configPath);
+      configFile.exists = true;
+      configFile.isFile = stat.isFile();
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+
+  const versionResult = await runProcess(cliPath, ["version"], {
+    cwd,
+    timeoutMs: STATUS_TIMEOUT_MS,
+    maxBufferChars: STATUS_OUTPUT_CHARS,
+    env: buildChildEnv(),
+  });
+  const versionText = sanitizeText(
+    [versionResult.stdout, versionResult.stderr, versionResult.error?.message].filter(Boolean).join("\n"),
+    redactions,
+    1000,
+  );
+
+  let helpResult = null;
+  let helpText = "";
+  if (!versionResult.error) {
+    helpResult = await runProcess(cliPath, ["help"], {
+      cwd,
+      timeoutMs: STATUS_TIMEOUT_MS,
+      maxBufferChars: STATUS_OUTPUT_CHARS,
+      env: buildChildEnv(),
+    });
+    helpText = sanitizeText(
+      [helpResult.stdout, helpResult.stderr, helpResult.error?.message].filter(Boolean).join("\n"),
+      redactions,
+      STATUS_OUTPUT_CHARS,
+    );
+  }
+
+  return {
+    ok: Boolean(versionResult.ok && helpResult?.ok && configFile.configured && configFile.isFile),
+    operation: "status",
+    executable: path.basename(cliPath),
+    cwd: cwd ? "[redacted-path]" : null,
+    configFile,
+    workspaceMode: normalizeOptionalString(config.workspaceMode) ?? null,
+    version: firstNonEmptyLine(versionText),
+    commands: commandSupportFromHelp(helpText),
+    exitCode: helpResult?.exitCode ?? versionResult.exitCode,
+    signal: helpResult?.signal ?? versionResult.signal,
+    timedOut: Boolean(versionResult.timedOut || helpResult?.timedOut),
+    needsUserAction: false,
+    stdout: "",
+    stderr: versionResult.error || helpResult?.error ? firstNonEmptyLine(helpText || versionText) : "",
+  };
 }
 
 export async function runKleinanzeigenOperation(operation, params = {}, config = {}) {

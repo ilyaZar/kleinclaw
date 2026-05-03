@@ -1,9 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import {
   buildChildEnv,
   buildKleinanzeigenArgs,
   detectUserActionRequest,
+  getKleinanzeigenStatus,
   redactArgs,
   runProcess,
   sanitizeText,
@@ -88,6 +92,48 @@ describe("kleinanzeigen CLI argument builder", () => {
       ),
       ["--config=config.yaml", "--logfile=", "extend", "--ads=all"],
     );
+  });
+});
+
+describe("kleinanzeigen CLI status", () => {
+  it("checks executable capabilities without reading config contents", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinanzeigen-helper-status-"));
+    const mockCli = path.join(tmp, "mock-cli.mjs");
+    const mockConfig = path.join(tmp, "config.yaml");
+    await fs.writeFile(mockConfig, "password: should-not-be-read\n", "utf8");
+    await fs.writeFile(
+      mockCli,
+      [
+        "#!/usr/bin/env node",
+        "const command = process.argv[2];",
+        "if (command === 'version') console.log('1.2.3');",
+        "else if (command === 'help') console.log('publish verify delete update download extend');",
+        "else process.exit(2);",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.chmod(mockCli, 0o700);
+
+    const status = await getKleinanzeigenStatus({
+      cliPath: mockCli,
+      configPath: mockConfig,
+      workingDirectory: tmp,
+      workspaceMode: "portable",
+    });
+
+    assert.equal(status.ok, true);
+    assert.equal(status.version, "1.2.3");
+    assert.equal(status.configFile.exists, true);
+    assert.equal(status.configFile.isFile, true);
+    assert.deepEqual(status.commands, {
+      verify: true,
+      publish: true,
+      update: true,
+      delete: true,
+      download: true,
+      extend: true,
+    });
+    assert.doesNotMatch(JSON.stringify(status), /should-not-be-read|password/);
   });
 });
 
