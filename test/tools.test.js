@@ -14,9 +14,12 @@ describe("kleinanzeigen plugin tools", () => {
   it("keeps mutating tools separate while approval gating local CLI tools", () => {
     const tools = createKleinanzeigenTools();
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_verify"), false);
+    assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_status"), false);
     assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_verify"), true);
+    assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_status"), true);
     assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_verify"), true);
-    assert.equal(tools.length, 6);
+    assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_status"), true);
+    assert.equal(tools.length, 7);
     assert.deepEqual(
       tools.filter((tool) => SIDE_EFFECT_TOOL_NAMES.has(tool.name)).map((tool) => tool.name),
       [
