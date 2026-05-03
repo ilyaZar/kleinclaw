@@ -163,6 +163,17 @@ export function createKleinanzeigenTools(config = {}) {
               enum: ["due", "new", "changed", "all"],
               description: "Configured ad selector. Defaults to due.",
             },
+            selectors: {
+              type: "array",
+              minItems: 1,
+              maxItems: 4,
+              uniqueItems: true,
+              items: {
+                type: "string",
+                enum: ["due", "new", "changed", "all"],
+              },
+              description: "Publish selector list for combinations.",
+            },
             adIds: adIdsSchema,
             keepOld: {
               type: "boolean",
@@ -186,7 +197,7 @@ export function createKleinanzeigenTools(config = {}) {
             confirm: confirmSchema,
             selector: {
               type: "string",
-              enum: ["changed"],
+              enum: ["changed", "all"],
               description: "Configured ad selector. Defaults to changed.",
             },
             adIds: adIdsSchema,

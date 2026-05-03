@@ -66,8 +66,8 @@ Either `configPath` or `workingDirectory` must be set.
 }
 ```
 
-`cliProfile` defaults to `legacy`. Set it to `current` only when the installed
-bot supports the newer `update` and `extend` commands.
+For publishing combinations, pass `selectors` as a list such as
+`["changed", "due"]`. Do not mix selectors with explicit ad IDs.
 
 ## Notes
 

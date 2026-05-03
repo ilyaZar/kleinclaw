@@ -5,10 +5,10 @@ import path from "node:path";
 export const OPERATIONS = Object.freeze({
   verify: { command: "verify", sideEffect: false },
   publish: { command: "publish", sideEffect: true, defaultSelector: "due" },
-  update: { command: "update", sideEffect: true, defaultSelector: "changed", profile: "current" },
+  update: { command: "update", sideEffect: true, defaultSelector: "changed" },
   delete: { command: "delete", sideEffect: true, requiresIds: true },
   download: { command: "download", sideEffect: true, defaultSelector: "new" },
-  extend: { command: "extend", sideEffect: true, defaultSelector: "all", profile: "current" },
+  extend: { command: "extend", sideEffect: true, defaultSelector: "all" },
 });
 
 const ALLOWED_ENV_KEYS = new Set([
@@ -53,14 +53,6 @@ function normalizeOptionalString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function normalizeCliProfile(value) {
-  const profile = normalizeOptionalString(value) ?? "legacy";
-  if (!["legacy", "current"].includes(profile)) {
-    throw new Error("cliProfile must be legacy or current");
-  }
-  return profile;
-}
-
 function normalizePositiveInteger(value, fallback, min, max) {
   if (!Number.isInteger(value)) {
     return fallback;
@@ -95,6 +87,25 @@ function normalizeSelector(value, allowed, fallback) {
   return selector;
 }
 
+function normalizeSelectorList(value, allowed) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error("selectors must be an array");
+  }
+  const selectors = value.map((entry) => String(entry).trim()).filter(Boolean);
+  if (selectors.length === 0) {
+    throw new Error("selectors must not be empty");
+  }
+  for (const selector of selectors) {
+    if (!allowed.includes(selector)) {
+      throw new Error(`selectors must contain only: ${allowed.join(", ")}`);
+    }
+  }
+  return [...new Set(selectors)];
+}
+
 function requireConfirmed(operation, params) {
   if (OPERATIONS[operation]?.sideEffect && params.confirm !== true) {
     throw new Error("confirm must be true for this account-changing operation");
@@ -105,11 +116,6 @@ export function buildKleinanzeigenArgs(operation, params = {}, config = {}) {
   const spec = OPERATIONS[operation];
   if (!spec) {
     throw new Error(`unsupported operation: ${operation}`);
-  }
-
-  const cliProfile = normalizeCliProfile(config.cliProfile);
-  if (spec.profile === "current" && cliProfile !== "current") {
-    throw new Error(`${operation} requires cliProfile=current`);
   }
 
   requireConfirmed(operation, params);
@@ -145,21 +151,31 @@ export function buildKleinanzeigenArgs(operation, params = {}, config = {}) {
   }
 
   const adIds = normalizeAdIds(params.adIds);
+  if (adIds && (params.selector !== undefined || params.selectors !== undefined)) {
+    throw new Error("adIds cannot be combined with selectors");
+  }
   if (spec.requiresIds && !adIds) {
     throw new Error("adIds are required for delete");
   }
 
   const selectorByOperation = {
     publish: ["due", "new", "changed", "all"],
-    update: ["changed"],
+    update: ["changed", "all"],
     download: ["new", "all"],
     extend: ["all"],
   };
+  const allowedSelectors = selectorByOperation[operation];
+
+  if (params.selector !== undefined && params.selectors !== undefined) {
+    throw new Error("selector and selectors cannot be combined");
+  }
 
   const ads =
     adIds?.join(",") ??
-    (selectorByOperation[operation]
-      ? normalizeSelector(params.selector, selectorByOperation[operation], spec.defaultSelector)
+    (allowedSelectors
+      ? (operation === "publish" && params.selectors !== undefined
+          ? normalizeSelectorList(params.selectors, allowedSelectors)?.join(",")
+          : normalizeSelector(params.selector, allowedSelectors, spec.defaultSelector))
       : undefined);
 
   if (ads) {
@@ -256,7 +272,6 @@ export function resolveCliConfig(config = {}) {
     cliPath,
     cwd,
     configPath,
-    cliProfile: normalizeCliProfile(config.cliProfile),
     workspaceMode: normalizeOptionalString(config.workspaceMode),
     lang: normalizeOptionalString(config.lang),
     timeoutMs: normalizePositiveInteger(config.timeoutMs, 120000, 1000, 600000),
