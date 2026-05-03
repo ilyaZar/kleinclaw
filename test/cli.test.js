@@ -4,6 +4,7 @@ import {
   buildChildEnv,
   buildKleinanzeigenArgs,
   redactArgs,
+  runProcess,
   sanitizeText,
 } from "../src/cli.js";
 
@@ -109,6 +110,10 @@ describe("redacted output handling", () => {
     );
   });
 
+  it("can suppress sanitized output entirely", () => {
+    assert.equal(sanitizeText("password: sample-value", [], 0), "");
+  });
+
   it("passes only allowlisted non-secret environment variables", () => {
     const env = buildChildEnv({
       PATH: "/bin",
@@ -123,5 +128,21 @@ describe("redacted output handling", () => {
       HOME: "/home/test",
       DISPLAY: ":0",
     });
+  });
+
+  it("caps subprocess stdout and stderr while reading", async () => {
+    const result = await runProcess(
+      process.execPath,
+      [
+        "-e",
+        "process.stdout.write('x'.repeat(20)); process.stderr.write('y'.repeat(20));",
+      ],
+      { maxBufferChars: 5 },
+    );
+
+    assert.equal(result.stdout.length, 6);
+    assert.equal(result.stderr.length, 6);
+    assert.equal(sanitizeText(result.stdout, [], 5), "xxxxx\n[truncated]");
+    assert.equal(sanitizeText(result.stderr, [], 5), "yyyyy\n[truncated]");
   });
 });

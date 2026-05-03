@@ -202,7 +202,10 @@ export function sanitizeText(text, redactions = [], maxChars = 6000) {
   });
 
   const sanitized = sanitizedLines.join("\n").trim();
-  if (maxChars <= 0 || sanitized.length <= maxChars) {
+  if (maxChars <= 0) {
+    return "";
+  }
+  if (sanitized.length <= maxChars) {
     return sanitized;
   }
   return `${sanitized.slice(0, maxChars)}\n[truncated]`;
@@ -262,6 +265,18 @@ async function assertConfiguredFiles(config) {
 
 export function runProcess(command, args, options = {}) {
   const timeoutMs = options.timeoutMs ?? 120000;
+  const maxBufferChars = Number.isInteger(options.maxBufferChars)
+    ? Math.max(options.maxBufferChars, 0)
+    : 20000;
+  const captureLimit = maxBufferChars + 1;
+
+  const appendOutput = (current, chunk) => {
+    if (current.length >= captureLimit) {
+      return current;
+    }
+    const remaining = captureLimit - current.length;
+    return current + String(chunk).slice(0, remaining);
+  };
 
   return new Promise((resolve) => {
     let stdout = "";
@@ -295,10 +310,10 @@ export function runProcess(command, args, options = {}) {
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", (chunk) => {
-      stdout += chunk;
+      stdout = appendOutput(stdout, chunk);
     });
     child.stderr?.on("data", (chunk) => {
-      stderr += chunk;
+      stderr = appendOutput(stderr, chunk);
     });
 
     child.on("error", (error) => {
@@ -326,6 +341,7 @@ export async function runKleinanzeigenOperation(operation, params = {}, config =
   const result = await runProcess(cliConfig.cliPath, args, {
     cwd: cliConfig.cwd,
     timeoutMs: cliConfig.timeoutMs,
+    maxBufferChars: cliConfig.maxOutputChars,
     env: buildChildEnv(),
   });
 
