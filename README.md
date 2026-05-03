@@ -17,16 +17,19 @@ This is an unofficial helper. It is not affiliated with Kleinanzeigen.
 - `kleinanzeigen_download`: downloads selected ads into the bot workspace.
 - `kleinanzeigen_extend`: extends eligible selected ads.
 
-The tools are optional because they run a local command. Account-changing tools
-also require `confirm: true` and OpenClaw approval before they run. Tool output
-is capped and redacted for configured paths, email addresses, and
-credential-like lines.
+The tools are optional because they run a local command. All tools require
+OpenClaw approval before they run. Account-changing tools also require
+`confirm: true`. Tool output is capped and redacted for configured paths, email
+addresses, and credential-like lines.
 
 ## Install
 
 ```bash
 openclaw plugins install clawhub:kleinanzeigen-helper
 ```
+
+Install and set up `kleinanzeigen-bot` separately first, then point this plugin
+at that local executable and config.
 
 For local development:
 
