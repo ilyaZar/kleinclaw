@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    env:
+      SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      SOURCE_REF: ${{ github.head_ref || github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - run: npm test
+
+      - run: npm pack --dry-run --json --ignore-scripts
+
+      - run: |
+          npx --yes clawhub package publish . --dry-run --json \
+            --source-repo ilyaZar/kleinanzeigen-helper-plugin \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-ref "$SOURCE_REF"
