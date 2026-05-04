@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- require OpenClaw 2026.5.3 beta or newer for ClawHub npm-pack installs
+
 ## 0.1.0
 
 Initial KleinClaw package.

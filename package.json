@@ -1,6 +1,6 @@
 {
   "name": "kleinclaw",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Kleinanzeigen helper tools for a local kleinanzeigen-bot setup with redacted output",
   "license": "MIT",
   "repository": {
@@ -37,7 +37,7 @@
     "test": "node --test"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.5.2"
+    "openclaw": ">=2026.5.3-beta.3"
   },
   "peerDependenciesMeta": {
     "openclaw": {
@@ -49,12 +49,12 @@
       "./index.js"
     ],
     "compat": {
-      "pluginApi": ">=2026.5.2",
-      "minGatewayVersion": "2026.5.2"
+      "pluginApi": ">=2026.5.3-beta.3",
+      "minGatewayVersion": "2026.5.3-beta.3"
     },
     "build": {
-      "openclawVersion": "2026.5.2",
-      "pluginSdkVersion": "2026.5.2"
+      "openclawVersion": "2026.5.3-beta.3",
+      "pluginSdkVersion": "2026.5.3-beta.3"
     }
   }
 }
