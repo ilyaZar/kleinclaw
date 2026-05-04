@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- delegate local command execution to the OpenClaw runtime command helper
+
 ## 0.1.1
 
 - require OpenClaw 2026.5.3 beta or newer for ClawHub npm-pack installs

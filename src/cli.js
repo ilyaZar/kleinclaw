@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -376,6 +375,7 @@ export function resolveCliConfig(config = {}) {
     lang: normalizeOptionalString(config.lang),
     timeoutMs: normalizePositiveInteger(config.timeoutMs, 120000, 1000, 600000),
     maxOutputChars: normalizePositiveInteger(config.maxOutputChars, 6000, 0, 20000),
+    commandRunner: typeof config.commandRunner === "function" ? config.commandRunner : undefined,
   };
 }
 
@@ -906,7 +906,7 @@ function inferBrowserIdFromExecutable(executable) {
   return null;
 }
 
-async function browserVersion(executable) {
+async function browserVersion(executable, commandRunner) {
   if (!executable) {
     return "";
   }
@@ -914,11 +914,12 @@ async function browserVersion(executable) {
     timeoutMs: 4000,
     maxBufferChars: 500,
     env: buildChildEnv(),
+    commandRunner,
   });
   return firstNonEmptyLine([result.stdout, result.stderr].filter(Boolean).join("\n"));
 }
 
-async function detectInstalledBrowsers(sourceEnv = process.env) {
+async function detectInstalledBrowsers({ sourceEnv = process.env, commandRunner } = {}) {
   const detected = [];
   for (const [id, choice] of Object.entries(BROWSER_CHOICES)) {
     const executable = await resolveBrowserChoice(id, sourceEnv);
@@ -928,7 +929,7 @@ async function detectInstalledBrowsers(sourceEnv = process.env) {
       commands: choice.commands,
       installed: Boolean(executable),
       executable,
-      version: executable ? await browserVersion(executable) : "",
+      version: executable ? await browserVersion(executable, commandRunner) : "",
       supportedByBot: choice.supportedByBot,
       supportNote: choice.supportNote ?? "",
       botAutoDefault: choice.commands.some((command) =>
@@ -1169,7 +1170,9 @@ async function resolveBrowserUpdates(params = {}, cliConfig, currentBrowserConfi
       browser && browser !== "auto"
         ? browser
         : inferBrowserIdFromExecutable(effectiveBinary) ?? inferBrowserIdFromExecutable(
-            effectiveBotAutoBrowser(await detectInstalledBrowsers())?.executable,
+            effectiveBotAutoBrowser(
+              await detectInstalledBrowsers({ commandRunner: cliConfig.commandRunner }),
+            )?.executable,
           );
     const profileDir = profileDirForBrowser(effectiveBrowser);
     if (!profileDir) {
@@ -2348,73 +2351,54 @@ function firstNonEmptyLine(text) {
 }
 
 export function runProcess(command, args, options = {}) {
+  const commandRunner = options.commandRunner;
   const timeoutMs = options.timeoutMs ?? 120000;
   const maxBufferChars = Number.isInteger(options.maxBufferChars)
     ? Math.max(options.maxBufferChars, 0)
     : 20000;
   const captureLimit = maxBufferChars + 1;
 
-  const appendOutput = (current, chunk) => {
-    if (current.length >= captureLimit) {
-      return current;
-    }
-    const remaining = captureLimit - current.length;
-    return current + String(chunk).slice(0, remaining);
-  };
-
-  return new Promise((resolve) => {
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    let timedOut = false;
-
-    const child = spawn(command, args, {
-      cwd: options.cwd,
-      env: options.env ?? buildChildEnv(),
-      shell: false,
-      stdio: ["ignore", "pipe", "pipe"],
+  const capOutput = (value) => String(value ?? "").slice(0, captureLimit);
+  if (typeof commandRunner !== "function") {
+    return Promise.resolve({
+      ok: false,
+      exitCode: null,
+      signal: null,
+      stdout: "",
+      stderr: "",
+      error: new Error("OpenClaw command runner is not available"),
+      timedOut: false,
     });
+  }
 
-    const finish = (result) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      clearTimeout(timer);
-      resolve(result);
-    };
-
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGTERM");
-      setTimeout(() => child.kill("SIGKILL"), 2000).unref();
-    }, timeoutMs);
-    timer.unref();
-
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk) => {
-      stdout = appendOutput(stdout, chunk);
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr = appendOutput(stderr, chunk);
-    });
-
-    child.on("error", (error) => {
-      finish({ ok: false, exitCode: null, signal: null, stdout, stderr, error, timedOut });
-    });
-
-    child.on("close", (exitCode, signal) => {
-      finish({
+  return commandRunner([command, ...args], {
+    cwd: options.cwd,
+    env: options.env ?? buildChildEnv(),
+    timeoutMs,
+  }).then(
+    (result) => {
+      const timedOut =
+        result?.termination === "timeout" || result?.termination === "no-output-timeout";
+      const exitCode = Number.isInteger(result?.code) ? result.code : null;
+      return {
         ok: exitCode === 0 && !timedOut,
         exitCode,
-        signal,
-        stdout,
-        stderr,
+        signal: result?.signal ?? null,
+        stdout: capOutput(result?.stdout),
+        stderr: capOutput(result?.stderr),
         timedOut,
-      });
-    });
-  });
+      };
+    },
+    (error) => ({
+      ok: false,
+      exitCode: null,
+      signal: null,
+      stdout: "",
+      stderr: "",
+      error,
+      timedOut: false,
+    }),
+  );
 }
 
 export async function getKleinanzeigenBrowserStatus(config = {}) {
@@ -2422,7 +2406,9 @@ export async function getKleinanzeigenBrowserStatus(config = {}) {
   await assertConfiguredFiles(cliConfig);
   const text = await fs.readFile(cliConfig.configPath, "utf8");
   const browserConfig = parseBrowserConfigText(text);
-  const detectedBrowsers = await detectInstalledBrowsers();
+  const detectedBrowsers = await detectInstalledBrowsers({
+    commandRunner: cliConfig.commandRunner,
+  });
 
   return buildBrowserStatusPayload({ cliConfig, browserConfig, detectedBrowsers });
 }
@@ -2433,7 +2419,9 @@ export async function configureKleinanzeigenBrowser(params = {}, config = {}) {
   const stat = await fs.stat(cliConfig.configPath);
   const text = await fs.readFile(cliConfig.configPath, "utf8");
   const currentBrowserConfig = parseBrowserConfigText(text);
-  const detectedBrowsers = await detectInstalledBrowsers();
+  const detectedBrowsers = await detectInstalledBrowsers({
+    commandRunner: cliConfig.commandRunner,
+  });
   const previous = buildBrowserStatusPayload({
     cliConfig,
     browserConfig: currentBrowserConfig,
@@ -2517,7 +2505,9 @@ export async function checkKleinanzeigenBrowser(params = {}, config = {}) {
     : { config: cliConfig, cleanup: async () => {} };
   const checkConfig = tempConfig.config;
   const browserConfig = parseBrowserConfigText(checkText);
-  const detectedBrowsers = await detectInstalledBrowsers();
+  const detectedBrowsers = await detectInstalledBrowsers({
+    commandRunner: checkConfig.commandRunner,
+  });
   const status = buildBrowserStatusPayload({
     cliConfig: checkConfig,
     browserConfig,
@@ -2532,6 +2522,7 @@ export async function checkKleinanzeigenBrowser(params = {}, config = {}) {
       timeoutMs: checkConfig.timeoutMs,
       maxBufferChars: checkConfig.maxOutputChars,
       env: buildChildEnv(),
+      commandRunner: checkConfig.commandRunner,
     });
     const redactions = buildRedactions({ ...config, ...checkConfig });
     const rawText = [result.stdout, result.stderr, result.error?.message]
@@ -2583,6 +2574,7 @@ export async function getKleinanzeigenStatus(config = {}) {
   const configPath = resolveConfiguredConfigPath(config);
   const cwd =
     normalizeOptionalString(config.workingDirectory) ?? (configPath ? path.dirname(configPath) : undefined);
+  const commandRunner = typeof config.commandRunner === "function" ? config.commandRunner : undefined;
   const redactions = buildRedactions({ ...config, cliPath, workingDirectory: cwd, configPath });
 
   const configFile = {
@@ -2607,6 +2599,7 @@ export async function getKleinanzeigenStatus(config = {}) {
     timeoutMs: STATUS_TIMEOUT_MS,
     maxBufferChars: STATUS_OUTPUT_CHARS,
     env: buildChildEnv(),
+    commandRunner,
   });
   const versionText = sanitizeText(
     [versionResult.stdout, versionResult.stderr, versionResult.error?.message].filter(Boolean).join("\n"),
@@ -2622,6 +2615,7 @@ export async function getKleinanzeigenStatus(config = {}) {
       timeoutMs: STATUS_TIMEOUT_MS,
       maxBufferChars: STATUS_OUTPUT_CHARS,
       env: buildChildEnv(),
+      commandRunner,
     });
     helpText = sanitizeText(
       [helpResult.stdout, helpResult.stderr, helpResult.error?.message].filter(Boolean).join("\n"),
@@ -2682,6 +2676,7 @@ export async function runKleinanzeigenOperation(operation, params = {}, config =
       timeoutMs: cliConfig.timeoutMs,
       maxBufferChars: cliConfig.maxOutputChars,
       env: buildChildEnv(),
+      commandRunner: cliConfig.commandRunner,
     });
   } finally {
     await scopedConfig.cleanup();

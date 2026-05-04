@@ -11,6 +11,7 @@ import {
   resolveApprovalToolNames,
   SIDE_EFFECT_TOOL_NAMES,
 } from "../src/tools.js";
+import { createNodeCommandRunner } from "./helpers/command-runner.js";
 
 describe("kleinanzeigen plugin tools", () => {
   it("keeps mutating tools separate while approval gating local CLI tools", () => {
@@ -170,6 +171,7 @@ describe("kleinanzeigen plugin tools", () => {
       workingDirectory: tmp,
       configPath: mockConfig,
       maxOutputChars: 1000,
+      commandRunner: createNodeCommandRunner(),
     }).find((tool) => tool.name === "kleinanzeigen_verify");
 
     const result = await verify.execute("tool-call", {});

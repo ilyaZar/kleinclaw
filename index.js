@@ -6,13 +6,30 @@ import {
   resolveApprovalToolNames,
 } from "./src/tools.js";
 
+function createCommandRunner(runtime) {
+  const runCommandWithTimeout = runtime?.system?.runCommandWithTimeout;
+  if (typeof runCommandWithTimeout !== "function") {
+    return undefined;
+  }
+
+  return (argv, options = {}) =>
+    runCommandWithTimeout(argv, {
+      cwd: options.cwd,
+      env: options.env,
+      timeoutMs: options.timeoutMs ?? 120000,
+    });
+}
+
 export default definePluginEntry({
   id: "kleinclaw",
   name: "KleinClaw",
   description:
     "Kleinanzeigen helper tools for a local kleinanzeigen-bot setup with redacted output.",
   register(api) {
-    const pluginConfig = api.pluginConfig ?? {};
+    const pluginConfig = {
+      ...(api.pluginConfig ?? {}),
+      commandRunner: createCommandRunner(api.runtime),
+    };
     const tools = createKleinanzeigenTools(pluginConfig);
     const approvalToolNames = resolveApprovalToolNames(pluginConfig);
 

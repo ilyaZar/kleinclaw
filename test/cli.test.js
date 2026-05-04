@@ -24,6 +24,7 @@ import {
   sanitizeText,
   setKleinanzeigenAdActive,
 } from "../src/cli.js";
+import { createNodeCommandRunner, withCommandRunner } from "./helpers/command-runner.js";
 
 describe("kleinanzeigen CLI argument builder", () => {
   it("builds fixed verify args with redacted config args", () => {
@@ -155,12 +156,12 @@ describe("kleinanzeigen CLI status", () => {
     );
     await fs.chmod(mockCli, 0o700);
 
-    const status = await getKleinanzeigenStatus({
+    const status = await getKleinanzeigenStatus(withCommandRunner({
       cliPath: mockCli,
       configPath: mockConfig,
       workingDirectory: tmp,
       workspaceMode: "portable",
-    });
+    }));
 
     assert.equal(status.ok, true);
     assert.equal(status.version, "1.2.3");
@@ -202,11 +203,11 @@ describe("browser config tools", () => {
       "utf8",
     );
 
-    const status = await getKleinanzeigenBrowserStatus({
+    const status = await getKleinanzeigenBrowserStatus(withCommandRunner({
       configPath: mockConfig,
       workingDirectory: tmp,
       workspaceMode: "portable",
-    });
+    }));
 
     assert.equal(status.ok, true);
     assert.equal(status.operation, "browser_status");
@@ -263,10 +264,10 @@ describe("browser config tools", () => {
         usePrivateWindow: false,
         profileMode: "bot",
       },
-      {
+      withCommandRunner({
         configPath: mockConfig,
         workingDirectory: tmp,
-      },
+      }),
     );
     const updated = await fs.readFile(mockConfig, "utf8");
 
@@ -301,7 +302,7 @@ describe("browser config tools", () => {
       () =>
         configureKleinanzeigenBrowser(
           { confirm: true, binaryLocation: mockBrave },
-          { configPath: mockConfig, workingDirectory: tmp },
+          withCommandRunner({ configPath: mockConfig, workingDirectory: tmp }),
         ),
       /not a supported kleinanzeigen-bot browser/,
     );
@@ -344,11 +345,11 @@ describe("browser config tools", () => {
         allowUnsupportedBrowser: true,
         usePrivateWindow: false,
       },
-      {
+      withCommandRunner({
         cliPath: mockCli,
         configPath: mockConfig,
         workingDirectory: tmp,
-      },
+      }),
     );
     const original = await fs.readFile(mockConfig, "utf8");
 
@@ -613,12 +614,12 @@ describe("scoped ad configs", () => {
     const result = await runKleinanzeigenOperation(
       "verify",
       { adDirectories: [adDir] },
-      {
+      withCommandRunner({
         cliPath: mockCli,
         configPath,
         adRoots: [adRoot],
         maxOutputChars: 2000,
-      },
+      }),
     );
 
     assert.equal(result.ok, true);
@@ -680,11 +681,11 @@ describe("scoped ad configs", () => {
     const result = await runKleinanzeigenOperation(
       "publish",
       { confirm: true, adDirectories: [adDir] },
-      {
+      withCommandRunner({
         cliPath: mockCli,
         configPath,
         adRoots: [path.join(tmp, "ads")],
-      },
+      }),
     );
 
     assert.equal(result.ok, false);
@@ -721,11 +722,11 @@ describe("scoped ad configs", () => {
     const result = await runKleinanzeigenOperation(
       "publish",
       { confirm: true, adDirectories: [adDir] },
-      {
+      withCommandRunner({
         cliPath: mockCli,
         configPath,
         adRoots: [path.join(tmp, "ads")],
-      },
+      }),
     );
 
     assert.equal(result.ok, true);
@@ -761,11 +762,11 @@ describe("scoped ad configs", () => {
     const result = await runKleinanzeigenOperation(
       "publish",
       { confirm: true, adDirectories: [adDir] },
-      {
+      withCommandRunner({
         cliPath: mockCli,
         configPath,
         adRoots: [path.join(tmp, "ads")],
-      },
+      }),
     );
 
     assert.equal(result.ok, true);
@@ -804,11 +805,11 @@ describe("scoped ad configs", () => {
     const result = await runKleinanzeigenOperation(
       "delete",
       { confirm: true, adIds: ["2923863425"], adDirectories: [adDir] },
-      {
+      withCommandRunner({
         cliPath: mockCli,
         configPath,
         adRoots: [path.join(tmp, "ads")],
-      },
+      }),
     );
 
     assert.equal(result.ok, true);
@@ -883,11 +884,11 @@ describe("diagnostics", () => {
     const result = await runKleinanzeigenOperation(
       "verify",
       {},
-      {
+      withCommandRunner({
         cliPath: mockCli,
         configPath,
         adRoots: [tmp],
-      },
+      }),
     );
 
     assert.equal(result.ok, false);
@@ -972,7 +973,7 @@ describe("redacted output handling", () => {
         "-e",
         "process.stdout.write('x'.repeat(20)); process.stderr.write('y'.repeat(20));",
       ],
-      { maxBufferChars: 5 },
+      { maxBufferChars: 5, commandRunner: createNodeCommandRunner() },
     );
 
     assert.equal(result.stdout.length, 6);
