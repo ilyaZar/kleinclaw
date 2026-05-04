@@ -12,14 +12,21 @@
 KleinClaw is an OpenClaw plugin for running a local
 [`kleinanzeigen-bot`][kleinanzeigen-bot] setup through typed Kleinanzeigen
 helper tools. It does not store Kleinanzeigen credentials and it does not read
-the bot config. The bot stays installed and configured on the user's machine;
-this plugin just passes narrow commands to it and redacts the output before
-returning it to your OpenClaw agent.
+the full bot config. Browser tools read and write only the non-secret
+`browser:` section. The bot stays installed and configured on the user's
+machine; this plugin just passes narrow commands to it and redacts the output
+before returning it to your OpenClaw agent.
 
 ## What it adds
 
 - `kleinanzeigen_status`: checks local bot availability and config wiring.
 - `kleinanzeigen_list_ads`: lists local ad folders under trusted `adRoots`.
+- `kleinanzeigen_browser_status`: shows selected browser settings and locally
+  detected browser binaries.
+- `kleinanzeigen_browser_check`: runs the bot browser diagnostics against the
+  current or proposed browser settings.
+- `kleinanzeigen_browser_configure`: changes the bot browser binary, private
+  window flag, or browser profile settings.
 - `kleinanzeigen_verify`: checks the configured local bot setup.
 - `kleinanzeigen_publish`: publishes or republishes selected ads.
 - `kleinanzeigen_update`: updates changed or selected ads.
@@ -110,6 +117,80 @@ OpenClaw approval requests include the operation, selector, explicit ad IDs, and
 ad paths relative to configured `adRoots`. Check those details before approving
 mutating tools.
 
+### Browser settings
+
+Use `kleinanzeigen_browser_status` before publishing when browser state matters.
+It reports the configured `browser:` values, the effective browser the bot will
+try, and locally detected Chromium, Brave, Chrome, and Edge binaries. The
+supported `browser` choices intentionally match `kleinanzeigen-bot` support:
+`auto`, `chromium`, `google-chrome`, and `microsoft-edge`.
+
+```json
+{
+  "browser": "chromium",
+  "usePrivateWindow": true,
+  "profileMode": "bot",
+  "confirm": true
+}
+```
+
+`profileMode: "bot"` clears `browser.user_data_dir` and `profile_name`, so the
+bot uses its dedicated workspace browser profile. The `system-default` mode
+points the config at the chosen browser's normal local profile root. That can
+reuse local login state, but it can also fail if the same browser profile is
+already open or locked. The `custom` mode requires `userDataDir` and can also
+set `profileName`:
+
+```json
+{
+  "browser": "google-chrome",
+  "usePrivateWindow": false,
+  "profileMode": "custom",
+  "userDataDir": "/home/me/.config/google-chrome",
+  "profileName": "Default",
+  "confirm": true
+}
+```
+
+Use `browser: "auto"` to clear `browser.binary_location` and let
+`kleinanzeigen-bot` choose its default Chromium, Chrome, or Edge executable.
+`kleinanzeigen_browser_configure` edits only selected scalar keys under
+`browser:` and still requires `confirm: true`.
+
+Brave is a Chromium-family browser and may work as a custom executable, but it
+is not documented or auto-detected by `kleinanzeigen-bot`. KleinClaw reports it
+from `kleinanzeigen_browser_status` when installed, but does not expose it as a
+supported `browser` choice. To try it anyway, use an explicit `binaryLocation`
+and set `allowUnsupportedBrowser: true`:
+
+```json
+{
+  "binaryLocation": "/usr/bin/brave",
+  "allowUnsupportedBrowser": true,
+  "usePrivateWindow": true,
+  "profileMode": "bot",
+  "confirm": true
+}
+```
+
+Use `kleinanzeigen_browser_check` before changing the real config when you want
+to test whether the bot diagnostics accept a proposed browser setup. The check
+writes a temporary config and leaves the real bot config unchanged:
+
+```json
+{
+  "browser": "chromium",
+  "usePrivateWindow": false,
+  "profileMode": "bot"
+}
+```
+
+After publishing or updating, operation tools return a structured `outcome`
+with success state, final `DONE:` counts, published or updated IDs when the bot
+prints them, and selected ad config changes observed after the bot exits. This
+lets agents distinguish a real failure from a successful browser run with noisy
+process cleanup.
+
 When the bot config contains many ads, one invalid unrelated ad can make the
 bot reject the whole run before it applies `--ads` filtering. To operate on one
 known source folder, configure `adRoots`, use `kleinanzeigen_list_ads` to find
@@ -155,10 +236,11 @@ For publishing combinations, pass `selectors` as a list such as
 
 ## Notes
 
-The local bot owns browser/session behavior. If Kleinanzeigen asks for a normal
-account check, run the bot directly in a terminal/browser, handle it there, and
-then come back to `kleinanzeigen_verify`. **This plugin does not work around
-those checks.**
+The local bot still owns browser automation and account checks. KleinClaw can
+select the browser binary, private-window flag, and profile config, but it does
+not work around Kleinanzeigen checks. If Kleinanzeigen asks for a normal account
+check, run the bot directly in a terminal/browser, handle it there, and then
+come back to `kleinanzeigen_verify`.
 
 **Keep passwords, cookies, browser profile data, and full bot config files out
 of chat**. The intermediate CLI tools, the `kleinclaw` plugin plus the

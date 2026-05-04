@@ -2,6 +2,9 @@ import path from "node:path";
 
 import {
   buildRedactions,
+  checkKleinanzeigenBrowser,
+  configureKleinanzeigenBrowser,
+  getKleinanzeigenBrowserStatus,
   getKleinanzeigenStatus,
   listKleinanzeigenAds,
   runKleinanzeigenOperation,
@@ -14,11 +17,14 @@ export const SIDE_EFFECT_TOOL_NAMES = new Set([
   "kleinanzeigen_delete",
   "kleinanzeigen_download",
   "kleinanzeigen_extend",
+  "kleinanzeigen_browser_configure",
 ]);
 
 export const OPTIONAL_TOOL_NAMES = new Set([
   "kleinanzeigen_status",
   "kleinanzeigen_list_ads",
+  "kleinanzeigen_browser_status",
+  "kleinanzeigen_browser_check",
   "kleinanzeigen_verify",
   ...SIDE_EFFECT_TOOL_NAMES,
 ]);
@@ -109,7 +115,29 @@ export function buildKleinanzeigenApprovalDescription({ toolName, params = {}, c
     lines.push(`Ad config files: ${adConfigPaths}`);
   }
 
-  if (!adDirectories && !adConfigPaths && !Array.isArray(params.adIds)) {
+  if (operation === "browser_configure" || operation === "browser_check") {
+    if (typeof params.browser === "string") {
+      lines.push(`Browser: ${params.browser}`);
+    }
+    if (typeof params.binaryLocation === "string") {
+      lines.push(`Browser binary: ${relativeConfiguredPath(params.binaryLocation, config)}`);
+    }
+    if (typeof params.usePrivateWindow === "boolean") {
+      lines.push(`Private window: ${params.usePrivateWindow}`);
+    }
+    if (typeof params.profileMode === "string") {
+      lines.push(`Profile mode: ${params.profileMode}`);
+    }
+    if (typeof params.userDataDir === "string") {
+      lines.push(`User data dir: ${relativeConfiguredPath(params.userDataDir, config)}`);
+    }
+    if (typeof params.profileName === "string") {
+      lines.push(`Profile name: ${params.profileName || "(default)"}`);
+    }
+    if (typeof params.allowUnsupportedBrowser === "boolean") {
+      lines.push(`Allow unsupported browser: ${params.allowUnsupportedBrowser}`);
+    }
+  } else if (!adDirectories && !adConfigPaths && !Array.isArray(params.adIds)) {
     lines.push("Scope: bot config default selection");
   }
   if (typeof params.keepOld === "boolean") {
@@ -159,6 +187,22 @@ const confirmSchema = {
   type: "boolean",
   const: true,
   description: "Must be true only after the user explicitly confirms this operation.",
+};
+
+const browserSchema = {
+  type: "string",
+  enum: ["auto", "chromium", "google-chrome", "microsoft-edge"],
+  description:
+    "Browser to write into browser.binary_location. Auto clears the value and uses bot detection.",
+};
+
+const profileModeSchema = {
+  type: "string",
+  enum: ["bot", "system-default", "custom"],
+  description: [
+    "bot clears profile settings, system-default uses the chosen browser's",
+    "normal profile root, custom uses userDataDir.",
+  ].join(" "),
 };
 
 function textResult(payload) {
@@ -262,6 +306,162 @@ function listAdsTool(config) {
   );
 }
 
+function browserStatusTool(config) {
+  return bindToolConfig(
+    {
+      name: "kleinanzeigen_browser_status",
+      label: "Kleinanzeigen Browser Status",
+      description:
+        "Read the non-secret browser section and detected local browser binaries.",
+      parameters: objectSchema({}),
+      async execute(_toolCallId) {
+        try {
+          return textResult(await getKleinanzeigenBrowserStatus(this.config));
+        } catch (error) {
+          const stderr = sanitizeText(
+            error instanceof Error ? error.message : String(error),
+            buildRedactions(this.config),
+            2000,
+          );
+          return textResult({
+            ok: false,
+            operation: "browser_status",
+            exitCode: null,
+            signal: null,
+            timedOut: false,
+            needsUserAction: false,
+            stdout: "",
+            stderr,
+          });
+        }
+      },
+    },
+    config,
+  );
+}
+
+function browserConfigureTool(config) {
+  return bindToolConfig(
+    {
+      name: "kleinanzeigen_browser_configure",
+      label: "Kleinanzeigen Browser Configure",
+      description:
+        "Change only the local bot browser config after explicit user confirmation.",
+      parameters: objectSchema(
+        {
+          confirm: confirmSchema,
+          browser: browserSchema,
+          binaryLocation: {
+            type: "string",
+            description:
+              "Explicit executable path. Use browser for known installed browsers when possible.",
+          },
+          usePrivateWindow: {
+            type: "boolean",
+            description: "Whether the bot should launch a private or incognito browser window.",
+          },
+          profileMode: profileModeSchema,
+          userDataDir: {
+            type: "string",
+            description: "Browser user data directory. Required when profileMode is custom.",
+          },
+          profileName: {
+            type: "string",
+            description: "Optional browser profile directory name, such as Default or Profile 1.",
+          },
+          allowUnsupportedBrowser: {
+            type: "boolean",
+            description:
+              "Allow binaryLocation to point at a custom browser that the bot does not officially support.",
+          },
+        },
+        ["confirm"],
+      ),
+      async execute(_toolCallId, params) {
+        try {
+          return textResult(await configureKleinanzeigenBrowser(params ?? {}, this.config));
+        } catch (error) {
+          const stderr = sanitizeText(
+            error instanceof Error ? error.message : String(error),
+            buildRedactions(this.config),
+            2000,
+          );
+          return textResult({
+            ok: false,
+            operation: "browser_configure",
+            exitCode: null,
+            signal: null,
+            timedOut: false,
+            needsUserAction: false,
+            stdout: "",
+            stderr,
+          });
+        }
+      },
+    },
+    config,
+  );
+}
+
+function browserCheckTool(config) {
+  return bindToolConfig(
+    {
+      name: "kleinanzeigen_browser_check",
+      label: "Kleinanzeigen Browser Check",
+      description:
+        "Run kleinanzeigen-bot browser diagnostics against current or temporary browser settings.",
+      parameters: objectSchema({
+        browser: browserSchema,
+        binaryLocation: {
+          type: "string",
+          description:
+            "Explicit executable path. Use browser for known installed browsers when possible.",
+        },
+        usePrivateWindow: {
+          type: "boolean",
+          description: "Whether the checked config should use a private or incognito window.",
+        },
+        profileMode: profileModeSchema,
+        userDataDir: {
+          type: "string",
+          description: "Browser user data directory. Required when profileMode is custom.",
+        },
+        profileName: {
+          type: "string",
+          description: "Optional browser profile directory name, such as Default or Profile 1.",
+        },
+        allowUnsupportedBrowser: {
+          type: "boolean",
+          description:
+            "Allow binaryLocation to point at a custom browser that the bot does not officially support.",
+        },
+      }),
+      async execute(_toolCallId, params) {
+        try {
+          return textResult(await checkKleinanzeigenBrowser(params ?? {}, this.config));
+        } catch (error) {
+          const stderr = sanitizeText(
+            error instanceof Error ? error.message : String(error),
+            buildRedactions(this.config),
+            2000,
+          );
+          return textResult({
+            ok: false,
+            operation: "browser_check",
+            exitCode: null,
+            signal: null,
+            timedOut: false,
+            needsUserAction: false,
+            stdout: "",
+            stderr,
+          });
+        }
+      },
+    },
+    config,
+  );
+}
+
 function bindToolConfig(tool, config) {
   const execute = tool.execute;
   return {
@@ -306,6 +506,9 @@ export function createKleinanzeigenTools(config = {}) {
       config,
     ),
     listAdsTool(config),
+    browserStatusTool(config),
+    browserCheckTool(config),
+    browserConfigureTool(config),
     bindToolConfig(
       operationTool({
         name: "kleinanzeigen_verify",

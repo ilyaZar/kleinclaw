@@ -10,6 +10,9 @@
     "tools": [
       "kleinanzeigen_status",
       "kleinanzeigen_list_ads",
+      "kleinanzeigen_browser_status",
+      "kleinanzeigen_browser_check",
+      "kleinanzeigen_browser_configure",
       "kleinanzeigen_verify",
       "kleinanzeigen_publish",
       "kleinanzeigen_update",

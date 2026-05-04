@@ -17,14 +17,20 @@ describe("kleinanzeigen plugin tools", () => {
     const tools = createKleinanzeigenTools();
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_verify"), false);
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_status"), false);
+    assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_browser_status"), false);
+    assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_browser_check"), false);
+    assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_browser_configure"), true);
     assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_verify"), true);
     assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_status"), true);
+    assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_browser_status"), true);
+    assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_browser_check"), true);
     assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_verify"), true);
     assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_status"), true);
-    assert.equal(tools.length, 8);
+    assert.equal(tools.length, 11);
     assert.deepEqual(
       tools.filter((tool) => SIDE_EFFECT_TOOL_NAMES.has(tool.name)).map((tool) => tool.name),
       [
+        "kleinanzeigen_browser_configure",
         "kleinanzeigen_publish",
         "kleinanzeigen_update",
         "kleinanzeigen_delete",
@@ -61,6 +67,31 @@ describe("kleinanzeigen plugin tools", () => {
     assert.match(description, /Ad config files: \[redacted-path\]\/ad.yaml/);
     assert.match(description, /Confirm: true/);
     assert.doesNotMatch(description, /\/ads|\/outside\/private/);
+  });
+
+  it("summarizes browser config changes without leaking profile paths", () => {
+    const description = buildKleinanzeigenApprovalDescription({
+      toolName: "kleinanzeigen_browser_configure",
+      params: {
+        confirm: true,
+        browser: "chromium",
+        usePrivateWindow: false,
+        profileMode: "custom",
+        userDataDir: "/private/profile",
+        profileName: "Default",
+        allowUnsupportedBrowser: false,
+      },
+      config: {},
+    });
+
+    assert.match(description, /Operation: browser_configure/);
+    assert.match(description, /Browser: chromium/);
+    assert.match(description, /Private window: false/);
+    assert.match(description, /Profile mode: custom/);
+    assert.match(description, /User data dir: \[redacted-path\]\/profile/);
+    assert.match(description, /Profile name: Default/);
+    assert.match(description, /Allow unsupported browser: false/);
+    assert.doesNotMatch(description, /\/private/);
   });
 
   it("runs a mock CLI and returns sanitized output", async () => {

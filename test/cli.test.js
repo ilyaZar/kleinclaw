@@ -7,8 +7,11 @@ import {
   buildRedactions,
   buildChildEnv,
   buildKleinanzeigenArgs,
+  checkKleinanzeigenBrowser,
+  configureKleinanzeigenBrowser,
   detectUserActionRequest,
   extractKleinanzeigenDiagnostics,
+  getKleinanzeigenBrowserStatus,
   getKleinanzeigenStatus,
   listKleinanzeigenAds,
   redactArgs,
@@ -160,6 +163,7 @@ describe("kleinanzeigen CLI status", () => {
     assert.equal(status.configFile.isFile, true);
     assert.deepEqual(status.commands, {
       verify: true,
+      diagnose: false,
       publish: true,
       update: true,
       delete: true,
@@ -167,6 +171,187 @@ describe("kleinanzeigen CLI status", () => {
       extend: true,
     });
     assert.doesNotMatch(JSON.stringify(status), /should-not-be-read|password/);
+  });
+});
+
+describe("browser config tools", () => {
+  it("reads only the non-secret browser config section", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-browser-"));
+    const mockConfig = path.join(tmp, "config.yaml");
+    await fs.writeFile(
+      mockConfig,
+      [
+        "login:",
+        "  username: hidden@example.invalid",
+        "  password: should-not-leak",
+        "browser:",
+        "  arguments:",
+        "    - --disable-dev-shm-usage",
+        "    - --no-sandbox",
+        "  binary_location: # \"/usr/bin/chromium\"",
+        "  extensions: []",
+        "  use_private_window: true",
+        "  user_data_dir: \"\"",
+        "  profile_name: \"\"",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const status = await getKleinanzeigenBrowserStatus({
+      configPath: mockConfig,
+      workingDirectory: tmp,
+      workspaceMode: "portable",
+    });
+
+    assert.equal(status.ok, true);
+    assert.equal(status.operation, "browser_status");
+    assert.equal(status.browser.configured.browser, "auto");
+    assert.deepEqual(status.browser.supportedChoices, [
+      "auto",
+      "chromium",
+      "google-chrome",
+      "microsoft-edge",
+    ]);
+    assert.equal(status.browser.configured.binaryLocation, "");
+    assert.equal(status.browser.configured.usePrivateWindow, true);
+    assert.equal(status.browser.effective.userDataDir, path.join(".temp", "browser-profile"));
+    assert.deepEqual(status.browser.configured.arguments, [
+      "--disable-dev-shm-usage",
+      "--no-sandbox",
+    ]);
+    assert.doesNotMatch(JSON.stringify(status), /should-not-leak|hidden@example/);
+  });
+
+  it("updates only selected browser keys after confirmation", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-browser-"));
+    const mockConfig = path.join(tmp, "config.yaml");
+    const mockBrowser = path.join(tmp, "mock-browser");
+    await fs.writeFile(
+      mockBrowser,
+      "#!/usr/bin/env node\nconsole.log('Mock Browser 1.0')\n",
+      "utf8",
+    );
+    await fs.chmod(mockBrowser, 0o700);
+    await fs.writeFile(
+      mockConfig,
+      [
+        "login:",
+        "  username: hidden@example.invalid",
+        "  password: should-not-leak",
+        "browser:",
+        "  arguments:",
+        "    - --disable-dev-shm-usage",
+        "  binary_location: \"\"",
+        "  extensions: []",
+        "  use_private_window: true",
+        "  user_data_dir: \"/secret/profile\"",
+        "  profile_name: \"Profile 1\"",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await configureKleinanzeigenBrowser(
+      {
+        confirm: true,
+        binaryLocation: mockBrowser,
+        allowUnsupportedBrowser: true,
+        usePrivateWindow: false,
+        profileMode: "bot",
+      },
+      {
+        configPath: mockConfig,
+        workingDirectory: tmp,
+      },
+    );
+    const updated = await fs.readFile(mockConfig, "utf8");
+
+    assert.equal(result.ok, true);
+    assert.equal(result.operation, "browser_configure");
+    assert.equal(result.changed, true);
+    assert.match(updated, /password: should-not-leak/);
+    assert.match(updated, new RegExp(`binary_location: ${JSON.stringify(mockBrowser)}`));
+    assert.match(updated, /use_private_window: false/);
+    assert.match(updated, /user_data_dir: ""/);
+    assert.match(updated, /profile_name: ""/);
+    assert.doesNotMatch(JSON.stringify(result), /should-not-leak|hidden@example|\/secret\/profile/);
+  });
+
+  it("rejects unsupported custom browser binaries by default", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-browser-"));
+    const mockConfig = path.join(tmp, "config.yaml");
+    const mockBrave = path.join(tmp, "brave");
+    await fs.writeFile(mockBrave, "#!/usr/bin/env node\n", "utf8");
+    await fs.chmod(mockBrave, 0o700);
+    await fs.writeFile(
+      mockConfig,
+      [
+        "browser:",
+        "  binary_location: \"\"",
+        "  use_private_window: true",
+      ].join("\n"),
+      "utf8",
+    );
+
+    await assert.rejects(
+      () =>
+        configureKleinanzeigenBrowser(
+          { confirm: true, binaryLocation: mockBrave },
+          { configPath: mockConfig, workingDirectory: tmp },
+        ),
+      /not a supported kleinanzeigen-bot browser/,
+    );
+  });
+
+  it("checks a browser through bot diagnostics without changing config", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-browser-"));
+    const mockConfig = path.join(tmp, "config.yaml");
+    const mockBrowser = path.join(tmp, "mock-browser");
+    const mockCli = path.join(tmp, "mock-cli.mjs");
+    await fs.writeFile(mockBrowser, "#!/usr/bin/env node\nconsole.log('Mock Browser 1.0')\n", "utf8");
+    await fs.chmod(mockBrowser, 0o700);
+    await fs.writeFile(
+      mockCli,
+      [
+        "#!/usr/bin/env node",
+        "if (process.argv.includes('diagnose')) {",
+        "  console.log('(ok) Browser binary exists: /tmp/mock-browser');",
+        "  console.log('(ok) Browser binary is executable');",
+        "  process.exit(0);",
+        "}",
+        "process.exit(2);",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.chmod(mockCli, 0o700);
+    await fs.writeFile(
+      mockConfig,
+      [
+        "browser:",
+        "  binary_location: \"\"",
+        "  use_private_window: true",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await checkKleinanzeigenBrowser(
+      {
+        binaryLocation: mockBrowser,
+        allowUnsupportedBrowser: true,
+        usePrivateWindow: false,
+      },
+      {
+        cliPath: mockCli,
+        configPath: mockConfig,
+        workingDirectory: tmp,
+      },
+    );
+    const original = await fs.readFile(mockConfig, "utf8");
+
+    assert.equal(result.ok, true);
+    assert.equal(result.operation, "browser_check");
+    assert.equal(result.canUse, true);
+    assert.equal(result.command.args.at(-1), "diagnose");
+    assert.match(original, /binary_location: ""/);
   });
 });
 
@@ -269,6 +454,126 @@ describe("scoped ad configs", () => {
         ),
       /outside configured adRoots/,
     );
+  });
+
+  it("returns publish success evidence even when the process exits noisy", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-outcome-"));
+    const adDir = path.join(tmp, "ads", "boxen");
+    const mockCli = path.join(tmp, "mock-cli.mjs");
+    const configPath = path.join(tmp, "config.yaml");
+    const adPath = path.join(adDir, "ad.yaml");
+    await fs.mkdir(adDir, { recursive: true });
+    await fs.writeFile(adPath, "title: Boxen\n", "utf8");
+    await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
+    await fs.writeFile(
+      mockCli,
+      [
+        "#!/usr/bin/env node",
+        "console.log(' -> SUCCESS: ad published with ID 2923863425');",
+        "console.log('DONE: (Re-)published 1 ad');",
+        "process.exit(1);",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.chmod(mockCli, 0o700);
+
+    const result = await runKleinanzeigenOperation(
+      "publish",
+      { confirm: true, adDirectories: [adDir] },
+      {
+        cliPath: mockCli,
+        configPath,
+        adRoots: [path.join(tmp, "ads")],
+      },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.processOk, false);
+    assert.equal(result.outcome.status, "succeeded");
+    assert.equal(result.outcome.success, true);
+    assert.deepEqual(result.outcome.adIds, ["2923863425"]);
+    assert.match(result.outcome.summary, /published 1 ad/);
+  });
+
+  it("uses selected ad config changes as publish success evidence", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-outcome-"));
+    const adDir = path.join(tmp, "ads", "boxen");
+    const mockCli = path.join(tmp, "mock-cli.mjs");
+    const configPath = path.join(tmp, "config.yaml");
+    const adPath = path.join(adDir, "ad.yaml");
+    await fs.mkdir(adDir, { recursive: true });
+    await fs.writeFile(adPath, "title: Boxen\n", "utf8");
+    await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
+    await fs.writeFile(
+      mockCli,
+      [
+        "#!/usr/bin/env node",
+        "import fs from 'node:fs';",
+        `fs.appendFileSync(${JSON.stringify(adPath)}, 'id: 2923863425\\n');`,
+        "console.error('browser cleanup failed after publish');",
+        "process.exit(1);",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.chmod(mockCli, 0o700);
+
+    const result = await runKleinanzeigenOperation(
+      "publish",
+      { confirm: true, adDirectories: [adDir] },
+      {
+        cliPath: mockCli,
+        configPath,
+        adRoots: [path.join(tmp, "ads")],
+      },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.processOk, false);
+    assert.equal(result.outcome.status, "succeeded");
+    assert.deepEqual(result.outcome.changedAdConfigs, [
+      {
+        adPath: path.join("boxen", "ad.yaml"),
+        title: "Boxen",
+        id: "2923863425",
+        changedFields: ["id"],
+      },
+    ]);
+  });
+
+  it("parses delete completion counts as changed and total ads", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-outcome-"));
+    const adDir = path.join(tmp, "ads", "boxen");
+    const mockCli = path.join(tmp, "mock-cli.mjs");
+    const configPath = path.join(tmp, "config.yaml");
+    const adPath = path.join(adDir, "ad.yaml");
+    await fs.mkdir(adDir, { recursive: true });
+    await fs.writeFile(adPath, "title: Boxen\nid: 2923863425\n", "utf8");
+    await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
+    await fs.writeFile(
+      mockCli,
+      [
+        "#!/usr/bin/env node",
+        "console.log('DONE: Deleted 1 of 1');",
+        "process.exit(0);",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.chmod(mockCli, 0o700);
+
+    const result = await runKleinanzeigenOperation(
+      "delete",
+      { confirm: true, adIds: ["2923863425"], adDirectories: [adDir] },
+      {
+        cliPath: mockCli,
+        configPath,
+        adRoots: [path.join(tmp, "ads")],
+      },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.outcome.success, true);
+    assert.equal(result.outcome.status, "succeeded");
+    assert.deepEqual(result.outcome.counts, { changed: 1, failed: 0, total: 1 });
   });
 });
 

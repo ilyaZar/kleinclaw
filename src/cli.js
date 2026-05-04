@@ -1,9 +1,12 @@
 import { spawn } from "node:child_process";
+import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 export const OPERATIONS = Object.freeze({
   verify: { command: "verify", sideEffect: false },
+  diagnose: { command: "diagnose", sideEffect: false },
   publish: { command: "publish", sideEffect: true, defaultSelector: "due" },
   update: { command: "update", sideEffect: true, defaultSelector: "changed" },
   delete: { command: "delete", sideEffect: true, requiresIds: true },
@@ -49,6 +52,46 @@ const USER_ACTION_HINT = [
 const STATUS_TIMEOUT_MS = 15000;
 const STATUS_OUTPUT_CHARS = 3000;
 const AD_FILE_NAMES = ["ad.yaml", "ad.yml", "ad.json"];
+const BOT_DEFAULT_BROWSER_ORDER = ["chromium", "chromium-browser", "google-chrome", "microsoft-edge"];
+const BROWSER_CHOICES = Object.freeze({
+  chromium: {
+    label: "Chromium",
+    commands: ["chromium", "chromium-browser"],
+    profileDir: [".config", "chromium"],
+    supportedByBot: true,
+  },
+  brave: {
+    label: "Brave",
+    commands: ["brave", "brave-browser"],
+    profileDir: [".config", "BraveSoftware", "Brave-Browser"],
+    supportedByBot: false,
+    supportNote: "not documented or auto-detected by kleinanzeigen-bot",
+  },
+  "google-chrome": {
+    label: "Google Chrome",
+    commands: ["google-chrome", "google-chrome-stable"],
+    profileDir: [".config", "google-chrome"],
+    supportedByBot: true,
+  },
+  "microsoft-edge": {
+    label: "Microsoft Edge",
+    commands: ["microsoft-edge", "microsoft-edge-stable"],
+    profileDir: [".config", "microsoft-edge"],
+    supportedByBot: true,
+  },
+});
+const SUPPORTED_BROWSER_IDS = Object.freeze(
+  Object.entries(BROWSER_CHOICES)
+    .filter(([, choice]) => choice.supportedByBot)
+    .map(([id]) => id),
+);
+const BROWSER_COMMAND_ALIASES = Object.freeze(
+  Object.fromEntries(
+    Object.entries(BROWSER_CHOICES).flatMap(([id, choice]) =>
+      choice.commands.map((command) => [command, id]),
+    ),
+  ),
+);
 
 function normalizeOptionalString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -166,7 +209,7 @@ export function buildKleinanzeigenArgs(operation, params = {}, config = {}) {
 
   args.push(spec.command);
 
-  if (operation === "verify") {
+  if (["verify", "diagnose"].includes(operation)) {
     return args;
   }
 
@@ -383,7 +426,8 @@ async function resolveAdConfigInDirectory(directory) {
 }
 
 function stripYamlScalar(value) {
-  const withoutComment = String(value ?? "").replace(/\s+#.*$/, "").trim();
+  const raw = String(value ?? "").trim();
+  const withoutComment = raw.startsWith("#") ? "" : raw.replace(/\s+#.*$/, "").trim();
   if (
     (withoutComment.startsWith('"') && withoutComment.endsWith('"')) ||
     (withoutComment.startsWith("'") && withoutComment.endsWith("'"))
@@ -391,6 +435,489 @@ function stripYamlScalar(value) {
     return withoutComment.slice(1, -1);
   }
   return withoutComment;
+}
+
+function quoteYamlScalar(value) {
+  return JSON.stringify(String(value ?? ""));
+}
+
+function findTopLevelYamlSection(lines, key) {
+  const start = lines.findIndex((line) => new RegExp(`^${key}\\s*:`).test(line));
+  if (start === -1) {
+    return null;
+  }
+
+  let end = start + 1;
+  while (end < lines.length) {
+    const line = lines[end];
+    if (/^[A-Za-z_][A-Za-z0-9_-]*\s*:/.test(line)) {
+      break;
+    }
+    end += 1;
+  }
+  return { start, end };
+}
+
+function parseBrowserConfigText(text) {
+  const config = {
+    arguments: [],
+    binary_location: "",
+    use_private_window: true,
+    user_data_dir: "",
+    profile_name: "",
+  };
+  const lines = String(text ?? "").replace(/\r\n/g, "\n").split("\n");
+  const section = findTopLevelYamlSection(lines, "browser");
+  if (!section) {
+    return { ...config, configured: false };
+  }
+
+  let currentKey = "";
+  for (let index = section.start + 1; index < section.end; index += 1) {
+    const line = lines[index];
+    const direct = /^\s+([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(.*)$/.exec(line);
+    if (direct) {
+      currentKey = direct[1];
+      const value = stripYamlScalar(direct[2]);
+      if (currentKey === "binary_location") {
+        config.binary_location = value;
+      } else if (currentKey === "use_private_window") {
+        config.use_private_window = value === "true";
+      } else if (currentKey === "user_data_dir") {
+        config.user_data_dir = value;
+      } else if (currentKey === "profile_name") {
+        config.profile_name = value;
+      } else if (currentKey === "arguments" && value === "[]") {
+        config.arguments = [];
+      }
+      continue;
+    }
+
+    const listEntry = currentKey === "arguments" ? /^\s+-\s*(.+?)\s*$/.exec(line) : null;
+    if (listEntry) {
+      const value = stripYamlScalar(listEntry[1]);
+      if (value) {
+        config.arguments.push(value);
+      }
+    }
+  }
+
+  return { ...config, configured: true };
+}
+
+function normalizeBrowserName(value) {
+  const browser = normalizeOptionalString(value);
+  if (browser === undefined) {
+    return undefined;
+  }
+  if (browser !== "auto" && !SUPPORTED_BROWSER_IDS.includes(browser)) {
+    throw new Error(
+      `browser must be one of: auto, ${SUPPORTED_BROWSER_IDS.join(", ")}`,
+    );
+  }
+  return browser;
+}
+
+function normalizeBoolean(value, name) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "boolean") {
+    throw new Error(`${name} must be a boolean`);
+  }
+  return value;
+}
+
+function normalizeProfileMode(value) {
+  const mode = normalizeOptionalString(value);
+  if (mode === undefined) {
+    return undefined;
+  }
+  if (!["bot", "system-default", "custom"].includes(mode)) {
+    throw new Error("profileMode must be bot, system-default, or custom");
+  }
+  return mode;
+}
+
+function normalizeOptionalPathSetting(value, name) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throw new Error(`${name} must be a string`);
+  }
+  return value.trim();
+}
+
+function uniqueValues(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function browserSearchPaths(sourceEnv = process.env) {
+  return uniqueValues([
+    ...(sourceEnv.PATH ? sourceEnv.PATH.split(path.delimiter) : []),
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+    "/opt/brave-bin",
+  ]);
+}
+
+async function fileIsExecutable(filePath) {
+  try {
+    await fs.access(filePath, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function findExecutable(command, sourceEnv = process.env) {
+  if (!command) {
+    return null;
+  }
+  if (path.isAbsolute(command) || command.includes(path.sep)) {
+    const resolved = path.resolve(command);
+    return (await fileIsExecutable(resolved)) ? resolved : null;
+  }
+
+  for (const directory of browserSearchPaths(sourceEnv)) {
+    const candidate = path.join(directory, command);
+    if (await fileIsExecutable(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+async function resolveBrowserChoice(browser, sourceEnv = process.env) {
+  const choice = BROWSER_CHOICES[browser];
+  if (!choice) {
+    return null;
+  }
+  for (const command of choice.commands) {
+    const executable = await findExecutable(command, sourceEnv);
+    if (executable) {
+      return executable;
+    }
+  }
+  return null;
+}
+
+function inferBrowserIdFromExecutable(executable) {
+  const lower = path.basename(String(executable ?? "")).toLowerCase().replace(/\.exe$/, "");
+  if (Object.hasOwn(BROWSER_COMMAND_ALIASES, lower)) {
+    return BROWSER_COMMAND_ALIASES[lower];
+  }
+  const full = String(executable ?? "").toLowerCase();
+  if (full.includes("brave")) {
+    return "brave";
+  }
+  if (full.includes("chromium")) {
+    return "chromium";
+  }
+  if (full.includes("chrome")) {
+    return "google-chrome";
+  }
+  if (full.includes("edge") || full.includes("msedge")) {
+    return "microsoft-edge";
+  }
+  return null;
+}
+
+async function browserVersion(executable) {
+  if (!executable) {
+    return "";
+  }
+  const result = await runProcess(executable, ["--version"], {
+    timeoutMs: 4000,
+    maxBufferChars: 500,
+    env: buildChildEnv(),
+  });
+  return firstNonEmptyLine([result.stdout, result.stderr].filter(Boolean).join("\n"));
+}
+
+async function detectInstalledBrowsers(sourceEnv = process.env) {
+  const detected = [];
+  for (const [id, choice] of Object.entries(BROWSER_CHOICES)) {
+    const executable = await resolveBrowserChoice(id, sourceEnv);
+    detected.push({
+      id,
+      label: choice.label,
+      commands: choice.commands,
+      installed: Boolean(executable),
+      executable,
+      version: executable ? await browserVersion(executable) : "",
+      supportedByBot: choice.supportedByBot,
+      supportNote: choice.supportNote ?? "",
+      botAutoDefault: choice.commands.some((command) =>
+        BOT_DEFAULT_BROWSER_ORDER.includes(command),
+      ),
+    });
+  }
+  return detected;
+}
+
+function effectiveBotAutoBrowser(detectedBrowsers) {
+  for (const command of BOT_DEFAULT_BROWSER_ORDER) {
+    const browser = detectedBrowsers.find((entry) => entry.commands.includes(command));
+    if (browser?.installed) {
+      return browser;
+    }
+  }
+  return null;
+}
+
+function displayBrowserPath(filePath, baseDir) {
+  if (!filePath) {
+    return "";
+  }
+  const resolved = path.resolve(baseDir, filePath);
+  const relative = path.relative(baseDir, resolved);
+  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+    return relative || ".";
+  }
+  return `[redacted-path]/${path.basename(resolved)}`;
+}
+
+function redactBrowserArgument(argument, baseDir) {
+  const match = /^--user-data-dir=(.*)$/.exec(argument);
+  if (!match) {
+    return argument;
+  }
+  return `--user-data-dir=${displayBrowserPath(match[1].replace(/^["']|["']$/g, ""), baseDir)}`;
+}
+
+function profileDirForBrowser(browser) {
+  const choice = BROWSER_CHOICES[browser];
+  if (!choice) {
+    return "";
+  }
+  return path.join(os.homedir(), ...choice.profileDir);
+}
+
+function buildBrowserStatusPayload({ cliConfig, browserConfig, detectedBrowsers }) {
+  const autoBrowser = effectiveBotAutoBrowser(detectedBrowsers);
+  const configuredBinaryLocation = browserConfig.binary_location;
+  const configuredBrowser = configuredBinaryLocation
+    ? inferBrowserIdFromExecutable(configuredBinaryLocation)
+    : "auto";
+  const effectiveBrowser = configuredBinaryLocation
+    ? detectedBrowsers.find((entry) => entry.id === configuredBrowser) ?? {
+        id: configuredBrowser,
+        executable: configuredBinaryLocation,
+      }
+    : autoBrowser;
+  const expectedBotProfileDir =
+    !browserConfig.user_data_dir && cliConfig.workspaceMode === "portable"
+      ? path.join(cliConfig.cwd, ".temp", "browser-profile")
+      : "";
+
+  return {
+    ok: true,
+    operation: "browser_status",
+    configFile: {
+      configured: true,
+      exists: true,
+      isFile: true,
+    },
+    browser: {
+      supportedChoices: ["auto", ...SUPPORTED_BROWSER_IDS],
+      configured: {
+        browser: configuredBrowser,
+        binaryLocation: configuredBinaryLocation,
+        usePrivateWindow: browserConfig.use_private_window,
+        userDataDir: displayBrowserPath(browserConfig.user_data_dir, cliConfig.cwd),
+        profileName: browserConfig.profile_name,
+        arguments: browserConfig.arguments.map((entry) =>
+          redactBrowserArgument(entry, cliConfig.cwd),
+        ),
+      },
+      effective: {
+        browser: effectiveBrowser?.id ?? null,
+        binaryLocation: configuredBinaryLocation || autoBrowser?.executable || "",
+        usePrivateWindow: browserConfig.use_private_window,
+        userDataDir: displayBrowserPath(
+          browserConfig.user_data_dir || expectedBotProfileDir,
+          cliConfig.cwd,
+        ),
+        profileName: browserConfig.profile_name || "Default",
+      },
+      notes: configuredBinaryLocation
+        ? []
+        : [
+            "auto detection follows kleinanzeigen-bot order",
+            "Brave is detected as a custom Chromium-family browser, not an official bot choice",
+          ],
+    },
+    detectedBrowsers,
+    exitCode: 0,
+    signal: null,
+    timedOut: false,
+    needsUserAction: false,
+    stdout: "",
+    stderr: "",
+  };
+}
+
+function scalarBrowserLine(indent, key, value) {
+  const rendered = typeof value === "boolean" ? String(value) : quoteYamlScalar(value);
+  return `${indent}${key}: ${rendered}`;
+}
+
+function replaceBrowserYaml(content, updates) {
+  const normalized = String(content ?? "").replace(/\r\n/g, "\n");
+  const hadTrailingNewline = normalized.endsWith("\n");
+  const lines = normalized.split("\n");
+  if (hadTrailingNewline) {
+    lines.pop();
+  }
+
+  let section = findTopLevelYamlSection(lines, "browser");
+  if (!section) {
+    lines.push(
+      "",
+      "browser:",
+      "  arguments: []",
+      "  binary_location: \"\"",
+      "  extensions: []",
+      "  use_private_window: true",
+      "  user_data_dir: \"\"",
+      "  profile_name: \"\"",
+    );
+    section = findTopLevelYamlSection(lines, "browser");
+  }
+
+  const existingChild = lines
+    .slice(section.start + 1, section.end)
+    .map((line) => /^(\s+)[A-Za-z_][A-Za-z0-9_-]*\s*:/.exec(line)?.[1])
+    .find(Boolean);
+  const indent = existingChild ?? "  ";
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === undefined) {
+      continue;
+    }
+
+    let replaced = false;
+    for (let index = section.start + 1; index < section.end; index += 1) {
+      if (new RegExp(`^\\s+${key}\\s*:`).test(lines[index])) {
+        lines[index] = scalarBrowserLine(indent, key, value);
+        replaced = true;
+        break;
+      }
+    }
+
+    if (!replaced) {
+      lines.splice(section.end, 0, scalarBrowserLine(indent, key, value));
+      section.end += 1;
+    }
+  }
+
+  return `${lines.join("\n")}${hadTrailingNewline ? "\n" : ""}`;
+}
+
+async function writeFileAtomic(filePath, content, mode) {
+  const directory = path.dirname(filePath);
+  const basename = path.basename(filePath);
+  const tmp = path.join(directory, `.${basename}.kleinclaw-${process.pid}-${Date.now()}.tmp`);
+  try {
+    await fs.writeFile(tmp, content, { encoding: "utf8", mode });
+    await fs.rename(tmp, filePath);
+  } catch (error) {
+    await fs.rm(tmp, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+async function resolveBrowserUpdates(params = {}, cliConfig, currentBrowserConfig) {
+  if (params.confirm !== true) {
+    throw new Error("confirm must be true before changing browser config");
+  }
+
+  const browser = normalizeBrowserName(params.browser);
+  const binaryLocation = normalizeOptionalPathSetting(params.binaryLocation, "binaryLocation");
+  const userDataDir = normalizeOptionalPathSetting(params.userDataDir, "userDataDir");
+  const profileName = normalizeOptionalPathSetting(params.profileName, "profileName");
+  const profileMode = normalizeProfileMode(params.profileMode);
+  const allowUnsupportedBrowser =
+    normalizeBoolean(params.allowUnsupportedBrowser, "allowUnsupportedBrowser") ?? false;
+  const updates = {};
+
+  if (browser && binaryLocation) {
+    throw new Error("browser cannot be combined with binaryLocation");
+  }
+
+  if (browser === "auto") {
+    updates.binary_location = "";
+  } else if (browser) {
+    const executable = await resolveBrowserChoice(browser);
+    if (!executable) {
+      throw new Error(`${BROWSER_CHOICES[browser].label} executable was not found on PATH`);
+    }
+    updates.binary_location = executable;
+  } else if (binaryLocation !== undefined) {
+    if (!binaryLocation) {
+      throw new Error("binaryLocation must not be empty");
+    }
+    const executable = path.resolve(cliConfig.cwd, binaryLocation);
+    if (!(await fileIsExecutable(executable))) {
+      throw new Error("binaryLocation does not point to an executable file");
+    }
+    const inferredBrowser = inferBrowserIdFromExecutable(executable);
+    const browserChoice = inferredBrowser ? BROWSER_CHOICES[inferredBrowser] : null;
+    if (!browserChoice?.supportedByBot && !allowUnsupportedBrowser) {
+      throw new Error(
+        "binaryLocation is not a supported kleinanzeigen-bot browser; " +
+          "set allowUnsupportedBrowser true to try it as a custom Chromium-family executable",
+      );
+    }
+    updates.binary_location = executable;
+  }
+
+  if (params.usePrivateWindow !== undefined) {
+    updates.use_private_window = normalizeBoolean(params.usePrivateWindow, "usePrivateWindow");
+  }
+
+  if (profileMode === "bot") {
+    updates.user_data_dir = "";
+    updates.profile_name = "";
+  } else if (profileMode === "system-default") {
+    const effectiveBinary = updates.binary_location ?? currentBrowserConfig.binary_location;
+    const effectiveBrowser =
+      browser && browser !== "auto"
+        ? browser
+        : inferBrowserIdFromExecutable(effectiveBinary) ?? inferBrowserIdFromExecutable(
+            effectiveBotAutoBrowser(await detectInstalledBrowsers())?.executable,
+          );
+    const profileDir = profileDirForBrowser(effectiveBrowser);
+    if (!profileDir) {
+      throw new Error("profileMode system-default needs a known browser choice");
+    }
+    updates.user_data_dir = profileDir;
+    updates.profile_name = profileName ?? "";
+  } else if (profileMode === "custom") {
+    if (userDataDir === undefined || !userDataDir) {
+      throw new Error("profileMode custom requires userDataDir");
+    }
+    updates.user_data_dir = path.resolve(cliConfig.cwd, userDataDir);
+    if (profileName !== undefined) {
+      updates.profile_name = profileName;
+    }
+  } else {
+    if (userDataDir !== undefined) {
+      updates.user_data_dir = userDataDir ? path.resolve(cliConfig.cwd, userDataDir) : "";
+    }
+    if (profileName !== undefined) {
+      updates.profile_name = profileName;
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new Error("provide at least one browser setting to change");
+  }
+
+  return updates;
 }
 
 function parseAdSummary(text) {
@@ -434,6 +961,286 @@ function parseAdSummary(text) {
   }
 
   return summary;
+}
+
+function parseAdOperationState(text, filePath = "") {
+  if (path.extname(filePath).toLowerCase() === ".json") {
+    try {
+      const parsed = JSON.parse(text);
+      return {
+        id: parsed.id ? String(parsed.id) : null,
+        title: typeof parsed.title === "string" ? parsed.title : "",
+        updatedOn: typeof parsed.updated_on === "string" ? parsed.updated_on : "",
+        createdOn: typeof parsed.created_on === "string" ? parsed.created_on : "",
+        contentHash: typeof parsed.content_hash === "string" ? parsed.content_hash : "",
+        repostCount: Number.isInteger(parsed.repost_count) ? parsed.repost_count : null,
+      };
+    } catch {
+      return { id: null, title: "", updatedOn: "", createdOn: "", contentHash: "", repostCount: null };
+    }
+  }
+
+  const state = {
+    id: null,
+    title: "",
+    updatedOn: "",
+    createdOn: "",
+    contentHash: "",
+    repostCount: null,
+  };
+
+  for (const rawLine of String(text ?? "").split("\n")) {
+    const topLevel = /^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$/.exec(rawLine.trimEnd());
+    if (!topLevel) {
+      continue;
+    }
+    const key = topLevel[1];
+    const value = stripYamlScalar(topLevel[2]);
+    if (key === "id") {
+      state.id = value || null;
+    } else if (key === "title") {
+      state.title = value;
+    } else if (key === "updated_on") {
+      state.updatedOn = value;
+    } else if (key === "created_on") {
+      state.createdOn = value;
+    } else if (key === "content_hash") {
+      state.contentHash = value;
+    } else if (key === "repost_count") {
+      state.repostCount = /^\d+$/.test(value) ? Number(value) : null;
+    }
+  }
+
+  return state;
+}
+
+async function readAdOperationSnapshots(adConfigPaths = [], config = {}) {
+  const roots = normalizeStringArray(config.adRoots, "adRoots", { maxItems: 50 });
+  const resolvedRoots = roots.length
+    ? await Promise.all(
+        roots.map(async (entry) => realPath(entry).catch(() => null)),
+      )
+    : [];
+  const snapshots = [];
+
+  for (const adConfigPath of adConfigPaths) {
+    try {
+      const text = await fs.readFile(adConfigPath, "utf8");
+      const displayRoot =
+        resolvedRoots.find((root) => root && pathIsInside(adConfigPath, root)) ??
+        path.dirname(adConfigPath);
+      snapshots.push({
+        path: adConfigPath,
+        displayPath: displayPathForAd(adConfigPath, displayRoot),
+        exists: true,
+        ...parseAdOperationState(text, adConfigPath),
+      });
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        throw error;
+      }
+      snapshots.push({
+        path: adConfigPath,
+        displayPath: path.basename(adConfigPath),
+        exists: false,
+        id: null,
+        title: "",
+        updatedOn: "",
+        createdOn: "",
+        contentHash: "",
+        repostCount: null,
+      });
+    }
+  }
+
+  return snapshots;
+}
+
+function operationDonePatterns(operation) {
+  if (operation === "publish") {
+    return [
+      {
+        re: /DONE:\s+\(Re-\)published\s+(\d+)\s+ads?(?:\s+\((\d+)\s+failed after retries\))?/i,
+        verb: "published",
+      },
+      { re: /DONE:\s+No new\/outdated ads found\./i, verb: "no_op" },
+    ];
+  }
+  if (operation === "update") {
+    return [
+      {
+        re: /DONE:\s+updated\s+(\d+)\s+ads?(?:\s+\((\d+)\s+failed after retries\))?/i,
+        verb: "updated",
+      },
+      { re: /DONE:\s+No changed ads found\./i, verb: "no_op" },
+    ];
+  }
+  if (operation === "delete") {
+    return [
+      {
+        re: /DONE:\s+Deleted\s+(\d+)\s+of\s+(\d+)/i,
+        verb: "deleted",
+        totalGroup: true,
+      },
+      { re: /DONE:\s+No ads to delete found\./i, verb: "no_op" },
+    ];
+  }
+  if (operation === "extend") {
+    return [
+      { re: /DONE:\s+Extended\s+(\d+)\s+ads?/i, verb: "extended" },
+      { re: /DONE:\s+No ads (?:found to extend|extended)\./i, verb: "no_op" },
+    ];
+  }
+  return [];
+}
+
+function parseOperationDone(operation, text) {
+  for (const pattern of operationDonePatterns(operation)) {
+    const match = pattern.re.exec(text);
+    if (!match) {
+      continue;
+    }
+    if (pattern.verb === "no_op") {
+      return { verb: "no_op", count: 0, failed: 0, total: 0 };
+    }
+    if (pattern.totalGroup) {
+      const count = Number(match[1] ?? 0);
+      const total = Number(match[2] ?? count);
+      return {
+        verb: pattern.verb,
+        count,
+        failed: Math.max(total - count, 0),
+        total,
+      };
+    }
+    const count = Number(match[1] ?? 0);
+    const failed = Number(match[2] ?? 0);
+    return {
+      verb: pattern.verb,
+      count,
+      failed,
+      total: match[2] !== undefined ? count + failed : count,
+    };
+  }
+  return null;
+}
+
+function summarizeAdSnapshotChanges(before = [], after = []) {
+  const beforeByPath = new Map(before.map((entry) => [entry.path, entry]));
+  const changes = [];
+  for (const next of after) {
+    const previous = beforeByPath.get(next.path);
+    if (!previous || !next.exists) {
+      continue;
+    }
+    const changedFields = [];
+    if (next.id && next.id !== previous.id) {
+      changedFields.push("id");
+    }
+    if (next.updatedOn && next.updatedOn !== previous.updatedOn) {
+      changedFields.push("updated_on");
+    }
+    if (next.contentHash && next.contentHash !== previous.contentHash) {
+      changedFields.push("content_hash");
+    }
+    if (next.repostCount !== null && next.repostCount !== previous.repostCount) {
+      changedFields.push("repost_count");
+    }
+    if (changedFields.length) {
+      changes.push({
+        adPath: next.displayPath,
+        title: next.title || previous.title,
+        id: next.id,
+        changedFields,
+      });
+    }
+  }
+  return changes;
+}
+
+function extractSuccessIds(text) {
+  return [...String(text ?? "").matchAll(/SUCCESS:\s+ad (?:published|updated) with ID\s+(\d+)/gi)]
+    .map((match) => match[1])
+    .filter(Boolean);
+}
+
+function buildOperationOutcome({ operation, result, rawText, beforeSnapshots, afterSnapshots }) {
+  if (operation === "verify") {
+    return {
+      success: Boolean(result.ok),
+      status: result.ok ? "succeeded" : "failed",
+      summary: result.ok ? "verify completed successfully" : "verify failed",
+      evidence: result.ok ? ["process exited successfully"] : [],
+    };
+  }
+
+  const done = parseOperationDone(operation, rawText);
+  const successIds = extractSuccessIds(rawText);
+  const changedAdConfigs = summarizeAdSnapshotChanges(beforeSnapshots, afterSnapshots);
+  const failedCount = done?.failed ?? 0;
+  const successEvidence = [];
+
+  if (successIds.length) {
+    successEvidence.push(`success ids: ${successIds.join(", ")}`);
+  }
+  if (done) {
+    successEvidence.push(`done marker: ${done.verb}`);
+  }
+  if (changedAdConfigs.length) {
+    successEvidence.push("selected ad config changed after operation");
+  }
+  if (result.ok) {
+    successEvidence.push("process exited successfully");
+  }
+
+  if (done?.verb === "no_op") {
+    return {
+      success: true,
+      status: "no_op",
+      summary: "bot completed successfully with no matching ads to change",
+      evidence: successEvidence,
+      counts: { changed: 0, failed: 0, total: 0 },
+      adIds: successIds,
+      changedAdConfigs,
+    };
+  }
+
+  const hasSuccessEvidence =
+    result.ok || successIds.length > 0 || changedAdConfigs.length > 0 || (done?.count ?? 0) > 0;
+  if (hasSuccessEvidence && failedCount === 0) {
+    return {
+      success: true,
+      status: result.timedOut ? "succeeded_with_process_timeout" : "succeeded",
+      summary: done
+        ? `bot ${done.verb} ${done.count} ad${done.count === 1 ? "" : "s"}`
+        : "bot operation produced success evidence",
+      evidence: successEvidence,
+      counts: done ? { changed: done.count, failed: 0, total: done.total } : undefined,
+      adIds: successIds,
+      changedAdConfigs,
+    };
+  }
+
+  if (hasSuccessEvidence && failedCount > 0) {
+    return {
+      success: false,
+      status: "partial_failure",
+      summary: `bot changed ${done.count} ad${done.count === 1 ? "" : "s"} but ${failedCount} failed`,
+      evidence: successEvidence,
+      counts: { changed: done.count, failed: failedCount, total: done.total },
+      adIds: successIds,
+      changedAdConfigs,
+    };
+  }
+
+  return {
+    success: false,
+    status: result.timedOut ? "timed_out" : "failed",
+    summary: result.timedOut ? "bot process timed out without success evidence" : "bot process failed",
+    evidence: successEvidence,
+    adIds: successIds,
+    changedAdConfigs,
+  };
 }
 
 function displayPathForAd(filePath, root) {
@@ -745,10 +1552,14 @@ async function createScopedConfig(cliConfig, adConfigPaths) {
     ext === ".json"
       ? JSON.stringify({ ...JSON.parse(original), ad_files: adConfigPaths }, null, 2)
       : replaceYamlAdFiles(original, adConfigPaths);
+  return createTemporaryConfig(cliConfig, scoped, ext);
+}
+
+async function createTemporaryConfig(cliConfig, content, ext = path.extname(cliConfig.configPath).toLowerCase()) {
   const configDir = path.dirname(cliConfig.configPath);
   const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const configPath = path.join(configDir, `.kleinclaw-${suffix}${ext === ".json" ? ".json" : ".yaml"}`);
-  await fs.writeFile(configPath, scoped, { encoding: "utf8", mode: 0o600 });
+  await fs.writeFile(configPath, content, { encoding: "utf8", mode: 0o600 });
 
   return {
     config: { ...cliConfig, configPath, cwd: configDir },
@@ -840,6 +1651,167 @@ export function runProcess(command, args, options = {}) {
   });
 }
 
+export async function getKleinanzeigenBrowserStatus(config = {}) {
+  const cliConfig = resolveCliConfig(config);
+  await assertConfiguredFiles(cliConfig);
+  const text = await fs.readFile(cliConfig.configPath, "utf8");
+  const browserConfig = parseBrowserConfigText(text);
+  const detectedBrowsers = await detectInstalledBrowsers();
+
+  return buildBrowserStatusPayload({ cliConfig, browserConfig, detectedBrowsers });
+}
+
+export async function configureKleinanzeigenBrowser(params = {}, config = {}) {
+  const cliConfig = resolveCliConfig(config);
+  await assertConfiguredFiles(cliConfig);
+  const stat = await fs.stat(cliConfig.configPath);
+  const text = await fs.readFile(cliConfig.configPath, "utf8");
+  const currentBrowserConfig = parseBrowserConfigText(text);
+  const detectedBrowsers = await detectInstalledBrowsers();
+  const previous = buildBrowserStatusPayload({
+    cliConfig,
+    browserConfig: currentBrowserConfig,
+    detectedBrowsers,
+  }).browser;
+  const updates = await resolveBrowserUpdates(params, cliConfig, currentBrowserConfig);
+  const nextText = replaceBrowserYaml(text, updates);
+  const changed = nextText !== text;
+
+  if (changed) {
+    await writeFileAtomic(cliConfig.configPath, nextText, stat.mode & 0o777);
+  }
+
+  const nextBrowserConfig = parseBrowserConfigText(nextText);
+  const status = buildBrowserStatusPayload({
+    cliConfig,
+    browserConfig: nextBrowserConfig,
+    detectedBrowsers,
+  });
+
+  return {
+    ...status,
+    operation: "browser_configure",
+    changed,
+    changedKeys: Object.keys(updates),
+    previous,
+  };
+}
+
+function browserCheckOverridesRequested(params = {}) {
+  return [
+    "browser",
+    "binaryLocation",
+    "usePrivateWindow",
+    "profileMode",
+    "userDataDir",
+    "profileName",
+  ].some((key) => params[key] !== undefined);
+}
+
+function extractBrowserCheckDiagnostics(text) {
+  const lines = String(text ?? "").replace(/\r\n/g, "\n").split("\n");
+  const failures = [];
+  const warnings = [];
+  const successes = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (/\(fail\)|failed|not found|not executable|permission/i.test(trimmed)) {
+      failures.push(trimmed);
+    } else if (/\(warn\)|warning/i.test(trimmed)) {
+      warnings.push(trimmed);
+    } else if (/\(ok\)|detected|executable/i.test(trimmed)) {
+      successes.push(trimmed);
+    }
+  }
+
+  return {
+    failures,
+    warnings,
+    successes,
+  };
+}
+
+export async function checkKleinanzeigenBrowser(params = {}, config = {}) {
+  const cliConfig = resolveCliConfig(config);
+  await assertConfiguredFiles(cliConfig);
+  const original = await fs.readFile(cliConfig.configPath, "utf8");
+  const currentBrowserConfig = parseBrowserConfigText(original);
+  const requestedOverrides = browserCheckOverridesRequested(params);
+  const updates = requestedOverrides
+    ? await resolveBrowserUpdates(
+        { ...params, confirm: true },
+        cliConfig,
+        currentBrowserConfig,
+      )
+    : {};
+  const checkText = requestedOverrides ? replaceBrowserYaml(original, updates) : original;
+  const tempConfig = requestedOverrides
+    ? await createTemporaryConfig(cliConfig, checkText)
+    : { config: cliConfig, cleanup: async () => {} };
+  const checkConfig = tempConfig.config;
+  const browserConfig = parseBrowserConfigText(checkText);
+  const detectedBrowsers = await detectInstalledBrowsers();
+  const status = buildBrowserStatusPayload({
+    cliConfig: checkConfig,
+    browserConfig,
+    detectedBrowsers,
+  });
+
+  let result;
+  try {
+    const args = buildKleinanzeigenArgs("diagnose", {}, checkConfig);
+    result = await runProcess(checkConfig.cliPath, args, {
+      cwd: checkConfig.cwd,
+      timeoutMs: checkConfig.timeoutMs,
+      maxBufferChars: checkConfig.maxOutputChars,
+      env: buildChildEnv(),
+    });
+    const redactions = buildRedactions({ ...config, ...checkConfig });
+    const rawText = [result.stdout, result.stderr, result.error?.message]
+      .filter(Boolean)
+      .join("\n");
+    const diagnostics = extractBrowserCheckDiagnostics(rawText);
+    const stdout = sanitizeText(result.stdout, redactions, checkConfig.maxOutputChars);
+    const stderr = sanitizeText(
+      result.error ? `${result.stderr}\n${result.error.message}` : result.stderr,
+      redactions,
+      checkConfig.maxOutputChars,
+    );
+    const failures = diagnostics.failures.map((line) => sanitizeText(line, redactions, 500));
+    const warnings = diagnostics.warnings.map((line) => sanitizeText(line, redactions, 500));
+    const canUse = Boolean(result.ok && failures.length === 0);
+
+    return {
+      ok: canUse,
+      operation: "browser_check",
+      canUse,
+      check: {
+        status: canUse ? "passed" : "failed",
+        summary: canUse
+          ? "browser config passed kleinanzeigen-bot diagnostics"
+          : "browser config failed kleinanzeigen-bot diagnostics",
+        failures,
+        warnings,
+      },
+      browser: status.browser,
+      detectedBrowsers: status.detectedBrowsers,
+      command: {
+        executable: path.basename(checkConfig.cliPath),
+        args: redactArgs(args),
+      },
+      exitCode: result.exitCode,
+      signal: result.signal,
+      timedOut: result.timedOut,
+      needsUserAction: false,
+      stdout,
+      stderr,
+    };
+  } finally {
+    await tempConfig.cleanup();
+  }
+}
+
 export async function getKleinanzeigenStatus(config = {}) {
   const cliPath = normalizeOptionalString(config.cliPath) ?? "kleinanzeigen-bot";
   const configPath = resolveConfiguredConfigPath(config);
@@ -912,7 +1884,13 @@ export async function getKleinanzeigenStatus(config = {}) {
 
 export async function runKleinanzeigenOperation(operation, params = {}, config = {}) {
   const baseCliConfig = resolveCliConfig(config);
+  await assertConfiguredFiles(baseCliConfig);
   const scopedAdConfigPaths = await resolveScopedAdConfigPaths(params, config);
+  const snapshotPaths =
+    scopedAdConfigPaths.length > 0
+      ? scopedAdConfigPaths
+      : await readConfiguredAdFiles(baseCliConfig.configPath);
+  const beforeSnapshots = await readAdOperationSnapshots(snapshotPaths, config);
   const scopedConfig = await createScopedConfig(baseCliConfig, scopedAdConfigPaths);
   const cliConfig = scopedConfig.config;
   await assertConfiguredFiles(cliConfig);
@@ -929,10 +1907,10 @@ export async function runKleinanzeigenOperation(operation, params = {}, config =
   } finally {
     await scopedConfig.cleanup();
   }
+  const afterSnapshots = await readAdOperationSnapshots(snapshotPaths, config);
   const redactions = buildRedactions({ ...config, ...cliConfig });
-  const userAction = detectUserActionRequest(
-    [result.stdout, result.stderr, result.error?.message].filter(Boolean).join("\n"),
-  );
+  const rawText = [result.stdout, result.stderr, result.error?.message].filter(Boolean).join("\n");
+  const userAction = detectUserActionRequest(rawText);
 
   const stdout = sanitizeText(result.stdout, redactions, cliConfig.maxOutputChars);
   const stderr = sanitizeText(
@@ -941,18 +1919,27 @@ export async function runKleinanzeigenOperation(operation, params = {}, config =
     cliConfig.maxOutputChars,
   );
   const diagnostics = await extractKleinanzeigenDiagnostics(
-    [result.stdout, result.stderr, result.error?.message].filter(Boolean).join("\n"),
+    rawText,
     config,
   );
   const nextActions = buildNextActions(diagnostics, scopedAdConfigPaths.length > 0);
+  const outcome = buildOperationOutcome({
+    operation,
+    result,
+    rawText,
+    beforeSnapshots,
+    afterSnapshots,
+  });
 
   return {
-    ok: result.ok,
+    ok: outcome.success,
     operation,
+    outcome,
     command: {
       executable: path.basename(cliConfig.cliPath),
       args: redactArgs(args),
     },
+    processOk: result.ok,
     exitCode: result.exitCode,
     signal: result.signal,
     timedOut: result.timedOut,
