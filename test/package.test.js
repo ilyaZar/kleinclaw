@@ -72,12 +72,27 @@ describe("package install boundary", () => {
       "lcov.info",
       "test/cli.test.js",
       "test/tools.test.js",
+      "assets/repo_logo2.png",
       "assets/repo_logo.png",
       "assets/repo_logo_upstream.png",
+      "docs/badges/openclaw-code-plugin.svg",
     ];
 
     for (const file of forbiddenFiles) {
       assert.equal(files.has(file), false, `${file} should not be published`);
+    }
+  });
+
+  it("uses absolute README image URLs for registry renderers", async () => {
+    const readme = await fs.readFile("README.md", "utf8");
+    const imageSrcs = [...readme.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map(
+      ([, src]) => src,
+    );
+
+    assert.notEqual(imageSrcs.length, 0);
+
+    for (const src of imageSrcs) {
+      assert.match(src, /^https:\/\//, `${src} should be absolute`);
     }
   });
 

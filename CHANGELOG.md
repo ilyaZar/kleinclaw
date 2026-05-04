@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+- render readme images on package pages
+- keep unused image assets out of the package
+
 ## 0.1.3
 
 - ship the helper skill inside the plugin package
