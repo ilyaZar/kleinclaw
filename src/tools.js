@@ -1,6 +1,7 @@
 import {
   buildRedactions,
   getKleinanzeigenStatus,
+  listKleinanzeigenAds,
   runKleinanzeigenOperation,
   sanitizeText,
 } from "./cli.js";
@@ -15,6 +16,7 @@ export const SIDE_EFFECT_TOOL_NAMES = new Set([
 
 export const OPTIONAL_TOOL_NAMES = new Set([
   "kleinanzeigen_status",
+  "kleinanzeigen_list_ads",
   "kleinanzeigen_verify",
   ...SIDE_EFFECT_TOOL_NAMES,
 ]);
@@ -40,6 +42,28 @@ const adIdsSchema = {
     pattern: "^[0-9]+$",
   },
   description: "Explicit numeric Kleinanzeigen ad IDs.",
+};
+
+const adConfigPathsSchema = {
+  type: "array",
+  minItems: 1,
+  maxItems: 20,
+  items: {
+    type: "string",
+  },
+  description:
+    "Explicit ad YAML/JSON files to scope this operation to. Paths must be inside configured adRoots.",
+};
+
+const adDirectoriesSchema = {
+  type: "array",
+  minItems: 1,
+  maxItems: 20,
+  items: {
+    type: "string",
+  },
+  description:
+    "Directories containing ad.yaml, ad.yml, or ad.json to scope this operation to. Paths must be inside configured adRoots.",
 };
 
 const confirmSchema = {
@@ -104,6 +128,51 @@ function operationTool({ name, label, description, operation, parameters }) {
   };
 }
 
+function listAdsTool(config) {
+  return bindToolConfig(
+    {
+      name: "kleinanzeigen_list_ads",
+      label: "Kleinanzeigen List Ads",
+      description:
+        "List configured local ad folders under trusted adRoots without publishing anything.",
+      parameters: objectSchema({
+        query: {
+          type: "string",
+          description: "Optional case-insensitive text to match path, title, ID, or category.",
+        },
+        maxResults: {
+          type: "integer",
+          minimum: 1,
+          maximum: 200,
+          description: "Maximum number of matching ad summaries to return.",
+        },
+      }),
+      async execute(_toolCallId, params) {
+        try {
+          return textResult(await listKleinanzeigenAds(this.config, params ?? {}));
+        } catch (error) {
+          const stderr = sanitizeText(
+            error instanceof Error ? error.message : String(error),
+            buildRedactions(this.config),
+            2000,
+          );
+          return textResult({
+            ok: false,
+            operation: "list_ads",
+            exitCode: null,
+            signal: null,
+            timedOut: false,
+            needsUserAction: false,
+            stdout: "",
+            stderr,
+          });
+        }
+      },
+    },
+    config,
+  );
+}
+
 function bindToolConfig(tool, config) {
   const execute = tool.execute;
   return {
@@ -147,6 +216,7 @@ export function createKleinanzeigenTools(config = {}) {
       },
       config,
     ),
+    listAdsTool(config),
     bindToolConfig(
       operationTool({
         name: "kleinanzeigen_verify",
@@ -154,7 +224,10 @@ export function createKleinanzeigenTools(config = {}) {
         description:
           "Verify the already configured local kleinanzeigen-bot setup and return sanitized output.",
         operation: "verify",
-        parameters: objectSchema({}),
+        parameters: objectSchema({
+          adConfigPaths: adConfigPathsSchema,
+          adDirectories: adDirectoriesSchema,
+        }),
       }),
       config,
     ),
@@ -185,6 +258,8 @@ export function createKleinanzeigenTools(config = {}) {
               description: "Publish selector list for combinations.",
             },
             adIds: adIdsSchema,
+            adConfigPaths: adConfigPathsSchema,
+            adDirectories: adDirectoriesSchema,
             keepOld: {
               type: "boolean",
               description: "Keep old ads during republication.",
@@ -211,6 +286,8 @@ export function createKleinanzeigenTools(config = {}) {
               description: "Configured ad selector. Defaults to changed.",
             },
             adIds: adIdsSchema,
+            adConfigPaths: adConfigPathsSchema,
+            adDirectories: adDirectoriesSchema,
           },
           ["confirm"],
         ),
@@ -228,6 +305,8 @@ export function createKleinanzeigenTools(config = {}) {
           {
             confirm: confirmSchema,
             adIds: adIdsSchema,
+            adConfigPaths: adConfigPathsSchema,
+            adDirectories: adDirectoriesSchema,
           },
           ["confirm", "adIds"],
         ),
@@ -250,6 +329,8 @@ export function createKleinanzeigenTools(config = {}) {
               description: "Configured ad selector. Defaults to new.",
             },
             adIds: adIdsSchema,
+            adConfigPaths: adConfigPathsSchema,
+            adDirectories: adDirectoriesSchema,
           },
           ["confirm"],
         ),
@@ -272,6 +353,8 @@ export function createKleinanzeigenTools(config = {}) {
               description: "Configured ad selector. Defaults to all.",
             },
             adIds: adIdsSchema,
+            adConfigPaths: adConfigPathsSchema,
+            adDirectories: adDirectoriesSchema,
           },
           ["confirm"],
         ),

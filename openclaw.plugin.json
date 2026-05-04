@@ -9,6 +9,7 @@
   "contracts": {
     "tools": [
       "kleinanzeigen_status",
+      "kleinanzeigen_list_ads",
       "kleinanzeigen_verify",
       "kleinanzeigen_publish",
       "kleinanzeigen_update",
@@ -32,6 +33,13 @@
       "configPath": {
         "type": "string",
         "description": "Optional path to the bot config. Tool output redacts this path."
+      },
+      "adRoots": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Trusted roots for adConfigPaths and adDirectories scoped operations."
       },
       "workspaceMode": {
         "type": "string",
