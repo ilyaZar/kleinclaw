@@ -28,10 +28,9 @@ returning it to your OpenClaw agent.
 
 The tools are optional because they run a local command. By default all tools
 require OpenClaw approval before they run. Set `approvalMode` to `mutating` only
-for local smoke checks where status and verify should run without an approval
-route. Account-changing tools also require `confirm: true`. Tool output is
-capped and redacted for configured paths, email addresses, and credential-like
-lines.
+for local checks where status and verify should run without an approval route.
+Account-changing tools also require `confirm: true`. Tool output is capped and
+redacted for configured paths, email addresses, and credential-like lines.
 
 ## Install
 
@@ -90,18 +89,15 @@ directories.
 }
 ```
 
-Also expose the optional tools through OpenClaw tool policy. Include
-`kleinclaw` in the explicit allowlist, or include the individual tool names if
-you need finer control. For a minimal KleinClaw-only dev agent:
+Also expose the optional tools through OpenClaw tool policy. Include `kleinclaw`
+in the explicit allowlist, or include the individual tool names if you need
+finer control. For a minimal KleinClaw-only dev agent:
 
 ```json
 {
   "tools": {
     "profile": "full",
-    "allow": [
-      "session_status",
-      "kleinclaw"
-    ]
+    "allow": ["session_status", "kleinclaw"]
   }
 }
 ```
@@ -117,8 +113,10 @@ then come back to `kleinanzeigen_verify`. **This plugin does not work around
 those checks.**
 
 **Keep passwords, cookies, browser profile data, and full bot config files out
-of chat**. Fix bot auth and account state locally, then run
-`kleinanzeigen_verify` again.
+of chat**. The intermediate CLI tools, the `kleinclaw` plugin plus the
+`kleinanzeigen-bot`, handle the work without your agent ever having to know the
+location of your kleinanzeigen credentials, thus: fix bot auth and account state
+locally, then run `kleinanzeigen_verify` again.
 
 ## Development
 
