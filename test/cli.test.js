@@ -8,8 +8,11 @@ import {
   buildChildEnv,
   buildKleinanzeigenArgs,
   detectUserActionRequest,
+  extractKleinanzeigenDiagnostics,
   getKleinanzeigenStatus,
+  listKleinanzeigenAds,
   redactArgs,
+  runKleinanzeigenOperation,
   runProcess,
   sanitizeText,
 } from "../src/cli.js";
@@ -164,6 +167,191 @@ describe("kleinanzeigen CLI status", () => {
       extend: true,
     });
     assert.doesNotMatch(JSON.stringify(status), /should-not-be-read|password/);
+  });
+});
+
+describe("scoped ad configs", () => {
+  it("lists ad folders under configured roots", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-list-"));
+    const adDir = path.join(tmp, "ONGOING", "boxen");
+    await fs.mkdir(adDir, { recursive: true });
+    await fs.writeFile(
+      path.join(adDir, "ad.yaml"),
+      [
+        "active: true",
+        "title: Boxen von Kenwood",
+        "category: Audio_und_Hifi",
+        "price: 15.00",
+        "id: 2923863425",
+        "images:",
+        "  - boxen_*.{jpg,png}",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await listKleinanzeigenAds({ adRoots: [tmp] }, { query: "boxen" });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.count, 1);
+    assert.equal(result.ads[0].relativeDirectory, path.join("ONGOING", "boxen"));
+    assert.equal(result.ads[0].title, "Boxen von Kenwood");
+    assert.equal(result.ads[0].id, "2923863425");
+    assert.deepEqual(result.ads[0].imageGlobs, ["boxen_*.{jpg,png}"]);
+  });
+
+  it("runs with a temporary config limited to selected ad directories", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-scope-"));
+    const adRoot = path.join(tmp, "ads");
+    const adDir = path.join(adRoot, "boxen");
+    const mockCli = path.join(tmp, "mock-cli.mjs");
+    const configPath = path.join(tmp, "config.yaml");
+    await fs.mkdir(adDir, { recursive: true });
+    await fs.writeFile(path.join(adDir, "ad.yaml"), "title: Boxen\n", "utf8");
+    await fs.writeFile(
+      configPath,
+      [
+        "ad_files:",
+        "  - /unrelated/broken/ad.yaml",
+        "login:",
+        "  password: should-not-leak",
+        "categories: {}",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.writeFile(
+      mockCli,
+      [
+        "#!/usr/bin/env node",
+        "import fs from 'node:fs';",
+        "const configArg = process.argv.find((arg) => arg.startsWith('--config='));",
+        "console.log(fs.readFileSync(configArg.slice('--config='.length), 'utf8'));",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.chmod(mockCli, 0o700);
+
+    const result = await runKleinanzeigenOperation(
+      "verify",
+      { adDirectories: [adDir] },
+      {
+        cliPath: mockCli,
+        configPath,
+        adRoots: [adRoot],
+        maxOutputChars: 2000,
+      },
+    );
+
+    assert.equal(result.ok, true);
+    assert.match(result.stdout, /ad_files:\n  - "\[redacted-path\]\/boxen\/ad\.yaml"/);
+    assert.doesNotMatch(result.stdout, /unrelated|should-not-leak/);
+  });
+
+  it("rejects scoped ad paths outside configured ad roots", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-scope-"));
+    const adRoot = path.join(tmp, "ads");
+    const outside = path.join(tmp, "outside");
+    const configPath = path.join(tmp, "config.yaml");
+    await fs.mkdir(adRoot, { recursive: true });
+    await fs.mkdir(outside, { recursive: true });
+    await fs.writeFile(path.join(outside, "ad.yaml"), "title: Outside\n", "utf8");
+    await fs.writeFile(configPath, "ad_files: []\ncategories: {}\n", "utf8");
+
+    await assert.rejects(
+      () =>
+        runKleinanzeigenOperation(
+          "verify",
+          { adDirectories: [outside] },
+          {
+            cliPath: "kleinanzeigen-bot",
+            configPath,
+            adRoots: [adRoot],
+          },
+        ),
+      /outside configured adRoots/,
+    );
+  });
+});
+
+describe("diagnostics", () => {
+  it("adds structured guidance for bot validation errors", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-diag-"));
+    const adDir = path.join(tmp, "ONGOING", "cut-n-run");
+    await fs.mkdir(adDir, { recursive: true });
+    await fs.writeFile(
+      path.join(adDir, "ad.yaml"),
+      'title: "Cut and Run Ausstellung Banksy Tragetasche / 25 Years Card Labour Streetart"\n',
+      "utf8",
+    );
+
+    const diagnostics = await extractKleinanzeigenDiagnostics(
+      [
+        "[ERROR] 1 validation error for [AdPartial]:",
+        "- title: Value error, title length exceeds 65 characters",
+      ].join("\n"),
+      { adRoots: [tmp] },
+    );
+
+    assert.equal(diagnostics.length, 1);
+    assert.equal(diagnostics[0].kind, "ad_validation");
+    assert.equal(diagnostics[0].field, "title");
+    assert.equal(diagnostics[0].adPath, path.join("ONGOING", "cut-n-run", "ad.yaml"));
+    assert.equal(diagnostics[0].titleLength, 75);
+    assert.equal(diagnostics[0].limit, 65);
+  });
+
+  it("returns diagnostics and next actions from failed bot runs", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-diag-"));
+    const adDir = path.join(tmp, "ONGOING", "cut-n-run");
+    const unrelatedDir = path.join(tmp, "SOLD", "shoes");
+    const mockCli = path.join(tmp, "mock-cli.mjs");
+    const configPath = path.join(tmp, "config.yaml");
+    await fs.mkdir(adDir, { recursive: true });
+    await fs.mkdir(unrelatedDir, { recursive: true });
+    await fs.writeFile(
+      path.join(adDir, "ad.yaml"),
+      'title: "Cut and Run Ausstellung Banksy Tragetasche / 25 Years Card Labour Streetart"\n',
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(unrelatedDir, "ad.yaml"),
+      'title: "Original Prada Damen Schuhe Stiefeletten Boots Schwarz Wildleder"\n',
+      "utf8",
+    );
+    await fs.writeFile(
+      configPath,
+      `ad_files:\n  - ${JSON.stringify(path.join(adDir, "ad.yaml"))}\ncategories: {}\n`,
+      "utf8",
+    );
+    await fs.writeFile(
+      mockCli,
+      [
+        "#!/usr/bin/env node",
+        "console.error('[ERROR] 1 validation error for [AdPartial]:');",
+        "console.error('- title: Value error, title length exceeds 65 characters');",
+        "process.exit(1);",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.chmod(mockCli, 0o700);
+
+    const result = await runKleinanzeigenOperation(
+      "verify",
+      {},
+      {
+        cliPath: mockCli,
+        configPath,
+        adRoots: [tmp],
+      },
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(result.diagnostics[0].adPath, path.join("ONGOING", "cut-n-run", "ad.yaml"));
+    assert.equal(result.diagnostics[0].candidates.length, 1);
+    assert.deepEqual(result.nextActions, [
+      "use kleinanzeigen_list_ads to find the target ad",
+      "use kleinanzeigen_verify with adDirectories or adConfigPaths for one ad",
+      "fix invalid ads before unscoped verify or bulk publish",
+    ]);
   });
 });
 

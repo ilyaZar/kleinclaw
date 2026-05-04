@@ -20,7 +20,7 @@ describe("kleinanzeigen plugin tools", () => {
     assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_status"), true);
     assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_verify"), true);
     assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_status"), true);
-    assert.equal(tools.length, 7);
+    assert.equal(tools.length, 8);
     assert.deepEqual(
       tools.filter((tool) => SIDE_EFFECT_TOOL_NAMES.has(tool.name)).map((tool) => tool.name),
       [
