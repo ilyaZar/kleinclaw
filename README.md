@@ -9,6 +9,10 @@
   <a href="https://github.com/ilyaZar/kleinclaw/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/github/license/ilyaZar/kleinclaw?style=flat-square&labelColor=629944&color=446a30"></a>
 </p>
 
+<p align="center">
+  <img alt="KleinClaw logo" src="assets/repo_logo2.png" width="240">
+</p>
+
 KleinClaw is an OpenClaw plugin for running a local
 [`kleinanzeigen-bot`][kleinanzeigen-bot] setup through typed Kleinanzeigen
 helper tools. It does not store Kleinanzeigen credentials and it does not read
