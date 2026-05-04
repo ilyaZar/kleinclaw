@@ -19,6 +19,7 @@ returning it to your OpenClaw agent.
 ## What it adds
 
 - `kleinanzeigen_status`: checks local bot availability and config wiring.
+- `kleinanzeigen_list_ads`: lists local ad folders under trusted `adRoots`.
 - `kleinanzeigen_verify`: checks the configured local bot setup.
 - `kleinanzeigen_publish`: publishes or republishes selected ads.
 - `kleinanzeigen_update`: updates changed or selected ads.
@@ -77,6 +78,7 @@ directories.
         "config": {
           "cliPath": "kleinanzeigen-bot",
           "configPath": "/home/me/kleinanzeigen-bot/config.yaml",
+          "adRoots": ["/home/me/kleinanzeigen-ads"],
           "workspaceMode": "portable",
           "lang": "de",
           "timeoutMs": 120000,
@@ -98,6 +100,46 @@ finer control. For a minimal KleinClaw-only dev agent:
   "tools": {
     "profile": "full",
     "allow": ["session_status", "kleinclaw"]
+  }
+}
+```
+
+When the bot config contains many ads, one invalid unrelated ad can make the
+bot reject the whole run before it applies `--ads` filtering. To operate on one
+known source folder, configure `adRoots`, use `kleinanzeigen_list_ads` to find
+the folder, then pass `adDirectories` or `adConfigPaths` to
+`kleinanzeigen_verify`, `kleinanzeigen_publish`, or the other operation tools:
+
+```json
+{
+  "adDirectories": ["/home/me/kleinanzeigen-ads/ONGOING/boxen"]
+}
+```
+
+For publishing that one folder only, combine the scoped directory with
+`selector: "all"` or an explicit `adIds` list plus `confirm: true`. The scoped
+paths must be inside `adRoots`; KleinClaw writes a temporary bot config with
+only those ad files and deletes it after the run.
+
+When the bot reports validation failures, KleinClaw returns structured
+`diagnostics` and `nextActions` alongside the sanitized stdout/stderr. For
+example, a full verify blocked by an unrelated overlong title can point the
+agent at the failing ad and suggest either fixing it or using a scoped operation
+for the intended listing.
+
+If your agent runs with OpenClaw sandboxing enabled, also allow the plugin group
+through sandbox tool policy. OpenClaw applies sandbox policy after the normal
+tool allowlist, so omitting this can make the agent say that the KleinClaw tools
+are not available even though the plugin loaded.
+
+```json
+{
+  "tools": {
+    "sandbox": {
+      "tools": {
+        "alsoAllow": ["kleinclaw"]
+      }
+    }
   }
 }
 ```
