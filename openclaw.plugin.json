@@ -17,6 +17,7 @@
       "kleinanzeigen_browser_check",
       "kleinanzeigen_browser_configure",
       "kleinanzeigen_draft_ad",
+      "kleinanzeigen_set_ad_active",
       "kleinanzeigen_verify",
       "kleinanzeigen_publish",
       "kleinanzeigen_update",

@@ -22,6 +22,7 @@ import {
   runKleinanzeigenOperation,
   runProcess,
   sanitizeText,
+  setKleinanzeigenAdActive,
 } from "../src/cli.js";
 
 describe("kleinanzeigen CLI argument builder", () => {
@@ -476,6 +477,77 @@ describe("ad authoring tools", () => {
       /relative to the ad directory/,
     );
   });
+
+  it("sets one YAML ad active without rewriting other fields", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-active-"));
+    const adDir = path.join(tmp, "ONGOING", "lamp");
+    const adPath = path.join(adDir, "ad.yaml");
+    await fs.mkdir(adDir, { recursive: true });
+    await fs.writeFile(
+      adPath,
+      [
+        "# yaml-language-server: $schema=https://example.invalid/ad.schema.json",
+        "active: false",
+        "title: Schreibtischlampe aus Metall",
+        "category: Haus & Garten",
+        "images:",
+        "  - lampe_*.jpg",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await setKleinanzeigenAdActive(
+      {
+        confirm: true,
+        adDirectories: [adDir],
+        active: true,
+      },
+      { adRoots: [tmp] },
+    );
+    const yaml = await fs.readFile(adPath, "utf8");
+
+    assert.equal(result.ok, true);
+    assert.equal(result.changed, true);
+    assert.equal(result.previousActive, false);
+    assert.equal(result.active, true);
+    assert.equal(result.summary.active, true);
+    assert.match(yaml, /^active: true$/m);
+    assert.match(yaml, /title: Schreibtischlampe aus Metall/);
+    assert.match(yaml, /  - lampe_\*\.jpg/);
+  });
+
+  it("inserts an active flag when a YAML ad has no active field", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-active-"));
+    const adDir = path.join(tmp, "ONGOING", "lamp");
+    const adPath = path.join(adDir, "ad.yaml");
+    await fs.mkdir(adDir, { recursive: true });
+    await fs.writeFile(
+      adPath,
+      [
+        "# yaml-language-server: $schema=https://example.invalid/ad.schema.json",
+        "title: Schreibtischlampe aus Metall",
+        "category: Haus & Garten",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await setKleinanzeigenAdActive(
+      {
+        confirm: true,
+        adConfigPaths: [adPath],
+        active: true,
+      },
+      { adRoots: [tmp] },
+    );
+    const yaml = await fs.readFile(adPath, "utf8");
+
+    assert.equal(result.ok, true);
+    assert.equal(result.changed, true);
+    assert.equal(result.previousActive, null);
+    assert.match(yaml, /^# yaml-language-server: .+\nactive: true\ntitle:/);
+  });
 });
 
 describe("scoped ad configs", () => {
@@ -579,6 +651,52 @@ describe("scoped ad configs", () => {
     );
   });
 
+  it("blocks scoped publish when the selected ad is inactive", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-preflight-"));
+    const adDir = path.join(tmp, "ads", "lamp");
+    const mockCli = path.join(tmp, "mock-cli.mjs");
+    const configPath = path.join(tmp, "config.yaml");
+    const marker = path.join(tmp, "bot-ran");
+    const adPath = path.join(adDir, "ad.yaml");
+    await fs.mkdir(adDir, { recursive: true });
+    await fs.writeFile(
+      adPath,
+      "active: false\ntitle: Schreibtischlampe aus Metall\n",
+      "utf8",
+    );
+    await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
+    await fs.writeFile(
+      mockCli,
+      [
+        "#!/usr/bin/env node",
+        "import fs from 'node:fs';",
+        `fs.writeFileSync(${JSON.stringify(marker)}, 'ran');`,
+        "console.log('should not run');",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.chmod(mockCli, 0o700);
+
+    const result = await runKleinanzeigenOperation(
+      "publish",
+      { confirm: true, adDirectories: [adDir] },
+      {
+        cliPath: mockCli,
+        configPath,
+        adRoots: [path.join(tmp, "ads")],
+      },
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(result.outcome.status, "preflight_failed");
+    assert.equal(result.processOk, false);
+    assert.equal(result.exitCode, null);
+    assert.equal(result.diagnostics[0].field, "active");
+    assert.equal(result.diagnostics[0].active, false);
+    assert.match(result.nextActions.join("\n"), /kleinanzeigen_set_ad_active/);
+    await assert.rejects(() => fs.stat(marker), /ENOENT/);
+  });
+
   it("returns publish success evidence even when the process exits noisy", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-outcome-"));
     const adDir = path.join(tmp, "ads", "boxen");
@@ -586,7 +704,7 @@ describe("scoped ad configs", () => {
     const configPath = path.join(tmp, "config.yaml");
     const adPath = path.join(adDir, "ad.yaml");
     await fs.mkdir(adDir, { recursive: true });
-    await fs.writeFile(adPath, "title: Boxen\n", "utf8");
+    await fs.writeFile(adPath, "active: true\ntitle: Boxen\n", "utf8");
     await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
     await fs.writeFile(
       mockCli,
@@ -625,7 +743,7 @@ describe("scoped ad configs", () => {
     const configPath = path.join(tmp, "config.yaml");
     const adPath = path.join(adDir, "ad.yaml");
     await fs.mkdir(adDir, { recursive: true });
-    await fs.writeFile(adPath, "title: Boxen\n", "utf8");
+    await fs.writeFile(adPath, "active: true\ntitle: Boxen\n", "utf8");
     await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
     await fs.writeFile(
       mockCli,

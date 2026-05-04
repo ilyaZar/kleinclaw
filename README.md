@@ -38,6 +38,8 @@ before returning it to your OpenClaw agent.
   window flag, or browser profile settings.
 - `kleinanzeigen_draft_ad`: writes a safe inactive `ad.yaml` draft under
   `adRoots`.
+- `kleinanzeigen_set_ad_active`: flips one YAML ad draft between inactive and
+  publishable.
 - `kleinanzeigen_verify`: checks the configured local bot setup.
 - `kleinanzeigen_publish`: publishes or republishes selected ads.
 - `kleinanzeigen_update`: updates changed or selected ads.
@@ -187,13 +189,30 @@ activate them:
 }
 ```
 
+Use `kleinanzeigen_set_ad_active` to activate exactly one selected YAML ad
+config before publishing. The tool only changes the top-level `active:` value:
+
+```json
+{
+  "confirm": true,
+  "adDirectories": ["/home/me/kleinanzeigen-ads/ONGOING/boxen"],
+  "active": true
+}
+```
+
 Recommended loop:
 
 1. List images with `kleinanzeigen_images_list`.
 2. Create a draft with `kleinanzeigen_draft_ad`.
 3. Run scoped `kleinanzeigen_verify` on that draft directory.
-4. Review the YAML and set `active: true` only when ready.
-5. Publish with `kleinanzeigen_publish` scoped to the same directory.
+4. Re-read the ad with `kleinanzeigen_read_ad` before publishing.
+5. If `active` is not `true`, use `kleinanzeigen_set_ad_active`.
+6. Run scoped `kleinanzeigen_verify` again.
+7. Publish with `kleinanzeigen_publish` scoped to the same directory.
+
+For scoped publish calls, KleinClaw checks the selected ad file before running
+the bot. If the selected ad is not `active: true`, the tool returns a preflight
+diagnostic instead of running a publish command that the bot would skip.
 
 ### Browser settings
 

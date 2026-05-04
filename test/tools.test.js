@@ -24,6 +24,7 @@ describe("kleinanzeigen plugin tools", () => {
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_browser_check"), false);
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_browser_configure"), true);
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_draft_ad"), true);
+    assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_set_ad_active"), true);
     assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_verify"), true);
     assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_status"), true);
     assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_ad_schema"), true);
@@ -33,12 +34,13 @@ describe("kleinanzeigen plugin tools", () => {
     assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_browser_check"), true);
     assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_verify"), true);
     assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_status"), true);
-    assert.equal(tools.length, 15);
+    assert.equal(tools.length, 16);
     assert.deepEqual(
       tools.filter((tool) => SIDE_EFFECT_TOOL_NAMES.has(tool.name)).map((tool) => tool.name),
       [
         "kleinanzeigen_browser_configure",
         "kleinanzeigen_draft_ad",
+        "kleinanzeigen_set_ad_active",
         "kleinanzeigen_publish",
         "kleinanzeigen_update",
         "kleinanzeigen_delete",
@@ -123,6 +125,26 @@ describe("kleinanzeigen plugin tools", () => {
     assert.match(description, /Draft directory: ONGOING\/boxen/);
     assert.match(description, /Title: Boxen von Kenwood/);
     assert.match(description, /Active: false/);
+    assert.doesNotMatch(description, /\/ads/);
+  });
+
+  it("summarizes active flag changes without leaking absolute ad roots", () => {
+    const description = buildKleinanzeigenApprovalDescription({
+      toolName: "kleinanzeigen_set_ad_active",
+      params: {
+        confirm: true,
+        adDirectories: ["/ads/ONGOING/lamp"],
+        active: true,
+      },
+      config: {
+        adRoots: ["/ads"],
+      },
+    });
+
+    assert.match(description, /Operation: set_ad_active/);
+    assert.match(description, /Ad directories: ONGOING\/lamp/);
+    assert.match(description, /Active: true/);
+    assert.match(description, /Confirm: true/);
     assert.doesNotMatch(description, /\/ads/);
   });
 

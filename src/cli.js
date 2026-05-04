@@ -699,6 +699,29 @@ function sanitizeAdYaml(text, { includeContact = false } = {}) {
   return sanitized.join("\n").trim();
 }
 
+function setYamlTopLevelActive(text, active) {
+  const lines = String(text ?? "").replace(/\r\n/g, "\n").split("\n");
+  const nextLine = `active: ${active ? "true" : "false"}`;
+  const activeIndex = lines.findIndex((line) => /^active\s*:/.test(line));
+  if (activeIndex !== -1) {
+    const next = [...lines];
+    next[activeIndex] = nextLine;
+    return next.join("\n");
+  }
+
+  let insertAt = 0;
+  while (
+    insertAt < lines.length &&
+    (lines[insertAt].trim() === "" || lines[insertAt].trimStart().startsWith("#"))
+  ) {
+    insertAt += 1;
+  }
+
+  const next = [...lines];
+  next.splice(insertAt, 0, nextLine);
+  return next.join("\n");
+}
+
 function findTopLevelYamlSection(lines, key) {
   const start = lines.findIndex((line) => new RegExp(`^${key}\\s*:`).test(line));
   if (start === -1) {
@@ -1750,7 +1773,8 @@ export function getKleinanzeigenAdSchema() {
         "use kleinanzeigen_images_list for candidate image filenames",
         "use kleinanzeigen_draft_ad with active false to create a safe draft",
         "use scoped kleinanzeigen_verify on the draft directory",
-        "set active true only when ready, then publish scoped to that directory",
+        "use kleinanzeigen_set_ad_active with active true only when ready",
+        "publish scoped to that directory only after a final scoped verify",
       ],
     },
     exitCode: 0,
@@ -1800,6 +1824,54 @@ export async function readKleinanzeigenAd(params = {}, config = {}) {
     summary: parseAdSummary(text),
     yaml: sanitizeAdYaml(text, { includeContact }),
     contactRedacted: !includeContact,
+    exitCode: 0,
+    signal: null,
+    timedOut: false,
+    needsUserAction: false,
+    stdout: "",
+    stderr: "",
+  };
+}
+
+export async function setKleinanzeigenAdActive(params = {}, config = {}) {
+  if (params.confirm !== true) {
+    throw new Error("confirm must be true before changing ad active state");
+  }
+  const active = normalizeBoolean(params.active, "active");
+  if (active === undefined) {
+    throw new Error("active is required");
+  }
+
+  const adConfigPath = await resolveSingleAdConfig(params, config);
+  const extension = path.extname(adConfigPath).toLowerCase();
+  if (![".yaml", ".yml"].includes(extension)) {
+    throw new Error("set_ad_active currently supports only YAML ad configs");
+  }
+
+  const roots = await configuredAdRoots(config);
+  const root = roots.find((entry) => pathIsInside(adConfigPath, entry)) ?? path.dirname(adConfigPath);
+  const beforeText = await fs.readFile(adConfigPath, "utf8");
+  const before = parseAdSummary(beforeText);
+  const afterText = setYamlTopLevelActive(beforeText, active);
+  const changed = afterText !== beforeText;
+  if (changed) {
+    await fs.writeFile(adConfigPath, afterText, "utf8");
+  }
+
+  return {
+    ok: true,
+    operation: "set_ad_active",
+    changed,
+    adPath: displayPathForAd(adConfigPath, root),
+    previousActive: before.active,
+    active,
+    summary: parseAdSummary(afterText),
+    nextActions: active
+      ? [
+          "run scoped kleinanzeigen_verify on this ad",
+          "publish scoped to this ad only after verify succeeds",
+        ]
+      : ["the ad is no longer eligible for publish/update"],
     exitCode: 0,
     signal: null,
     timedOut: false,
@@ -2128,6 +2200,88 @@ async function resolveScopedAdConfigPaths(params = {}, config = {}) {
     resolved.push(await assertInsideAdRoots(await resolveAdConfigInDirectory(directory), config));
   }
   return [...new Set(resolved)];
+}
+
+function parseAdPreflightSummary(text, filePath) {
+  if (path.extname(filePath).toLowerCase() === ".json") {
+    try {
+      const parsed = JSON.parse(text);
+      return {
+        active: typeof parsed.active === "boolean" ? parsed.active : null,
+        title: typeof parsed.title === "string" ? parsed.title : "",
+      };
+    } catch {
+      return { active: null, title: "" };
+    }
+  }
+  return parseAdSummary(text);
+}
+
+async function inactiveScopedPublishAds(adConfigPaths, config = {}) {
+  if (!adConfigPaths.length) {
+    return [];
+  }
+
+  const roots = normalizeStringArray(config.adRoots, "adRoots", { maxItems: 50 });
+  const resolvedRoots = await Promise.all(roots.map((root) => realPath(root)));
+  const inactive = [];
+  for (const adConfigPath of adConfigPaths) {
+    const text = await fs.readFile(adConfigPath, "utf8");
+    const summary = parseAdPreflightSummary(text, adConfigPath);
+    if (summary.active === true) {
+      continue;
+    }
+    const root =
+      resolvedRoots.find((entry) => pathIsInside(adConfigPath, entry)) ?? path.dirname(adConfigPath);
+    inactive.push({
+      adPath: displayPathForAd(adConfigPath, root),
+      title: summary.title,
+      active: summary.active,
+    });
+  }
+  return inactive;
+}
+
+function buildInactivePublishPreflightResult({ operation, inactiveAds, cliConfig, args }) {
+  return {
+    ok: false,
+    operation,
+    outcome: {
+      success: false,
+      status: "preflight_failed",
+      summary: "selected ad is not active; activate it before publishing",
+      evidence: ["publish preflight checked selected ad active state"],
+      changedAdConfigs: [],
+    },
+    command: {
+      executable: path.basename(cliConfig.cliPath),
+      args: redactArgs(args),
+    },
+    processOk: false,
+    exitCode: null,
+    signal: null,
+    timedOut: false,
+    needsUserAction: false,
+    diagnostics: inactiveAds.map((ad) => ({
+      severity: "error",
+      kind: "ad_preflight",
+      field: "active",
+      message: "selected ad is not active and would be skipped by publish",
+      adPath: ad.adPath,
+      title: ad.title,
+      active: ad.active,
+      suggestedAction:
+        "use kleinanzeigen_set_ad_active with active true, then run scoped verify and publish",
+    })),
+    nextActions: [
+      "re-read the selected ad with kleinanzeigen_read_ad",
+      "use kleinanzeigen_set_ad_active with active true if the user wants to publish",
+      "run scoped kleinanzeigen_verify",
+      "retry kleinanzeigen_publish scoped to the same ad",
+    ],
+    stdout: "",
+    stderr: "",
+  };
 }
 
 function replaceYamlAdFiles(content, adConfigPaths) {
@@ -2497,7 +2651,20 @@ export async function getKleinanzeigenStatus(config = {}) {
 export async function runKleinanzeigenOperation(operation, params = {}, config = {}) {
   const baseCliConfig = resolveCliConfig(config);
   await assertConfiguredFiles(baseCliConfig);
+  requireConfirmed(operation, params);
   const scopedAdConfigPaths = await resolveScopedAdConfigPaths(params, config);
+  if (operation === "publish" && scopedAdConfigPaths.length > 0) {
+    const inactiveAds = await inactiveScopedPublishAds(scopedAdConfigPaths, config);
+    if (inactiveAds.length) {
+      const args = buildKleinanzeigenArgs(operation, params, baseCliConfig);
+      return buildInactivePublishPreflightResult({
+        operation,
+        inactiveAds,
+        cliConfig: baseCliConfig,
+        args,
+      });
+    }
+  }
   const snapshotPaths =
     scopedAdConfigPaths.length > 0
       ? scopedAdConfigPaths

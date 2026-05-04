@@ -13,6 +13,7 @@ import {
   readKleinanzeigenAd,
   runKleinanzeigenOperation,
   sanitizeText,
+  setKleinanzeigenAdActive,
 } from "./cli.js";
 
 export const SIDE_EFFECT_TOOL_NAMES = new Set([
@@ -23,6 +24,7 @@ export const SIDE_EFFECT_TOOL_NAMES = new Set([
   "kleinanzeigen_extend",
   "kleinanzeigen_browser_configure",
   "kleinanzeigen_draft_ad",
+  "kleinanzeigen_set_ad_active",
 ]);
 
 export const OPTIONAL_TOOL_NAMES = new Set([
@@ -163,6 +165,10 @@ export function buildKleinanzeigenApprovalDescription({ toolName, params = {}, c
     }
     if (typeof params.overwrite === "boolean") {
       lines.push(`Overwrite: ${params.overwrite}`);
+    }
+  } else if (operation === "set_ad_active") {
+    if (typeof params.active === "boolean") {
+      lines.push(`Active: ${params.active}`);
     }
   } else if (!adDirectories && !adConfigPaths && !Array.isArray(params.adIds)) {
     lines.push("Scope: bot config default selection");
@@ -607,6 +613,51 @@ function draftAdTool(config) {
   );
 }
 
+function setAdActiveTool(config) {
+  return bindToolConfig(
+    {
+      name: "kleinanzeigen_set_ad_active",
+      label: "Kleinanzeigen Set Ad Active",
+      description:
+        "Set the top-level active flag for one YAML ad config under trusted adRoots.",
+      parameters: objectSchema(
+        {
+          confirm: confirmSchema,
+          adConfigPaths: singleAdConfigPathsSchema,
+          adDirectories: singleAdDirectoriesSchema,
+          active: {
+            type: "boolean",
+            description: "Whether the selected ad is eligible for publish/update.",
+          },
+        },
+        ["confirm", "active"],
+      ),
+      async execute(_toolCallId, params) {
+        try {
+          return textResult(await setKleinanzeigenAdActive(params ?? {}, this.config));
+        } catch (error) {
+          const stderr = sanitizeText(
+            error instanceof Error ? error.message : String(error),
+            buildRedactions(this.config),
+            2000,
+          );
+          return textResult({
+            ok: false,
+            operation: "set_ad_active",
+            exitCode: null,
+            signal: null,
+            timedOut: false,
+            needsUserAction: false,
+            stdout: "",
+            stderr,
+          });
+        }
+      },
+    },
+    config,
+  );
+}
+
 function browserStatusTool(config) {
   return bindToolConfig(
     {
@@ -814,6 +865,7 @@ export function createKleinanzeigenTools(config = {}) {
     browserCheckTool(config),
     browserConfigureTool(config),
     draftAdTool(config),
+    setAdActiveTool(config),
     bindToolConfig(
       operationTool({
         name: "kleinanzeigen_verify",
