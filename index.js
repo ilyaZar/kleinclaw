@@ -1,5 +1,6 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import {
+  buildKleinanzeigenApprovalDescription,
   createKleinanzeigenTools,
   OPTIONAL_TOOL_NAMES,
   resolveApprovalToolNames,
@@ -32,8 +33,11 @@ export default definePluginEntry({
         return {
           requireApproval: {
             title: "Run Kleinanzeigen local operation",
-            description:
-              "Allow this local kleinanzeigen-bot operation to run with redacted output.",
+            description: buildKleinanzeigenApprovalDescription({
+              toolName: event.toolName,
+              params: event.params,
+              config: pluginConfig,
+            }),
             severity: "warning",
             timeoutMs: 120000,
             timeoutBehavior: "deny",

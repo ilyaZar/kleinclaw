@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   APPROVAL_TOOL_NAMES,
+  buildKleinanzeigenApprovalDescription,
   createKleinanzeigenTools,
   OPTIONAL_TOOL_NAMES,
   resolveApprovalToolNames,
@@ -37,6 +38,29 @@ describe("kleinanzeigen plugin tools", () => {
       [...resolveApprovalToolNames({ approvalMode: "mutating" })],
       [...SIDE_EFFECT_TOOL_NAMES],
     );
+    assert.deepEqual([...resolveApprovalToolNames({ approvalMode: "none" })], []);
+  });
+
+  it("summarizes approval requests without leaking absolute ad roots", () => {
+    const description = buildKleinanzeigenApprovalDescription({
+      toolName: "kleinanzeigen_publish",
+      params: {
+        confirm: true,
+        selector: "all",
+        adDirectories: ["/ads/ONGOING/boxen"],
+        adConfigPaths: ["/outside/private/ad.yaml"],
+      },
+      config: {
+        adRoots: ["/ads"],
+      },
+    });
+
+    assert.match(description, /Operation: publish/);
+    assert.match(description, /Selector: all/);
+    assert.match(description, /Ad directories: ONGOING\/boxen/);
+    assert.match(description, /Ad config files: \[redacted-path\]\/ad.yaml/);
+    assert.match(description, /Confirm: true/);
+    assert.doesNotMatch(description, /\/ads|\/outside\/private/);
   });
 
   it("runs a mock CLI and returns sanitized output", async () => {

@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import {
   buildRedactions,
   getKleinanzeigenStatus,
@@ -26,11 +28,98 @@ export const APPROVAL_TOOL_NAMES = new Set(OPTIONAL_TOOL_NAMES);
 export function resolveApprovalToolNames(config = {}) {
   const mode = typeof config.approvalMode === "string" ? config.approvalMode : "all";
 
+  if (mode === "none") {
+    return new Set();
+  }
+
   if (mode === "mutating") {
     return new Set(SIDE_EFFECT_TOOL_NAMES);
   }
 
   return new Set(APPROVAL_TOOL_NAMES);
+}
+
+function relativeConfiguredPath(value, config = {}) {
+  if (typeof value !== "string" || value.trim() === "") {
+    return null;
+  }
+
+  const raw = value.trim();
+  const resolved = path.resolve(raw);
+  for (const root of Array.isArray(config.adRoots) ? config.adRoots : []) {
+    if (typeof root !== "string" || root.trim() === "") {
+      continue;
+    }
+    const rootResolved = path.resolve(root);
+    const relative = path.relative(rootResolved, resolved);
+    if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+      return relative || path.basename(rootResolved);
+    }
+  }
+
+  if (!path.isAbsolute(raw)) {
+    return raw;
+  }
+
+  return `[redacted-path]/${path.basename(resolved)}`;
+}
+
+function summarizeList(values, config) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return null;
+  }
+
+  return values
+    .map((value) => relativeConfiguredPath(value, config))
+    .filter(Boolean)
+    .join(", ");
+}
+
+function truncateLine(value, max = 500) {
+  if (value.length <= max) {
+    return value;
+  }
+  return `${value.slice(0, max - 3)}...`;
+}
+
+export function buildKleinanzeigenApprovalDescription({ toolName, params = {}, config = {} }) {
+  const operation = toolName.replace(/^kleinanzeigen_/, "");
+  const lines = [
+    "Allow this local kleinanzeigen-bot operation to run with redacted output.",
+    `Operation: ${operation}`,
+  ];
+
+  if (typeof params.selector === "string") {
+    lines.push(`Selector: ${params.selector}`);
+  }
+  if (Array.isArray(params.selectors) && params.selectors.length > 0) {
+    lines.push(`Selectors: ${params.selectors.join(", ")}`);
+  }
+  if (Array.isArray(params.adIds) && params.adIds.length > 0) {
+    lines.push(`Ad IDs: ${params.adIds.join(", ")}`);
+  }
+
+  const adDirectories = summarizeList(params.adDirectories, config);
+  if (adDirectories) {
+    lines.push(`Ad directories: ${adDirectories}`);
+  }
+
+  const adConfigPaths = summarizeList(params.adConfigPaths, config);
+  if (adConfigPaths) {
+    lines.push(`Ad config files: ${adConfigPaths}`);
+  }
+
+  if (!adDirectories && !adConfigPaths && !Array.isArray(params.adIds)) {
+    lines.push("Scope: bot config default selection");
+  }
+  if (typeof params.keepOld === "boolean") {
+    lines.push(`Keep old ads: ${params.keepOld}`);
+  }
+  if (typeof params.confirm === "boolean") {
+    lines.push(`Confirm: ${params.confirm}`);
+  }
+
+  return lines.map((line) => truncateLine(line)).join("\n");
 }
 
 const adIdsSchema = {

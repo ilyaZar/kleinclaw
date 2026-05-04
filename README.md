@@ -30,8 +30,10 @@ returning it to your OpenClaw agent.
 The tools are optional because they run a local command. By default all tools
 require OpenClaw approval before they run. Set `approvalMode` to `mutating` only
 for local checks where status and verify should run without an approval route.
-Account-changing tools also require `confirm: true`. Tool output is capped and
-redacted for configured paths, email addresses, and credential-like lines.
+Set it to `none` only for local TUI/dev sessions where no OpenClaw approval UI
+is connected. Account-changing tools still require `confirm: true`. Tool output
+is capped and redacted for configured paths, email addresses, and
+credential-like lines.
 
 ## Install
 
@@ -103,6 +105,10 @@ finer control. For a minimal KleinClaw-only dev agent:
   }
 }
 ```
+
+OpenClaw approval requests include the operation, selector, explicit ad IDs, and
+ad paths relative to configured `adRoots`. Check those details before approving
+mutating tools.
 
 When the bot config contains many ads, one invalid unrelated ad can make the
 bot reject the whole run before it applies `--ads` filtering. To operate on one

@@ -74,10 +74,11 @@
         "type": "string",
         "enum": [
           "all",
-          "mutating"
+          "mutating",
+          "none"
         ],
         "default": "all",
-        "description": "Approval behavior. Defaults to all tools; use mutating for local status/verify smoke checks."
+        "description": "Approval behavior. Defaults to all tools; use mutating for local status/verify smoke checks, or none only when the local approval UI is unavailable."
       }
     }
   }
