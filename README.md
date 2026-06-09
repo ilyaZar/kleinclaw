@@ -317,31 +317,27 @@ example, a full verify blocked by an unrelated overlong title can point the
 agent at the failing ad and suggest either fixing it or using a scoped operation
 for the intended listing.
 
-If your routed agent can see the KleinClaw skill but says no `kleinanzeigen_*`
-tools are callable, check sandbox tool policy before debugging Telegram,
-BotFather, or the plugin install. OpenClaw applies sandbox policy after the
-normal tool allowlist; a Gateway log like `sandbox tools.allow` removing
-`kleinanzeigen_status` means the plugin loaded but the sandbox gate hid its
-tools from that session.
+For publishing combinations, pass `selectors` as a list such as
+`["changed", "due"]`. Do not mix selectors with explicit ad IDs.
+
+## Troubleshooting
+
+If a routed agent sees the KleinClaw skill but no callable `kleinanzeigen_*`
+tools, check sandbox tool policy. A Gateway log like `sandbox tools.allow`
+removing `kleinanzeigen_status` means the plugin loaded, but the sandbox gate
+hid its tools from that session.
 
 ```json
 {
   "tools": {
     "alsoAllow": ["kleinclaw"],
-    "sandbox": {
-      "tools": {
-        "alsoAllow": ["kleinclaw"]
-      }
-    }
+    "sandbox": { "tools": { "alsoAllow": ["kleinclaw"] } }
   }
 }
 ```
 
-Restart or reload Gateway after changing tool policy, then verify with
-`openclaw sandbox explain --json` and a `kleinanzeigen_status` smoke test.
-
-For publishing combinations, pass `selectors` as a list such as
-`["changed", "due"]`. Do not mix selectors with explicit ad IDs.
+Restart or reload Gateway, then verify with `openclaw sandbox explain --json`
+and a `kleinanzeigen_status` smoke test.
 
 ## Notes
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6
+
+- add a concise troubleshooting section for sandboxed routed agents
+- align package and OpenClaw plugin metadata for the next ClawHub release
+
 ## 0.1.5
 
 - document sandbox tool-policy exposure for routed agents
