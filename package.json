@@ -1,6 +1,6 @@
 {
   "name": "kleinclaw",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Kleinanzeigen helper tools for a local kleinanzeigen-bot setup with redacted output",
   "license": "MIT",
   "repository": {
