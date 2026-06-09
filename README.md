@@ -317,14 +317,17 @@ example, a full verify blocked by an unrelated overlong title can point the
 agent at the failing ad and suggest either fixing it or using a scoped operation
 for the intended listing.
 
-If your agent runs with OpenClaw sandboxing enabled, also allow the plugin group
-through sandbox tool policy. OpenClaw applies sandbox policy after the normal
-tool allowlist, so omitting this can make the agent say that the KleinClaw tools
-are not available even though the plugin loaded.
+If your routed agent can see the KleinClaw skill but says no `kleinanzeigen_*`
+tools are callable, check sandbox tool policy before debugging Telegram,
+BotFather, or the plugin install. OpenClaw applies sandbox policy after the
+normal tool allowlist; a Gateway log like `sandbox tools.allow` removing
+`kleinanzeigen_status` means the plugin loaded but the sandbox gate hid its
+tools from that session.
 
 ```json
 {
   "tools": {
+    "alsoAllow": ["kleinclaw"],
     "sandbox": {
       "tools": {
         "alsoAllow": ["kleinclaw"]
@@ -333,6 +336,9 @@ are not available even though the plugin loaded.
   }
 }
 ```
+
+Restart or reload Gateway after changing tool policy, then verify with
+`openclaw sandbox explain --json` and a `kleinanzeigen_status` smoke test.
 
 For publishing combinations, pass `selectors` as a list such as
 `["changed", "due"]`. Do not mix selectors with explicit ad IDs.
