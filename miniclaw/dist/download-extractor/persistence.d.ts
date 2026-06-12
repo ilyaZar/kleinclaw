@@ -1,5 +1,5 @@
 import { type AdInput } from "../model/ad-model.js";
-export declare const AD_SCHEMA_HEADER: string;
+export declare const AD_SCHEMA_HEADER = "# yaml-language-server: $schema=miniclaw://schemas/ad.schema.json";
 export declare const STAGING_DIR_PREFIX = ".tmp-";
 export interface SaveDownloadedAdOptions {
     adConfig: AdInput;

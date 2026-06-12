@@ -7,6 +7,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import { promisify } from "node:util";
 import { remoteDebuggingHostFromArguments, remoteDebuggingPortFromArguments, } from "./browser-arguments.js";
+import { getCompatibleBrowser } from "./session-plan.js";
 const execFileAsync = promisify(execFile);
 export const CHROME_136_VERSION = 136;
 export class ChromeVersionInfo {
@@ -126,10 +127,19 @@ export function buildBrowserDiagnosticReport(config) {
         }
     }
     else {
-        lines.push({
-            status: "info",
-            message: "Browser auto-detection is deferred until browser automation is ported.",
-        });
+        try {
+            lines.push({
+                status: "ok",
+                message: `Browser auto-detected: ${getCompatibleBrowser()}`,
+            });
+        }
+        catch (error) {
+            lines.push({
+                status: "fail",
+                message: "Browser auto-detection failed: " +
+                    (error instanceof Error ? error.message : String(error)),
+            });
+        }
     }
     const userDataDir = browserConfig.userDataDir.trim();
     if (userDataDir) {

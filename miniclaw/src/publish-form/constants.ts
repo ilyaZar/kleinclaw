@@ -39,6 +39,8 @@ export const SUBMIT_BUTTON_XPATH =
 export const IMPRINT_GUIDANCE_SUBMIT_ID = "imprint-guidance-submit";
 export const NO_IMAGE_HINT_BUTTON_XPATH =
   '//button[contains(., "Ohne Bild veröffentlichen")]';
+export const VISIBILITY_UPSELL_SKIP_BUTTON_XPATH =
+  '//button[contains(., "Ohne Hochschieben weiter")]';
 export const PAYMENT_FORM_ID = "myftr-shppngcrt-frm";
 export const CONFIRMATION_URL_FRAGMENT =
   "p-anzeige-aufgeben-bestaetigung.html?adId=";

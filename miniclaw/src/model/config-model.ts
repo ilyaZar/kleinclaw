@@ -32,6 +32,7 @@ import {
   type UpdateCheckConfigInput,
 } from "./update-check-config.js";
 import { ValidationError } from "./validation-error.js";
+import { BUILTIN_CATEGORIES } from "../resources/categories.js";
 
 export {
   AdDefaults,
@@ -114,7 +115,7 @@ export class Config {
       throw new ValidationError("ad_files must contain non-empty glob patterns");
     }
     this.adDefaults = new AdDefaults(input.adDefaults ?? input.ad_defaults ?? {});
-    this.categories = { ...(input.categories ?? {}) };
+    this.categories = { ...BUILTIN_CATEGORIES, ...(input.categories ?? {}) };
     this.download = new DownloadConfig(input.download ?? {});
     this.publishing = new PublishingConfig(input.publishing ?? {});
     this.deleting = new DeletingConfig(input.deleting ?? {});

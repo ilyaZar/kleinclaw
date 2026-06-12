@@ -13,6 +13,7 @@ import {
   PAYMENT_FORM_ID,
   SUBMIT_BUTTON_XPATH,
   TRACKING_SCRIPT_TEXT_JS,
+  VISIBILITY_UPSELL_SKIP_BUTTON_XPATH,
 } from "./constants.js";
 import {
   CaptchaEncountered,
@@ -176,6 +177,18 @@ async function handlePostSubmitPrompts(
         "Unable to confirm publish without image",
       );
     }
+  }
+
+  const visibilityUpsellSkipButton = await controller.webProbe(
+    By.XPATH,
+    VISIBILITY_UPSELL_SKIP_BUTTON_XPATH,
+    { timeout: quickDomTimeout },
+  );
+  if (visibilityUpsellSkipButton !== null) {
+    await clickElement(
+      visibilityUpsellSkipButton,
+      "Unable to continue without paid visibility upsell",
+    );
   }
 
   const paymentForm = await controller.webProbe(

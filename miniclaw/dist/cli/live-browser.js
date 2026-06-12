@@ -57,6 +57,7 @@ export async function runLiveBrowserCommand(parsed, createLiveSideEffects, works
                     diagnosticsDir: workspace.diagnosticsDir,
                     logFilePath: parsed.logfilePath,
                     strictPublishedAds: NUMERIC_IDS_RE.test(loaded.effectiveSelector),
+                    workspaceBrowserProfileDir: workspace.browserProfileDir,
                 }));
             if (!hasInjectedDownloadHandlers(parsed.command, sideEffects)) {
                 console.error("download requires injected fetch, overview, navigation, and " +
@@ -91,6 +92,7 @@ export async function runLiveBrowserCommand(parsed, createLiveSideEffects, works
                 configPath: parsed.configPath,
                 diagnosticsDir: workspace?.diagnosticsDir,
                 logFilePath: parsed.logfilePath,
+                workspaceBrowserProfileDir: workspace?.browserProfileDir,
             }));
         if (parsed.command === "delete") {
             return await runInjectedDeleteCommand(parsed, sideEffects, loaded);

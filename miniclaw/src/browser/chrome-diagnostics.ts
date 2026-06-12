@@ -12,6 +12,7 @@ import {
   remoteDebuggingHostFromArguments,
   remoteDebuggingPortFromArguments,
 } from "./browser-arguments.js";
+import { getCompatibleBrowser } from "./session-plan.js";
 import { type Config } from "../model/config-model.js";
 
 const execFileAsync = promisify(execFile);
@@ -189,10 +190,18 @@ export function buildBrowserDiagnosticReport(config: Config): BrowserDiagnosticR
       lines.push({ status: "fail", message: `Browser binary not found: ${binaryPath}` });
     }
   } else {
-    lines.push({
-      status: "info",
-      message: "Browser auto-detection is deferred until browser automation is ported.",
-    });
+    try {
+      lines.push({
+        status: "ok",
+        message: `Browser auto-detected: ${getCompatibleBrowser()}`,
+      });
+    } catch (error) {
+      lines.push({
+        status: "fail",
+        message: "Browser auto-detection failed: " +
+          (error instanceof Error ? error.message : String(error)),
+      });
+    }
   }
 
   const userDataDir = browserConfig.userDataDir.trim();

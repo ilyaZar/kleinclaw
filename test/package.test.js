@@ -13,8 +13,11 @@ const execFileAsync = promisify(execFile);
 const allowedDependencies = {
   "decimal.js": "^10.6.0",
   glob: "^13.0.6",
-  "playwright-core": "^1.60.0",
   yaml: "^2.9.0",
+};
+const allowedDevDependencies = {
+  "@types/node": "^22.19.21",
+  typescript: "^6.0.3",
 };
 
 async function npmPackDryRunFiles() {
@@ -93,7 +96,10 @@ describe("package install boundary", () => {
     for (const script of lifecycleScripts) {
       assert.equal(pkg.scripts?.[script], undefined);
     }
+    assert.equal(pkg.scripts?.build, "npm run build:miniclaw");
+    assert.equal(pkg.scripts?.["build:miniclaw"], "tsc -p tsconfig.miniclaw.json");
     assert.deepEqual(pkg.dependencies, allowedDependencies);
+    assert.deepEqual(pkg.devDependencies, allowedDevDependencies);
   });
 
   it("keeps the package lock scoped to embedded miniclaw dependencies", async () => {
@@ -101,6 +107,7 @@ describe("package install boundary", () => {
     const lock = JSON.parse(lockText);
 
     assert.deepEqual(lock.packages?.[""]?.dependencies, allowedDependencies);
+    assert.deepEqual(lock.packages?.[""]?.devDependencies, allowedDevDependencies);
     assert.doesNotMatch(lockText, /kleinanzeigen-bot/);
     assert.doesNotMatch(lockText, /cliPath/);
     assert.doesNotMatch(lockText, /projects\/various/);
@@ -319,6 +326,7 @@ describe("package install boundary", () => {
     assert.equal(miniclawPkg.scripts, undefined);
     assert.equal(miniclawPkg.devDependencies, undefined);
     assert.deepEqual(miniclawPkg.dependencies, allowedDependencies);
+    assert.equal(Object.hasOwn(miniclawPkg.dependencies, "playwright-core"), false);
     assert.equal(miniclaw.run, cli.run);
     assert.equal(typeof miniclaw.Config, "function");
     assert.equal(typeof miniclaw.runPublishAdsBatch, "function");
@@ -352,6 +360,528 @@ describe("package install boundary", () => {
     assert.doesNotMatch(generatedConfig, /kleinanzeigen-bot/);
   });
 
+  it("keeps the browser session planner on miniclaw CDP profile semantics", async () => {
+    const {
+      browserCandidatePaths,
+      buildBrowserSessionPlan,
+      getCompatibleBrowser,
+    } = await import("../miniclaw/dist/browser/session-plan.js");
+    const {
+      remoteDebuggingPortFromArguments,
+    } = await import("../miniclaw/dist/browser/browser-arguments.js");
+    const {
+      CdpContext,
+      CdpLocator,
+      CdpPage,
+      launchCdpBrowser,
+    } = await import("../miniclaw/dist/browser/cdp-adapter.js");
+    const { Config } = await import("../miniclaw/dist/model/config-model.js");
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-cdp-plan-"));
+    const fakeBrowser = path.join(tmp, "chromium");
+    const workspaceProfile = path.join(tmp, ".temp", "browser-profile");
+    const relativeExtension = path.join("extensions", "helper.crx");
+    const binA = path.join(tmp, "bin-a");
+    const binB = path.join(tmp, "bin-b");
+    const detectedChromium = path.join(binB, "chromium");
+    const detectedChrome = path.join(binA, "google-chrome");
+
+    await fs.writeFile(fakeBrowser, "#!/bin/sh\nexit 0\n", "utf8");
+    await fs.chmod(fakeBrowser, 0o700);
+    await fs.mkdir(binA);
+    await fs.mkdir(binB);
+    await fs.writeFile(detectedChrome, "#!/bin/sh\nexit 0\n", "utf8");
+    await fs.writeFile(detectedChromium, "#!/bin/sh\nexit 0\n", "utf8");
+    await fs.chmod(detectedChrome, 0o700);
+    await fs.chmod(detectedChromium, 0o700);
+
+    assert.equal(
+      getCompatibleBrowser({
+        platform: "linux",
+        searchPath: [binA, binB].join(path.delimiter),
+      }),
+      detectedChromium,
+    );
+    assert.deepEqual(
+      browserCandidatePaths({
+        env: {
+          LOCALAPPDATA: "LocalAppData",
+          PROGRAMFILES: "ProgramFiles",
+          "PROGRAMFILES(X86)": "ProgramFilesX86",
+        },
+        platform: "win32",
+        searchPath: "",
+      }).slice(0, 12),
+      [
+        path.win32.join("LocalAppData", "Google", "Chrome", "Application", "chrome.exe"),
+        path.win32.join("ProgramFiles", "Google", "Chrome", "Application", "chrome.exe"),
+        path.win32.join("ProgramFilesX86", "Google", "Chrome", "Application", "chrome.exe"),
+        path.win32.join("LocalAppData", "Microsoft", "Edge", "Application", "msedge.exe"),
+        path.win32.join("ProgramFiles", "Microsoft", "Edge", "Application", "msedge.exe"),
+        path.win32.join("ProgramFilesX86", "Microsoft", "Edge", "Application", "msedge.exe"),
+        path.win32.join("LocalAppData", "Chromium", "Application", "chrome.exe"),
+        path.win32.join("ProgramFiles", "Chromium", "Application", "chrome.exe"),
+        path.win32.join("ProgramFilesX86", "Chromium", "Application", "chrome.exe"),
+        path.win32.join("ProgramFiles", "Chrome", "Application", "chrome.exe"),
+        path.win32.join("ProgramFilesX86", "Chrome", "Application", "chrome.exe"),
+        path.win32.join("LocalAppData", "Chrome", "Application", "chrome.exe"),
+      ],
+    );
+    assert.throws(
+      () => getCompatibleBrowser({ platform: "plan9", searchPath: "" }),
+      /Installed browser for OS plan9 could not be detected/,
+    );
+    assert.throws(
+      () => buildBrowserSessionPlan(
+        new Config({
+          browser: {
+            arguments: ["--remote-debugging-port=9333"],
+            binary_location: path.join(tmp, "missing-browser"),
+          },
+        }),
+        { cwd: tmp, defaultUserDataDir: workspaceProfile },
+      ),
+      /Specified browser binary .*missing-browser.* does not exist/,
+    );
+    assert.throws(
+      () => remoteDebuggingPortFromArguments(["--remote-debugging-port=abc"]),
+      /Invalid --remote-debugging-port value: abc/,
+    );
+    assert.equal(
+      remoteDebuggingPortFromArguments(["--remote-debugging-port=0"]),
+      null,
+    );
+
+    const plan = buildBrowserSessionPlan(
+      new Config({
+        browser: {
+          arguments: ["--disable-dev-shm-usage"],
+          binary_location: fakeBrowser,
+          extensions: [relativeExtension],
+          profile_name: "Profile 1",
+          user_data_dir: "",
+        },
+      }),
+      { cwd: tmp, defaultUserDataDir: workspaceProfile },
+    );
+
+    assert.equal(plan.mode, "launch");
+    assert.equal(plan.browserExecutablePath, fakeBrowser);
+    assert.equal(plan.userDataDir, workspaceProfile);
+    assert.equal(plan.profileDir, path.join(workspaceProfile, "Profile 1"));
+    assert.equal(plan.preferencesFile, path.join(workspaceProfile, "Profile 1", "Preferences"));
+    assert.deepEqual(plan.extensionPaths, [path.join(tmp, relativeExtension)]);
+    assert.equal(plan.browserArgs.includes("--disable-dev-shm-usage"), true);
+    assert.equal(plan.browserArgs.some((arg) => arg.startsWith("--user-data-dir=")), false);
+    assert.equal(plan.remotePort, null);
+
+    const remotePlan = buildBrowserSessionPlan(
+      new Config({
+        browser: {
+          arguments: [
+            "--remote-debugging-host=127.0.0.1",
+            "--remote-debugging-port=9333",
+          ],
+          binary_location: fakeBrowser,
+          extensions: [path.join("extensions", "remote-ignored.crx")],
+          profile_name: "Remote Profile",
+          user_data_dir: path.join(tmp, "remote-profile"),
+        },
+      }),
+      { cwd: tmp, defaultUserDataDir: workspaceProfile },
+    );
+
+    assert.equal(remotePlan.mode, "connect");
+    assert.equal(remotePlan.remoteHost, "127.0.0.1");
+    assert.equal(remotePlan.remotePort, 9333);
+    assert.deepEqual(remotePlan.browserArgs, []);
+    assert.equal(remotePlan.userDataDir, null);
+    assert.equal(remotePlan.profileDir, null);
+    assert.equal(remotePlan.preferencesFile, null);
+    assert.deepEqual(remotePlan.extensionPaths, []);
+
+    const disposedInitialPages = [];
+    const closedInitialPages = [];
+    const existingPage = {
+      dispose: async () => disposedInitialPages.push("existing"),
+      close: async () => closedInitialPages.push("existing"),
+    };
+    const context = new CdpContext("http://127.0.0.1:1", 1, null, [existingPage]);
+
+    assert.deepEqual(context.pages(), [existingPage]);
+    await context.close();
+    assert.deepEqual(disposedInitialPages, ["existing"]);
+    assert.deepEqual(closedInitialPages, []);
+
+    const trackedPage = new CdpPage("http://127.0.0.1:1", {
+      id: "page-1",
+      type: "page",
+      url: "about:blank",
+      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-1",
+    }, 1);
+    const handlers = new Map();
+    let currentHref = "https://www.kleinanzeigen.de/s-home.html";
+    trackedPage.client = {
+      close: () => {},
+      connect: async () => {},
+      on: (method, handler) => {
+        handlers.set(method, handler);
+        return () => handlers.delete(method);
+      },
+      send: async (method, params = {}) => {
+        if (method === "Runtime.evaluate") {
+          const expression = String(params.expression ?? "");
+          if (expression === "document.readyState") {
+            return { result: { value: "complete" } };
+          }
+          if (expression === "location.href") {
+            return { result: { value: currentHref } };
+          }
+        }
+        return {};
+      },
+    };
+
+    await trackedPage.init();
+    assert.equal(trackedPage.url, "https://www.kleinanzeigen.de/s-home.html");
+    handlers.get("Page.frameNavigated")({
+      frame: {
+        parentId: "main",
+        url: "https://www.kleinanzeigen.de/ignored-child-frame",
+      },
+    });
+    assert.equal(trackedPage.url, "https://www.kleinanzeigen.de/s-home.html");
+    handlers.get("Page.frameNavigated")({
+      frame: { url: "https://login.kleinanzeigen.de/u/login" },
+    });
+    assert.equal(trackedPage.url, "https://login.kleinanzeigen.de/u/login");
+    handlers.get("Page.navigatedWithinDocument")({
+      url: "https://login.kleinanzeigen.de/u/login/password",
+    });
+    assert.equal(trackedPage.url, "https://login.kleinanzeigen.de/u/login/password");
+    currentHref = "https://www.kleinanzeigen.de/m-meine-anzeigen.html";
+    await trackedPage.waitForLoadState("load");
+    assert.equal(trackedPage.url, "https://www.kleinanzeigen.de/m-meine-anzeigen.html");
+
+    const navPage = new CdpPage("http://127.0.0.1:1", {
+      id: "page-nav",
+      type: "page",
+      url: "about:blank",
+      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-nav",
+    }, 1);
+    const navHandlers = new Map();
+    const navCalls = [];
+    navPage.client = {
+      close: () => {},
+      connect: async () => {},
+      on: (method, handler) => {
+        navHandlers.set(method, handler);
+        return () => navHandlers.delete(method);
+      },
+      send: async (method, params = {}) => {
+        navCalls.push([method, params]);
+        if (method === "Runtime.evaluate") {
+          return {
+            result: {
+              value: "https://www.kleinanzeigen.de/p-anzeige-aufgeben-schritt2.html",
+            },
+          };
+        }
+        return {};
+      },
+    };
+
+    const navPromise = navPage.goto(
+      "https://www.kleinanzeigen.de/p-anzeige-aufgeben-schritt2.html",
+      { timeout: 1234 },
+    );
+    await Promise.resolve();
+    assert.deepEqual(navCalls, [
+      [
+        "Page.navigate",
+        { url: "https://www.kleinanzeigen.de/p-anzeige-aufgeben-schritt2.html" },
+      ],
+    ]);
+    navHandlers.get("Page.frameNavigated")({
+      frame: {
+        url: "https://www.kleinanzeigen.de/p-anzeige-aufgeben-schritt2.html",
+      },
+    });
+    await navPromise;
+    assert.equal(
+      navPage.url,
+      "https://www.kleinanzeigen.de/p-anzeige-aufgeben-schritt2.html",
+    );
+    assert.deepEqual(
+      navCalls.map(([method, params]) => [
+        method,
+        params.expression ?? params.url,
+      ]),
+      [
+        [
+          "Page.navigate",
+          "https://www.kleinanzeigen.de/p-anzeige-aufgeben-schritt2.html",
+        ],
+        ["Runtime.evaluate", "location.href"],
+      ],
+    );
+
+    const typedPage = new CdpPage("http://127.0.0.1:1", {
+      id: "page-2",
+      type: "page",
+      url: "about:blank",
+      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-2",
+    }, 1);
+    const dispatchedKeys = [];
+    const typedFunctions = [];
+    typedPage.client = {
+      close: () => {},
+      connect: async () => {},
+      on: () => () => {},
+      send: async (method, params = {}) => {
+        if (method === "Runtime.evaluate") {
+          return { result: { objectId: "element-1" } };
+        }
+        if (method === "DOM.describeNode") {
+          return { node: { backendNodeId: 123 } };
+        }
+        if (method === "Runtime.callFunctionOn") {
+          typedFunctions.push(params);
+          return { result: { value: undefined } };
+        }
+        if (method === "Input.dispatchKeyEvent") {
+          dispatchedKeys.push(params);
+        }
+        return {};
+      },
+    };
+    const typedLocator = new CdpLocator(typedPage, [
+      { kind: "css", value: "#title", index: 0 },
+    ]);
+
+    await typedLocator.type("Ab 9!\n");
+    assert.equal(typedFunctions.length, 1);
+    assert.equal(typedFunctions[0].objectId, "element-1");
+    assert.equal(typedFunctions[0].functionDeclaration, "(element) => element.focus()");
+    assert.deepEqual(typedFunctions[0].arguments, [{ objectId: "element-1" }]);
+    assert.equal(typedFunctions[0].userGesture, true);
+    assert.deepEqual(
+      dispatchedKeys.map((event) => [
+        event.type,
+        event.text,
+      ]),
+      [
+        ["char", "A"],
+        ["char", "b"],
+        ["char", " "],
+        ["char", "9"],
+        ["char", "!"],
+        ["char", "\n"],
+      ],
+    );
+
+    const textPage = new CdpPage("http://127.0.0.1:1", {
+      id: "page-text",
+      type: "page",
+      url: "about:blank",
+      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-text",
+    }, 1);
+    let fakeDocument;
+    const button = {
+      id: "button",
+      ownerDocument: null,
+      querySelectorAll: () => [],
+      textContent: "Submit",
+    };
+    const container = {
+      id: "container",
+      ownerDocument: null,
+      querySelectorAll: () => [button],
+      textContent: "Submit Cancel",
+    };
+    const shell = {
+      id: "shell",
+      ownerDocument: null,
+      querySelectorAll: () => [container, button],
+      textContent: "Account Submit Cancel Footer",
+    };
+    fakeDocument = {
+      querySelectorAll: (selector) => {
+        assert.equal(selector, "*");
+        return [shell, container, button];
+      },
+    };
+    for (const element of [button, container, shell]) {
+      element.ownerDocument = fakeDocument;
+    }
+    const evaluateWithFakeDocument = (expression) => {
+      const hadDocument = Object.hasOwn(globalThis, "document");
+      const previousDocument = globalThis.document;
+      globalThis.document = fakeDocument;
+      try {
+        return Function(`return (${expression})`)();
+      } finally {
+        if (hadDocument) {
+          globalThis.document = previousDocument;
+        } else {
+          delete globalThis.document;
+        }
+      }
+    };
+    const textLocatorObjects = [];
+    textPage.client = {
+      close: () => {},
+      connect: async () => {},
+      on: () => () => {},
+      send: async (method, params = {}) => {
+        if (method === "Runtime.evaluate") {
+          const value = evaluateWithFakeDocument(String(params.expression));
+          if (value && typeof value === "object") {
+            textLocatorObjects.push(value.id);
+            return { result: { objectId: value.id } };
+          }
+          return { result: { value } };
+        }
+        if (method === "DOM.describeNode") {
+          return { node: { backendNodeId: 789 } };
+        }
+        if (method === "Runtime.callFunctionOn") {
+          assert.equal(params.objectId, "button");
+          return { result: { value: { x: 10, y: 20 } } };
+        }
+        return {};
+      },
+    };
+    const textLocator = textPage.getByText("Submit");
+
+    assert.equal(await textLocator.count(), 3);
+    await textLocator.first().click();
+    assert.deepEqual(textLocatorObjects, ["button"]);
+
+    const clickedPage = new CdpPage("http://127.0.0.1:1", {
+      id: "page-3",
+      type: "page",
+      url: "about:blank",
+      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-3",
+    }, 1);
+    const clickedFunctions = [];
+    clickedPage.client = {
+      close: () => {},
+      connect: async () => {},
+      on: () => () => {},
+      send: async (method, params = {}) => {
+        if (method === "Runtime.evaluate") {
+          return { result: { objectId: "button-1" } };
+        }
+        if (method === "DOM.describeNode") {
+          return { node: { backendNodeId: 456 } };
+        }
+        if (method === "Runtime.callFunctionOn") {
+          clickedFunctions.push(params);
+          return { result: { value: undefined } };
+        }
+        return {};
+      },
+    };
+    const clickedLocator = new CdpLocator(clickedPage, [
+      { kind: "css", value: "#submit", index: 0 },
+    ]);
+
+    await clickedLocator.click();
+    assert.equal(clickedFunctions.length, 1);
+    assert.equal(clickedFunctions[0].objectId, "button-1");
+    assert.equal(clickedFunctions[0].functionDeclaration, "(el) => el.click()");
+    assert.deepEqual(clickedFunctions[0].arguments, [{ objectId: "button-1" }]);
+    assert.equal(clickedFunctions[0].userGesture, true);
+
+    const uploadPage = new CdpPage("http://127.0.0.1:1", {
+      id: "page-upload",
+      type: "page",
+      url: "about:blank",
+      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-upload",
+    }, 1);
+    const uploadedFiles = [];
+    uploadPage.client = {
+      close: () => {},
+      connect: async () => {},
+      on: () => () => {},
+      send: async (method, params = {}) => {
+        if (method === "Runtime.evaluate") {
+          return { result: { objectId: "file-input-1" } };
+        }
+        if (method === "DOM.describeNode") {
+          return { node: { backendNodeId: 987 } };
+        }
+        if (method === "DOM.setFileInputFiles") {
+          uploadedFiles.push(params);
+          return {};
+        }
+        return {};
+      },
+    };
+    const uploadLocator = new CdpLocator(uploadPage, [
+      { kind: "css", value: "input[type=file]", index: 0 },
+    ]);
+    const uploadFile = path.join(tmp, "photo.jpg");
+
+    await uploadLocator.sendFile(uploadFile);
+    assert.deepEqual(uploadedFiles, [{
+      backendNodeId: 987,
+      files: [uploadFile],
+      objectId: "file-input-1",
+    }]);
+
+    const evaluatedPage = new CdpPage("http://127.0.0.1:1", {
+      id: "page-evaluate",
+      type: "page",
+      url: "about:blank",
+      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-evaluate",
+    }, 1);
+    const evaluatedExpressions = [];
+    evaluatedPage.client = {
+      close: () => {},
+      connect: async () => {},
+      on: () => () => {},
+      send: async (method, params = {}) => {
+        if (method === "Runtime.evaluate") {
+          evaluatedExpressions.push(params);
+          return { result: { value: { ok: true } } };
+        }
+        return {};
+      },
+    };
+
+    const evaluated = await evaluatedPage.evaluate(
+      ({ requestUrl }) => requestUrl,
+      {
+        requestHeaders: { "x-csrf-token": "token" },
+        requestMethod: "POST",
+        requestUrl: "/api/delete",
+      },
+    );
+    assert.deepEqual(evaluated, { ok: true });
+    assert.equal(evaluatedExpressions.length, 1);
+    assert.equal(evaluatedExpressions[0].awaitPromise, true);
+    assert.equal(evaluatedExpressions[0].returnByValue, true);
+    assert.match(
+      evaluatedExpressions[0].expression,
+      /^\(\(\{ requestUrl \}\) => requestUrl\)\(/,
+    );
+    assert.match(evaluatedExpressions[0].expression, /"requestUrl":"\/api\/delete"/);
+    assert.match(evaluatedExpressions[0].expression, /"requestMethod":"POST"/);
+    assert.match(
+      evaluatedExpressions[0].expression,
+      /"requestHeaders":\{"x-csrf-token":"token"\}/,
+    );
+
+    await assert.rejects(
+      () => launchCdpBrowser({
+        ...plan,
+        extensionPaths: [path.join(tmp, "missing.crx")],
+      }),
+      /Configured extension-file .*missing\.crx.* does not exist/,
+    );
+  });
+
   it("keeps local guidance, tests, coverage, and unused assets out of the package", async () => {
     const files = await npmPackDryRunFiles();
     const forbiddenFiles = [
@@ -360,6 +890,7 @@ describe("package install boundary", () => {
       "package-lock.json",
       "test/cli.test.js",
       "test/tools.test.js",
+      "tsconfig.miniclaw.json",
       "node_modules/.package-lock.json",
       "reports/plugin-inspector-report.json",
       "reports/plugin-inspector-report.md",
@@ -413,6 +944,8 @@ describe("package install boundary", () => {
       [/runtimeCommand/, "runtimeCommand"],
       [/external automation/i, "external automation"],
       [/external setup/i, "external setup"],
+      [/\bbot\b/i, "bot"],
+      [/playwright/i, "Playwright"],
       [/\bpython\b/i, "python"],
       [/\blegacy\b/i, "legacy"],
       [/renameExistingFolders|rename_existing_folders/, "renameExistingFolders"],

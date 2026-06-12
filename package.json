@@ -34,6 +34,8 @@
     "src/"
   ],
   "scripts": {
+    "build": "npm run build:miniclaw",
+    "build:miniclaw": "tsc -p tsconfig.miniclaw.json",
     "coverage": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info",
     "package:check": "node --test test/package.test.js",
     "test": "node --test"
@@ -41,7 +43,6 @@
   "dependencies": {
     "decimal.js": "^10.6.0",
     "glob": "^13.0.6",
-    "playwright-core": "^1.60.0",
     "yaml": "^2.9.0"
   },
   "peerDependencies": {
@@ -64,5 +65,9 @@
       "openclawVersion": "2026.5.3-beta.3",
       "pluginSdkVersion": "2026.5.3-beta.3"
     }
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "typescript": "^6.0.3"
   }
 }

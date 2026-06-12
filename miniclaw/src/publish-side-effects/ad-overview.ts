@@ -19,6 +19,7 @@ interface AdOverviewController {
     options?: { parent?: WebLocator | null; timeout?: number },
   ): Promise<WebElement[]>;
   webOpen(url: string): Promise<void>;
+  webScrollPageDown?(): Promise<void>;
   webSleep(minMs?: number, maxMs?: number): Promise<void>;
 }
 
@@ -83,6 +84,13 @@ export async function navigatePaginatedAdOverview(
 
   let currentPage = 1;
   while (currentPage <= maxPages) {
+    try {
+      await controller.webScrollPageDown?.();
+    } catch (error) {
+      if (!(error instanceof TimeoutError)) {
+        throw error;
+      }
+    }
     await controller.webSleep(2000, 3000);
     try {
       if (await pageAction(currentPage)) {

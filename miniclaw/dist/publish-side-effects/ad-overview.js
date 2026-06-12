@@ -48,6 +48,14 @@ export async function navigatePaginatedAdOverview(controller, pageUrl, pageActio
     }
     let currentPage = 1;
     while (currentPage <= maxPages) {
+        try {
+            await controller.webScrollPageDown?.();
+        }
+        catch (error) {
+            if (!(error instanceof TimeoutError)) {
+                throw error;
+            }
+        }
         await controller.webSleep(2000, 3000);
         try {
             if (await pageAction(currentPage)) {

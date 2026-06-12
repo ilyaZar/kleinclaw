@@ -15,6 +15,7 @@ import {
   toAd,
 } from "./model/ad-model.js";
 import { Config } from "./model/config-model.js";
+import { ValidationError } from "./model/validation-error.js";
 import { loadDataFile } from "./io.js";
 
 const NUMERIC_IDS_RE = /^\d+(,\d+)*$/;
@@ -34,6 +35,8 @@ export interface LoadAdsOptions {
   excludeAdsWithId?: boolean;
   now?: Date;
 }
+
+const SUPPORTED_IMAGE_EXTENSIONS = new Set([".gif", ".jpg", ".jpeg", ".png"]);
 
 export async function findAdFiles(configPath: string, config: Config): Promise<string[]> {
   const root = path.dirname(configPath);
@@ -87,6 +90,51 @@ export function isChangedAd(raw: AdInput, ad: Ad): boolean {
   return true;
 }
 
+async function expandImagePatterns(ad: Ad, adFilePath: string): Promise<Ad> {
+  if (ad.images.length === 0) {
+    return ad;
+  }
+
+  const adDir = path.dirname(adFilePath);
+  const images: string[] = [];
+  for (const imagePattern of ad.images) {
+    const patternImages = new Set<string>();
+    const matches = await glob(imagePattern, {
+      cwd: adDir,
+      nodir: true,
+    });
+    for (const imageFile of matches) {
+      const extension = path.extname(imageFile).toLowerCase();
+      if (!SUPPORTED_IMAGE_EXTENSIONS.has(extension)) {
+        throw new ValidationError(`Unsupported image file type [${imageFile}]`);
+      }
+      patternImages.add(
+        path.isAbsolute(imageFile) ? imageFile : path.resolve(adDir, imageFile),
+      );
+    }
+    images.push(...[...patternImages].sort());
+  }
+
+  if (images.length === 0) {
+    throw new ValidationError(
+      `No images found for given file patterns ${JSON.stringify(ad.images)} at ${adDir}`,
+    );
+  }
+
+  return { ...ad, images: [...new Set(images)] };
+}
+
+function resolveCategoryAlias(ad: Ad, categories: Record<string, string>): Ad {
+  let resolvedCategory = categories[ad.category];
+  if (!resolvedCategory && ad.category.includes(">")) {
+    const parentCategory = ad.category
+      .slice(0, ad.category.lastIndexOf(">"))
+      .trim();
+    resolvedCategory = categories[parentCategory];
+  }
+  return resolvedCategory ? { ...ad, category: resolvedCategory } : ad;
+}
+
 export async function loadSelectedAds({
   configPath,
   config,
@@ -135,7 +183,13 @@ export async function loadSelectedAds({
       }
     }
 
-    ads.push({ filePath, relativePath, ad, raw });
+    const resolvedAd = resolveCategoryAlias(ad, config.categories);
+    ads.push({
+      filePath,
+      relativePath,
+      ad: await expandImagePatterns(resolvedAd, filePath),
+      raw,
+    });
   }
 
   return ads;
