@@ -2,3 +2,8 @@ AGPL-3.0-or-later
 
 This TypeScript implementation is derived from kleinanzeigen-bot, whose source
 files are licensed under AGPL-3.0-or-later.
+
+Modification notice: miniclaw is a TypeScript port and adaptation for
+KleinClaw, created in 2026 from the AGPL-3.0-or-later kleinanzeigen-bot source
+structure and behavior. It is distributed as part of KleinClaw under
+AGPL-3.0-or-later and is not the upstream Python package.
