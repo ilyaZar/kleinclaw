@@ -2,6 +2,7 @@ import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const OPERATIONS = Object.freeze({
   verify: { command: "verify", sideEffect: false },
@@ -39,13 +40,29 @@ const ALLOWED_ENV_KEYS = new Set([
 ]);
 
 const SECRET_ENV_RE = /(api|auth|cookie|credential|key|login|pass|secret|session|sms|token|user)/i;
-const SENSITIVE_LINE_RE =
-  /\b(password|passwd|username|login|cookie|session|token|secret|credential|2fa|sms|user[_-]?data[_-]?dir|profile_name|browser profile)\b/i;
+const SENSITIVE_LINE_RE = new RegExp(
+  [
+    "\\b(",
+    "password|passwd|username|login|cookie|session|token|secret|credential",
+    "|2fa|sms|user[_-]?data[_-]?dir|profile_name|browser profile",
+    ")\\b",
+  ].join(""),
+  "i",
+);
 const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
-const USER_ACTION_RE =
-  /\b(press (enter|a key)|when done|manual inspection|please solve|eof when reading a line|eoferror|captcha (present|detected|recognized|erkannt|vorhanden)|captcha erkannt|bitte lösen|eingabetaste drücken)\b/i;
+const USER_ACTION_RE = new RegExp(
+  [
+    "\\b(",
+    "press (enter|a key)|when done|manual inspection|please solve",
+    "|eof when reading a line|eoferror",
+    "|captcha (present|detected|recognized|erkannt|vorhanden)",
+    "|captcha erkannt|bitte lösen|eingabetaste drücken",
+    ")\\b",
+  ].join(""),
+  "i",
+);
 const USER_ACTION_HINT = [
-  "The local bot stopped or paused for an account check.",
+  "The miniclaw runtime stopped or paused for an account check.",
   "Run it directly in a terminal/browser, finish that step, then retry this tool.",
 ].join(" ");
 const STATUS_TIMEOUT_MS = 15000;
@@ -72,37 +89,45 @@ const SHIPPING_OPTIONS = [
   "Hermes_L",
 ];
 const CONDITION_VALUES = ["new", "like_new", "ok", "alright", "defect"];
-const BOT_DEFAULT_BROWSER_ORDER = ["chromium", "chromium-browser", "google-chrome", "microsoft-edge"];
+const MINICLAW_DEFAULT_BROWSER_ORDER = [
+  "chromium",
+  "chromium-browser",
+  "google-chrome",
+  "microsoft-edge",
+];
+const EMBEDDED_MINICLAW_CLI = fileURLToPath(
+  new URL("../miniclaw/dist/cli.js", import.meta.url),
+);
 const BROWSER_CHOICES = Object.freeze({
   chromium: {
     label: "Chromium",
     commands: ["chromium", "chromium-browser"],
     profileDir: [".config", "chromium"],
-    supportedByBot: true,
+    supportedByMiniclaw: true,
   },
   brave: {
     label: "Brave",
     commands: ["brave", "brave-browser"],
     profileDir: [".config", "BraveSoftware", "Brave-Browser"],
-    supportedByBot: false,
-    supportNote: "not documented or auto-detected by kleinanzeigen-bot",
+    supportedByMiniclaw: false,
+    supportNote: "not documented or auto-detected by miniclaw",
   },
   "google-chrome": {
     label: "Google Chrome",
     commands: ["google-chrome", "google-chrome-stable"],
     profileDir: [".config", "google-chrome"],
-    supportedByBot: true,
+    supportedByMiniclaw: true,
   },
   "microsoft-edge": {
     label: "Microsoft Edge",
     commands: ["microsoft-edge", "microsoft-edge-stable"],
     profileDir: [".config", "microsoft-edge"],
-    supportedByBot: true,
+    supportedByMiniclaw: true,
   },
 });
 const SUPPORTED_BROWSER_IDS = Object.freeze(
   Object.entries(BROWSER_CHOICES)
-    .filter(([, choice]) => choice.supportedByBot)
+    .filter(([, choice]) => choice.supportedByMiniclaw)
     .map(([id]) => id),
 );
 const BROWSER_COMMAND_ALIASES = Object.freeze(
@@ -130,6 +155,14 @@ function normalizePositiveInteger(value, fallback, min, max) {
     return fallback;
   }
   return Math.min(Math.max(value, min), max);
+}
+
+function embeddedMiniclawRuntime() {
+  return {
+    argsPrefix: [EMBEDDED_MINICLAW_CLI],
+    command: process.execPath,
+    label: "miniclaw",
+  };
 }
 
 function normalizeAdIds(value) {
@@ -291,9 +324,14 @@ export function buildRedactions(config = {}) {
     }
   };
 
-  add(config.cliPath);
   add(config.workingDirectory);
   add(config.configPath);
+  if (config.runtime) {
+    add(config.runtime.command);
+    for (const arg of config.runtime.argsPrefix ?? []) {
+      add(arg);
+    }
+  }
   for (const root of normalizeStringArray(config.adRoots, "adRoots", { maxItems: 50 })) {
     add(root);
   }
@@ -357,7 +395,6 @@ export function detectUserActionRequest(text) {
 }
 
 export function resolveCliConfig(config = {}) {
-  const cliPath = normalizeOptionalString(config.cliPath) ?? "kleinanzeigen-bot";
   const configuredConfigPath = normalizeOptionalString(config.configPath);
   const configuredCwd = normalizeOptionalString(config.workingDirectory);
   const configPath =
@@ -368,9 +405,9 @@ export function resolveCliConfig(config = {}) {
   const cwd = configuredCwd ?? path.dirname(configPath);
 
   return {
-    cliPath,
     cwd,
     configPath,
+    runtime: embeddedMiniclawRuntime(),
     workspaceMode: normalizeWorkspaceMode(config.workspaceMode),
     lang: normalizeOptionalString(config.lang),
     timeoutMs: normalizePositiveInteger(config.timeoutMs, 120000, 1000, 600000),
@@ -389,11 +426,11 @@ async function assertConfiguredFiles(config) {
   try {
     const stat = await fs.stat(config.configPath);
     if (!stat.isFile()) {
-      throw new Error("configured bot config is not a file");
+      throw new Error("configured miniclaw config is not a file");
     }
   } catch (error) {
     if (error?.code === "ENOENT") {
-      throw new Error("configured bot config was not found");
+      throw new Error("configured miniclaw config was not found");
     }
     throw error;
   }
@@ -645,8 +682,7 @@ function yamlLinesForEntry(key, value, indent = 0) {
 }
 
 function renderAdYaml(ad) {
-  const schemaUrl =
-    "https://raw.githubusercontent.com/Second-Hand-Friends/kleinanzeigen-bot/main/schemas/ad.schema.json";
+  const schemaRef = "miniclaw://schemas/ad.schema.json";
   const order = [
     "active",
     "type",
@@ -668,7 +704,7 @@ function renderAdYaml(ad) {
     "republicationInterval",
   ];
   const lines = [
-    `# yaml-language-server: $schema=${schemaUrl}`,
+    `# yaml-language-server: $schema=${schemaRef}`,
   ];
 
   for (const key of order) {
@@ -814,8 +850,8 @@ function normalizeProfileMode(value) {
   if (mode === undefined) {
     return undefined;
   }
-  if (!["bot", "system-default", "custom"].includes(mode)) {
-    throw new Error("profileMode must be bot, system-default, or custom");
+  if (!["workspace", "system-default", "custom"].includes(mode)) {
+    throw new Error("profileMode must be workspace, system-default, or custom");
   }
   return mode;
 }
@@ -930,18 +966,18 @@ async function detectInstalledBrowsers({ sourceEnv = process.env, commandRunner 
       installed: Boolean(executable),
       executable,
       version: executable ? await browserVersion(executable, commandRunner) : "",
-      supportedByBot: choice.supportedByBot,
+      supportedByMiniclaw: choice.supportedByMiniclaw,
       supportNote: choice.supportNote ?? "",
-      botAutoDefault: choice.commands.some((command) =>
-        BOT_DEFAULT_BROWSER_ORDER.includes(command),
+      miniclawAutoDefault: choice.commands.some((command) =>
+        MINICLAW_DEFAULT_BROWSER_ORDER.includes(command),
       ),
     });
   }
   return detected;
 }
 
-function effectiveBotAutoBrowser(detectedBrowsers) {
-  for (const command of BOT_DEFAULT_BROWSER_ORDER) {
+function effectiveMiniclawAutoBrowser(detectedBrowsers) {
+  for (const command of MINICLAW_DEFAULT_BROWSER_ORDER) {
     const browser = detectedBrowsers.find((entry) => entry.commands.includes(command));
     if (browser?.installed) {
       return browser;
@@ -979,7 +1015,7 @@ function profileDirForBrowser(browser) {
 }
 
 function buildBrowserStatusPayload({ cliConfig, browserConfig, detectedBrowsers }) {
-  const autoBrowser = effectiveBotAutoBrowser(detectedBrowsers);
+  const autoBrowser = effectiveMiniclawAutoBrowser(detectedBrowsers);
   const configuredBinaryLocation = browserConfig.binary_location;
   const configuredBrowser = configuredBinaryLocation
     ? inferBrowserIdFromExecutable(configuredBinaryLocation)
@@ -990,7 +1026,7 @@ function buildBrowserStatusPayload({ cliConfig, browserConfig, detectedBrowsers 
         executable: configuredBinaryLocation,
       }
     : autoBrowser;
-  const expectedBotProfileDir =
+  const expectedWorkspaceProfileDir =
     !browserConfig.user_data_dir && cliConfig.workspaceMode === "portable"
       ? path.join(cliConfig.cwd, ".temp", "browser-profile")
       : "";
@@ -1020,7 +1056,7 @@ function buildBrowserStatusPayload({ cliConfig, browserConfig, detectedBrowsers 
         binaryLocation: configuredBinaryLocation || autoBrowser?.executable || "",
         usePrivateWindow: browserConfig.use_private_window,
         userDataDir: displayBrowserPath(
-          browserConfig.user_data_dir || expectedBotProfileDir,
+          browserConfig.user_data_dir || expectedWorkspaceProfileDir,
           cliConfig.cwd,
         ),
         profileName: browserConfig.profile_name || "Default",
@@ -1028,8 +1064,8 @@ function buildBrowserStatusPayload({ cliConfig, browserConfig, detectedBrowsers 
       notes: configuredBinaryLocation
         ? []
         : [
-            "auto detection follows kleinanzeigen-bot order",
-            "Brave is detected as a custom Chromium-family browser, not an official bot choice",
+            "auto detection follows miniclaw order",
+            "Brave is detected as a custom Chromium-family browser, not an official miniclaw choice",
           ],
     },
     detectedBrowsers,
@@ -1148,9 +1184,9 @@ async function resolveBrowserUpdates(params = {}, cliConfig, currentBrowserConfi
     }
     const inferredBrowser = inferBrowserIdFromExecutable(executable);
     const browserChoice = inferredBrowser ? BROWSER_CHOICES[inferredBrowser] : null;
-    if (!browserChoice?.supportedByBot && !allowUnsupportedBrowser) {
+    if (!browserChoice?.supportedByMiniclaw && !allowUnsupportedBrowser) {
       throw new Error(
-        "binaryLocation is not a supported kleinanzeigen-bot browser; " +
+        "binaryLocation is not a supported miniclaw browser; " +
           "set allowUnsupportedBrowser true to try it as a custom Chromium-family executable",
       );
     }
@@ -1161,7 +1197,7 @@ async function resolveBrowserUpdates(params = {}, cliConfig, currentBrowserConfi
     updates.use_private_window = normalizeBoolean(params.usePrivateWindow, "usePrivateWindow");
   }
 
-  if (profileMode === "bot") {
+  if (profileMode === "workspace") {
     updates.user_data_dir = "";
     updates.profile_name = "";
   } else if (profileMode === "system-default") {
@@ -1170,7 +1206,7 @@ async function resolveBrowserUpdates(params = {}, cliConfig, currentBrowserConfi
       browser && browser !== "auto"
         ? browser
         : inferBrowserIdFromExecutable(effectiveBinary) ?? inferBrowserIdFromExecutable(
-            effectiveBotAutoBrowser(
+            effectiveMiniclawAutoBrowser(
               await detectInstalledBrowsers({ commandRunner: cliConfig.commandRunner }),
             )?.executable,
           );
@@ -1481,7 +1517,7 @@ function buildOperationOutcome({ operation, result, rawText, beforeSnapshots, af
     return {
       success: true,
       status: "no_op",
-      summary: "bot completed successfully with no matching ads to change",
+      summary: "miniclaw completed successfully with no matching ads to change",
       evidence: successEvidence,
       counts: { changed: 0, failed: 0, total: 0 },
       adIds: successIds,
@@ -1496,8 +1532,8 @@ function buildOperationOutcome({ operation, result, rawText, beforeSnapshots, af
       success: true,
       status: result.timedOut ? "succeeded_with_process_timeout" : "succeeded",
       summary: done
-        ? `bot ${done.verb} ${done.count} ad${done.count === 1 ? "" : "s"}`
-        : "bot operation produced success evidence",
+        ? `miniclaw ${done.verb} ${done.count} ad${done.count === 1 ? "" : "s"}`
+        : "miniclaw operation produced success evidence",
       evidence: successEvidence,
       counts: done ? { changed: done.count, failed: 0, total: done.total } : undefined,
       adIds: successIds,
@@ -1509,7 +1545,7 @@ function buildOperationOutcome({ operation, result, rawText, beforeSnapshots, af
     return {
       success: false,
       status: "partial_failure",
-      summary: `bot changed ${done.count} ad${done.count === 1 ? "" : "s"} but ${failedCount} failed`,
+      summary: `miniclaw changed ${done.count} ad${done.count === 1 ? "" : "s"} but ${failedCount} failed`,
       evidence: successEvidence,
       counts: { changed: done.count, failed: failedCount, total: done.total },
       adIds: successIds,
@@ -1520,7 +1556,9 @@ function buildOperationOutcome({ operation, result, rawText, beforeSnapshots, af
   return {
     success: false,
     status: result.timedOut ? "timed_out" : "failed",
-    summary: result.timedOut ? "bot process timed out without success evidence" : "bot process failed",
+    summary: result.timedOut
+      ? "miniclaw process timed out without success evidence"
+      : "miniclaw process failed",
     evidence: successEvidence,
     adIds: successIds,
     changedAdConfigs,
@@ -1932,7 +1970,7 @@ async function inspectImageFile(filePath) {
     await handle.read(buffer, 0, buffer.length, 0);
     return {
       extension,
-      supportedByBot: SUPPORTED_IMAGE_EXTENSIONS.has(extension),
+      supportedByMiniclaw: SUPPORTED_IMAGE_EXTENSIONS.has(extension),
       bytes: stat.size,
       ...imageDimensionsFromBuffer(buffer, extension),
     };
@@ -2141,7 +2179,7 @@ export async function extractKleinanzeigenDiagnostics(text, config = {}) {
       message,
       suggestedAction: target.includes("AdPartial")
         ? "fix the invalid ad or run a scoped operation for a different ad"
-        : "fix the bot config and rerun verify",
+        : "fix the miniclaw config and rerun verify",
     };
 
     if (/title length exceeds 65 characters/i.test(message)) {
@@ -2168,7 +2206,7 @@ function buildNextActions(diagnostics = [], scoped) {
     return [];
   }
   if (diagnostics.some((entry) => entry.kind === "config_validation")) {
-    return ["fix the bot config and rerun kleinanzeigen_verify"];
+    return ["fix the miniclaw config and rerun kleinanzeigen_verify"];
   }
   if (scoped) {
     return ["fix the selected ad config and rerun scoped kleinanzeigen_verify"];
@@ -2257,7 +2295,7 @@ function buildInactivePublishPreflightResult({ operation, inactiveAds, cliConfig
       changedAdConfigs: [],
     },
     command: {
-      executable: path.basename(cliConfig.cliPath),
+      executable: cliConfig.runtime.label,
       args: redactArgs(args),
     },
     processOk: false,
@@ -2401,6 +2439,10 @@ export function runProcess(command, args, options = {}) {
   );
 }
 
+function runRuntimeProcess(runtime, args, options = {}) {
+  return runProcess(runtime.command, [...runtime.argsPrefix, ...args], options);
+}
+
 export async function getKleinanzeigenBrowserStatus(config = {}) {
   const cliConfig = resolveCliConfig(config);
   await assertConfiguredFiles(cliConfig);
@@ -2517,7 +2559,7 @@ export async function checkKleinanzeigenBrowser(params = {}, config = {}) {
   let result;
   try {
     const args = buildKleinanzeigenArgs("diagnose", {}, checkConfig);
-    result = await runProcess(checkConfig.cliPath, args, {
+    result = await runRuntimeProcess(checkConfig.runtime, args, {
       cwd: checkConfig.cwd,
       timeoutMs: checkConfig.timeoutMs,
       maxBufferChars: checkConfig.maxOutputChars,
@@ -2546,15 +2588,15 @@ export async function checkKleinanzeigenBrowser(params = {}, config = {}) {
       check: {
         status: canUse ? "passed" : "failed",
         summary: canUse
-          ? "browser config passed kleinanzeigen-bot diagnostics"
-          : "browser config failed kleinanzeigen-bot diagnostics",
+          ? "browser config passed miniclaw diagnostics"
+          : "browser config failed miniclaw diagnostics",
         failures,
         warnings,
       },
       browser: status.browser,
       detectedBrowsers: status.detectedBrowsers,
       command: {
-        executable: path.basename(checkConfig.cliPath),
+        executable: checkConfig.runtime.label,
         args: redactArgs(args),
       },
       exitCode: result.exitCode,
@@ -2570,12 +2612,12 @@ export async function checkKleinanzeigenBrowser(params = {}, config = {}) {
 }
 
 export async function getKleinanzeigenStatus(config = {}) {
-  const cliPath = normalizeOptionalString(config.cliPath) ?? "kleinanzeigen-bot";
+  const runtime = embeddedMiniclawRuntime();
   const configPath = resolveConfiguredConfigPath(config);
   const cwd =
     normalizeOptionalString(config.workingDirectory) ?? (configPath ? path.dirname(configPath) : undefined);
   const commandRunner = typeof config.commandRunner === "function" ? config.commandRunner : undefined;
-  const redactions = buildRedactions({ ...config, cliPath, workingDirectory: cwd, configPath });
+  const redactions = buildRedactions({ ...config, runtime, workingDirectory: cwd, configPath });
 
   const configFile = {
     configured: Boolean(configPath),
@@ -2594,7 +2636,7 @@ export async function getKleinanzeigenStatus(config = {}) {
     }
   }
 
-  const versionResult = await runProcess(cliPath, ["version"], {
+  const versionResult = await runRuntimeProcess(runtime, ["version"], {
     cwd,
     timeoutMs: STATUS_TIMEOUT_MS,
     maxBufferChars: STATUS_OUTPUT_CHARS,
@@ -2610,7 +2652,7 @@ export async function getKleinanzeigenStatus(config = {}) {
   let helpResult = null;
   let helpText = "";
   if (!versionResult.error) {
-    helpResult = await runProcess(cliPath, ["help"], {
+    helpResult = await runRuntimeProcess(runtime, ["help"], {
       cwd,
       timeoutMs: STATUS_TIMEOUT_MS,
       maxBufferChars: STATUS_OUTPUT_CHARS,
@@ -2627,7 +2669,7 @@ export async function getKleinanzeigenStatus(config = {}) {
   return {
     ok: Boolean(versionResult.ok && helpResult?.ok && configFile.configured && configFile.isFile),
     operation: "status",
-    executable: path.basename(cliPath),
+    executable: runtime.label,
     cwd: cwd ? "[redacted-path]" : null,
     configFile,
     workspaceMode: normalizeWorkspaceMode(config.workspaceMode),
@@ -2671,7 +2713,7 @@ export async function runKleinanzeigenOperation(operation, params = {}, config =
   let result;
   try {
     args = buildKleinanzeigenArgs(operation, params, cliConfig);
-    result = await runProcess(cliConfig.cliPath, args, {
+    result = await runRuntimeProcess(cliConfig.runtime, args, {
       cwd: cliConfig.cwd,
       timeoutMs: cliConfig.timeoutMs,
       maxBufferChars: cliConfig.maxOutputChars,
@@ -2710,7 +2752,7 @@ export async function runKleinanzeigenOperation(operation, params = {}, config =
     operation,
     outcome,
     command: {
-      executable: path.basename(cliConfig.cliPath),
+      executable: cliConfig.runtime.label,
       args: redactArgs(args),
     },
     processOk: result.ok,

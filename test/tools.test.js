@@ -4,6 +4,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  createCommandRunner,
+  createKleinClawPluginEntry,
+} from "../src/plugin-entry.js";
+import {
   APPROVAL_TOOL_NAMES,
   buildKleinanzeigenApprovalDescription,
   createKleinanzeigenTools,
@@ -11,9 +15,110 @@ import {
   resolveApprovalToolNames,
   SIDE_EFFECT_TOOL_NAMES,
 } from "../src/tools.js";
-import { createNodeCommandRunner } from "./helpers/command-runner.js";
+import {
+  withMockMiniclawScript,
+} from "./helpers/command-runner.js";
 
 describe("kleinanzeigen plugin tools", () => {
+  it("registers the OpenClaw plugin entry without live side effects", () => {
+    const entry = createKleinClawPluginEntry();
+    const registeredTools = [];
+    const registeredHooks = [];
+    const api = {
+      pluginConfig: {
+        adRoots: ["/ads"],
+        approvalMode: "mutating",
+      },
+      runtime: {},
+      on(eventName, handler, options) {
+        registeredHooks.push({ eventName, handler, options });
+      },
+      registerTool(tool, options) {
+        registeredTools.push({ tool, options });
+      },
+    };
+
+    entry.register(api);
+
+    assert.equal(entry.id, "kleinclaw");
+    assert.equal(registeredTools.length, 16);
+    assert.deepEqual(
+      registeredTools.map(({ tool }) => tool.name),
+      createKleinanzeigenTools().map((tool) => tool.name),
+    );
+    assert.equal(
+      registeredTools.find(({ tool }) => tool.name === "kleinanzeigen_status")
+        ?.options?.optional,
+      true,
+    );
+    for (const { tool, options } of registeredTools) {
+      assert.equal(
+        Boolean(options?.optional),
+        OPTIONAL_TOOL_NAMES.has(tool.name),
+        `${tool.name} optional registration should match OPTIONAL_TOOL_NAMES`,
+      );
+    }
+
+    assert.equal(registeredHooks.length, 1);
+    assert.equal(registeredHooks[0].eventName, "before_tool_call");
+    assert.deepEqual(registeredHooks[0].options, { priority: 80, timeoutMs: 5000 });
+
+    const statusApproval = registeredHooks[0].handler({
+      params: {},
+      toolName: "kleinanzeigen_status",
+    });
+    assert.equal(statusApproval, undefined);
+
+    const publishApproval = registeredHooks[0].handler({
+      params: {
+        adDirectories: ["/ads/drafts/sample-listing"],
+        confirm: true,
+        selector: "all",
+      },
+      toolName: "kleinanzeigen_publish",
+    });
+    assert.equal(
+      publishApproval.requireApproval.title,
+      "Run Kleinanzeigen local operation",
+    );
+    assert.match(
+      publishApproval.requireApproval.description,
+      /Ad directories: drafts\/sample-listing/,
+    );
+    assert.equal(publishApproval.requireApproval.severity, "warning");
+  });
+
+  it("wraps the OpenClaw runtime command runner for tools", async () => {
+    const calls = [];
+    const runner = createCommandRunner({
+      system: {
+        runCommandWithTimeout: async (argv, options) => {
+          calls.push({ argv, options });
+          return { code: 0, stdout: "ok\n", stderr: "" };
+        },
+      },
+    });
+
+    const result = await runner(["node", "script.js"], {
+      cwd: "/work",
+      env: { LANG: "C" },
+      timeoutMs: 42,
+    });
+
+    assert.deepEqual(calls, [
+      {
+        argv: ["node", "script.js"],
+        options: {
+          cwd: "/work",
+          env: { LANG: "C" },
+          timeoutMs: 42,
+        },
+      },
+    ]);
+    assert.deepEqual(result, { code: 0, stdout: "ok\n", stderr: "" });
+    assert.equal(createCommandRunner({}), undefined);
+  });
+
   it("keeps mutating tools separate while approval gating local CLI tools", () => {
     const tools = createKleinanzeigenTools();
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_verify"), false);
@@ -64,7 +169,7 @@ describe("kleinanzeigen plugin tools", () => {
       params: {
         confirm: true,
         selector: "all",
-        adDirectories: ["/ads/ONGOING/boxen"],
+        adDirectories: ["/ads/drafts/sample-listing"],
         adConfigPaths: ["/outside/private/ad.yaml"],
       },
       config: {
@@ -74,7 +179,7 @@ describe("kleinanzeigen plugin tools", () => {
 
     assert.match(description, /Operation: publish/);
     assert.match(description, /Selector: all/);
-    assert.match(description, /Ad directories: ONGOING\/boxen/);
+    assert.match(description, /Ad directories: drafts\/sample-listing/);
     assert.match(description, /Ad config files: \[redacted-path\]\/ad.yaml/);
     assert.match(description, /Confirm: true/);
     assert.doesNotMatch(description, /\/ads|\/outside\/private/);
@@ -110,9 +215,9 @@ describe("kleinanzeigen plugin tools", () => {
       toolName: "kleinanzeigen_draft_ad",
       params: {
         confirm: true,
-        directory: "/ads/ONGOING/boxen",
+        directory: "/ads/drafts/sample-listing",
         fileName: "ad.yaml",
-        title: "Boxen von Kenwood",
+        title: "Sample Listing Audio",
         category: "Elektronik > Audio",
         active: false,
         overwrite: false,
@@ -123,8 +228,8 @@ describe("kleinanzeigen plugin tools", () => {
     });
 
     assert.match(description, /Operation: draft_ad/);
-    assert.match(description, /Draft directory: ONGOING\/boxen/);
-    assert.match(description, /Title: Boxen von Kenwood/);
+    assert.match(description, /Draft directory: drafts\/sample-listing/);
+    assert.match(description, /Title: Sample Listing Audio/);
     assert.match(description, /Active: false/);
     assert.doesNotMatch(description, /\/ads/);
   });
@@ -134,7 +239,7 @@ describe("kleinanzeigen plugin tools", () => {
       toolName: "kleinanzeigen_set_ad_active",
       params: {
         confirm: true,
-        adDirectories: ["/ads/ONGOING/lamp"],
+        adDirectories: ["/ads/drafts/lamp"],
         active: true,
       },
       config: {
@@ -143,7 +248,7 @@ describe("kleinanzeigen plugin tools", () => {
     });
 
     assert.match(description, /Operation: set_ad_active/);
-    assert.match(description, /Ad directories: ONGOING\/lamp/);
+    assert.match(description, /Ad directories: drafts\/lamp/);
     assert.match(description, /Active: true/);
     assert.match(description, /Confirm: true/);
     assert.doesNotMatch(description, /\/ads/);
@@ -166,13 +271,11 @@ describe("kleinanzeigen plugin tools", () => {
     );
     await fs.chmod(mockCli, 0o700);
 
-    const verify = createKleinanzeigenTools({
-      cliPath: mockCli,
+    const verify = createKleinanzeigenTools(withMockMiniclawScript(mockCli, {
       workingDirectory: tmp,
       configPath: mockConfig,
       maxOutputChars: 1000,
-      commandRunner: createNodeCommandRunner(),
-    }).find((tool) => tool.name === "kleinanzeigen_verify");
+    })).find((tool) => tool.name === "kleinanzeigen_verify");
 
     const result = await verify.execute("tool-call", {});
     const payload = JSON.parse(result.content[0].text);

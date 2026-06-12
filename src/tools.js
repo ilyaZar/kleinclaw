@@ -101,7 +101,7 @@ function truncateLine(value, max = 500) {
 export function buildKleinanzeigenApprovalDescription({ toolName, params = {}, config = {} }) {
   const operation = toolName.replace(/^kleinanzeigen_/, "");
   const lines = [
-    "Allow this local kleinanzeigen-bot operation to run with redacted output.",
+    "Allow this embedded miniclaw operation to run with redacted output.",
     `Operation: ${operation}`,
   ];
 
@@ -171,7 +171,7 @@ export function buildKleinanzeigenApprovalDescription({ toolName, params = {}, c
       lines.push(`Active: ${params.active}`);
     }
   } else if (!adDirectories && !adConfigPaths && !Array.isArray(params.adIds)) {
-    lines.push("Scope: bot config default selection");
+    lines.push("Scope: miniclaw config default selection");
   }
   if (typeof params.keepOld === "boolean") {
     lines.push(`Keep old ads: ${params.keepOld}`);
@@ -238,14 +238,14 @@ const browserSchema = {
   type: "string",
   enum: ["auto", "chromium", "google-chrome", "microsoft-edge"],
   description:
-    "Browser to write into browser.binary_location. Auto clears the value and uses bot detection.",
+    "Browser to write into browser.binary_location. Auto clears the value and uses miniclaw detection.",
 };
 
 const profileModeSchema = {
   type: "string",
-  enum: ["bot", "system-default", "custom"],
+  enum: ["workspace", "system-default", "custom"],
   description: [
-    "bot clears profile settings, system-default uses the chosen browser's",
+    "workspace clears profile settings, system-default uses the chosen browser's",
     "normal profile root, custom uses userDataDir.",
   ].join(" "),
 };
@@ -470,7 +470,7 @@ function adSchemaTool(config) {
       name: "kleinanzeigen_ad_schema",
       label: "Kleinanzeigen Ad Schema",
       description:
-        "Return a safe ad YAML schema and draft workflow for kleinanzeigen-bot ads.",
+        "Return a safe ad YAML schema and draft workflow for miniclaw ads.",
       parameters: objectSchema({}),
       async execute(_toolCallId) {
         return textResult(getKleinanzeigenAdSchema());
@@ -698,7 +698,7 @@ function browserConfigureTool(config) {
       name: "kleinanzeigen_browser_configure",
       label: "Kleinanzeigen Browser Configure",
       description:
-        "Change only the local bot browser config after explicit user confirmation.",
+        "Change only the local miniclaw browser config after explicit user confirmation.",
       parameters: objectSchema(
         {
           confirm: confirmSchema,
@@ -710,7 +710,7 @@ function browserConfigureTool(config) {
           },
           usePrivateWindow: {
             type: "boolean",
-            description: "Whether the bot should launch a private or incognito browser window.",
+            description: "Whether miniclaw should launch a private or incognito browser window.",
           },
           profileMode: profileModeSchema,
           userDataDir: {
@@ -724,7 +724,7 @@ function browserConfigureTool(config) {
           allowUnsupportedBrowser: {
             type: "boolean",
             description:
-              "Allow binaryLocation to point at a custom browser that the bot does not officially support.",
+              "Allow binaryLocation to point at a custom browser that miniclaw does not officially support.",
           },
         },
         ["confirm"],
@@ -761,7 +761,7 @@ function browserCheckTool(config) {
       name: "kleinanzeigen_browser_check",
       label: "Kleinanzeigen Browser Check",
       description:
-        "Run kleinanzeigen-bot browser diagnostics against current or temporary browser settings.",
+        "Run miniclaw browser diagnostics against current or temporary browser settings.",
       parameters: objectSchema({
         browser: browserSchema,
         binaryLocation: {
@@ -785,7 +785,7 @@ function browserCheckTool(config) {
         allowUnsupportedBrowser: {
           type: "boolean",
           description:
-            "Allow binaryLocation to point at a custom browser that the bot does not officially support.",
+            "Allow binaryLocation to point at a custom browser that miniclaw does not officially support.",
         },
       }),
       async execute(_toolCallId, params) {
@@ -831,7 +831,7 @@ export function createKleinanzeigenTools(config = {}) {
         name: "kleinanzeigen_status",
         label: "Kleinanzeigen Status",
         description:
-          "Check local kleinanzeigen-bot availability and config wiring without reading the config.",
+          "Check embedded miniclaw availability and config wiring without reading the config.",
         parameters: objectSchema({}),
         async execute(_toolCallId) {
           try {
@@ -871,7 +871,7 @@ export function createKleinanzeigenTools(config = {}) {
         name: "kleinanzeigen_verify",
         label: "Kleinanzeigen Verify",
         description:
-          "Verify the already configured local kleinanzeigen-bot setup and return sanitized output.",
+          "Verify the configured local miniclaw setup and return sanitized output.",
         operation: "verify",
         parameters: objectSchema({
           adConfigPaths: adConfigPathsSchema,
@@ -885,7 +885,7 @@ export function createKleinanzeigenTools(config = {}) {
         name: "kleinanzeigen_publish",
         label: "Kleinanzeigen Publish",
         description:
-          "Publish or republish configured ads via kleinanzeigen-bot after explicit user confirmation.",
+          "Publish or republish configured ads via miniclaw after explicit user confirmation.",
         operation: "publish",
         parameters: objectSchema(
           {
@@ -924,7 +924,7 @@ export function createKleinanzeigenTools(config = {}) {
         name: "kleinanzeigen_update",
         label: "Kleinanzeigen Update",
         description:
-          "Update configured ads via kleinanzeigen-bot after explicit user confirmation.",
+          "Update configured ads via miniclaw after explicit user confirmation.",
         operation: "update",
         parameters: objectSchema(
           {
@@ -948,7 +948,7 @@ export function createKleinanzeigenTools(config = {}) {
         name: "kleinanzeigen_delete",
         label: "Kleinanzeigen Delete",
         description:
-          "Delete explicitly selected Kleinanzeigen ads via kleinanzeigen-bot after confirmation.",
+          "Delete explicitly selected Kleinanzeigen ads via miniclaw after confirmation.",
         operation: "delete",
         parameters: objectSchema(
           {
@@ -967,7 +967,7 @@ export function createKleinanzeigenTools(config = {}) {
         name: "kleinanzeigen_download",
         label: "Kleinanzeigen Download",
         description:
-          "Download configured ads via kleinanzeigen-bot after explicit user confirmation.",
+          "Download configured ads via miniclaw after explicit user confirmation.",
         operation: "download",
         parameters: objectSchema(
           {
@@ -991,7 +991,7 @@ export function createKleinanzeigenTools(config = {}) {
         name: "kleinanzeigen_extend",
         label: "Kleinanzeigen Extend",
         description:
-          "Extend eligible configured ads via kleinanzeigen-bot after explicit user confirmation.",
+          "Extend eligible configured ads via miniclaw after explicit user confirmation.",
         operation: "extend",
         parameters: objectSchema(
           {

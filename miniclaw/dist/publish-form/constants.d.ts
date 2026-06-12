@@ -1,0 +1,27 @@
+export declare const WANTED_SHIPPING_LABELS: {
+    readonly SHIPPING: "Versand möglich";
+    readonly PICKUP: "Nur Abholung";
+};
+export declare const CONDITION_TRIGGER_XPATH: string;
+export declare const CATEGORY_CHANGE_CONTROL_XPATH = "//a[contains(., 'Kategorie')] | //button[contains(., 'Kategorie')]";
+export declare const CATEGORY_NEXT_BUTTON_XPATH = "//button[contains(., 'Weiter')]";
+export declare const CATEGORY_PICKER_RADIO_SELECTOR = "#ad-category-picker input[type='radio'][name='category-suggestions']";
+export declare const CITY_LISTBOX_ID_FALLBACK = "ad-city-menu";
+export declare const CITY_SELECTED_OPTION_ID = "ad-city-selected-option";
+export declare const SHIPPING_OTHER_METHODS_BUTTON_XPATH = "//button[contains(., \"Andere Versandmethoden\")]";
+export declare const SHIPPING_BACK_BUTTON_XPATH = "//button[contains(., \"Zur\u00FCck\")]";
+export declare const SHIPPING_DONE_BUTTON_XPATH = "//button[contains(., \"Fertig\")]";
+export declare const SHIPPING_DIALOG_XPATH = "//*[self::dialog or @role=\"dialog\"]";
+export declare const SHIPPING_DIALOG_DONE_BUTTON_XPATH = "//*[self::dialog or @role=\"dialog\"]//button[contains(., \"Fertig\")]";
+export declare const SHIPPING_DIALOG_NEXT_BUTTON_XPATH = "//*[self::dialog or @role=\"dialog\"]//button[contains(., \"Weiter\")]";
+export declare const IMAGE_FILE_INPUT_SELECTOR = "input[type=file]";
+export declare const IMAGE_MARKER_SELECTOR = "input[name^='adImages'][name$='.url']";
+export declare const IMAGE_REMOVE_BUTTON_SELECTOR = "button[aria-label='Bild entfernen']";
+export declare const CAPTCHA_IFRAME_SELECTOR = "iframe[name^='a-'][src^='https://www.google.com/recaptcha/api2/anchor?']";
+export declare const SUBMIT_BUTTON_XPATH: string;
+export declare const IMPRINT_GUIDANCE_SUBMIT_ID = "imprint-guidance-submit";
+export declare const NO_IMAGE_HINT_BUTTON_XPATH = "//button[contains(., \"Ohne Bild ver\u00F6ffentlichen\")]";
+export declare const PAYMENT_FORM_ID = "myftr-shppngcrt-frm";
+export declare const CONFIRMATION_URL_FRAGMENT = "p-anzeige-aufgeben-bestaetigung.html?adId=";
+export declare const TRACKING_SCRIPT_TEXT_JS = "[...document.querySelectorAll('script')].map(s => s.textContent).join('\\n')";
+export declare const CONDITION_GERMAN_TO_API: Record<string, string>;

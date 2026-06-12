@@ -7,7 +7,7 @@
 - Prefer scoped operations with `adDirectories` or `adConfigPaths` after
   discovery. Avoid broad selectors like `all` unless the user explicitly wants a
   broad operation.
-- For a single listing request such as "publish Boxen", first list with a query,
-  then verify or publish only the matching directory/config path.
+- For a single listing request such as "publish the sample listing", first list
+  with a query, then verify or publish only the matching directory/config path.
 - `kleinanzeigen_delete` still requires explicit `adIds`, even when the
   operation is also scoped to a directory or config path.

@@ -1,0 +1,11 @@
+import { type Workspace } from "../workspace.js";
+import { type LoadedSideEffectAds } from "./loaders.js";
+import { type Command, type ParsedArgs, type SideEffectHandlers } from "./types.js";
+export declare function hasInjectedPublishUpdateHandlers(command: Command | string, sideEffects: SideEffectHandlers | undefined): boolean;
+export declare function runInjectedPublishUpdateCommand(parsed: ParsedArgs, sideEffects: SideEffectHandlers, loaded?: LoadedSideEffectAds): Promise<number>;
+export declare function hasInjectedDeleteHandlers(command: Command | string, sideEffects: SideEffectHandlers | undefined): boolean;
+export declare function runInjectedDeleteCommand(parsed: ParsedArgs, sideEffects: SideEffectHandlers, loaded?: LoadedSideEffectAds): Promise<number>;
+export declare function hasInjectedExtendHandlers(command: Command | string, sideEffects: SideEffectHandlers | undefined): boolean;
+export declare function runInjectedExtendCommand(parsed: ParsedArgs, sideEffects: SideEffectHandlers, loaded?: LoadedSideEffectAds): Promise<number>;
+export declare function hasInjectedDownloadHandlers(command: Command | string, sideEffects: SideEffectHandlers | undefined): boolean;
+export declare function runInjectedDownloadCommand(parsed: ParsedArgs, sideEffects: SideEffectHandlers, workspace: Workspace): Promise<number>;
