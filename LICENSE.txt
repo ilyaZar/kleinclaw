@@ -1,0 +1,4 @@
+AGPL-3.0-or-later
+
+This TypeScript implementation is derived from kleinanzeigen-bot, whose source
+files are licensed under AGPL-3.0-or-later.
