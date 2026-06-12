@@ -32,7 +32,8 @@ export const IMAGE_FILE_INPUT_SELECTOR = "input[type=file]";
 export const IMAGE_MARKER_SELECTOR = "input[name^='adImages'][name$='.url']";
 export const IMAGE_REMOVE_BUTTON_SELECTOR = "button[aria-label='Bild entfernen']";
 export const CAPTCHA_IFRAME_SELECTOR =
-  "iframe[name^='a-'][src^='https://www.google.com/recaptcha/api2/anchor?']";
+  "iframe[name^='a-'][src^='https://www.google.com/recaptcha/api2/anchor?'], " +
+  "#ulp-auth0-v2-captcha, .ulp-captcha, input[name='captcha']";
 export const SUBMIT_BUTTON_XPATH =
   "//button[contains(., 'Anzeige aufgeben') or " +
   "contains(., 'Änderungen speichern') or contains(., 'Anzeige speichern')]";
