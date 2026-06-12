@@ -512,7 +512,9 @@ export async function fillLoginDataAndSend(
       await (resolvedOptions.onManualCaptcha ?? defaultManualCaptchaPrompt)();
     },
   });
-  await controller.webClick(By.CSS_SELECTOR, "button[type='submit']");
+  if (!currentPageUrl(controller).includes("/u/login/password")) {
+    await controller.webClick(By.CSS_SELECTOR, "button[type='submit']");
+  }
 
   await waitForAuth0PasswordStep(controller, resolvedOptions);
   await controller.webInput(
