@@ -9,6 +9,7 @@ interface AdOverviewController {
         timeout?: number;
     }): Promise<WebElement[]>;
     webOpen(url: string): Promise<void>;
+    webScrollPageDown?(): Promise<void>;
     webSleep(minMs?: number, maxMs?: number): Promise<void>;
 }
 export declare function navigatePaginatedAdOverview(controller: AdOverviewController, pageUrl: string, pageAction: (pageNumber: number) => Promise<boolean>, { maxPages, paginationFollowUpTimeout, paginationInitialTimeout, }?: {

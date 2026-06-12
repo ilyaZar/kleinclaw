@@ -54,13 +54,22 @@ export declare class WebController {
     webSelect(type: By, value: string, selectedValue: unknown, timeout?: number): Promise<WebLocator>;
     webSelectCombobox(type: By, value: string, selectedValue: string | number, timeout?: number): Promise<WebElement>;
     webSelectButtonCombobox(elementId: string, selectedValue: string, timeout?: number): Promise<WebElement>;
+    webAwait<T>(condition: () => T | Promise<T>, { timeout, timeoutErrorMessage, applyMultiplier, }?: {
+        timeout?: number | null;
+        timeoutErrorMessage?: string;
+        applyMultiplier?: boolean;
+    }): Promise<T>;
     webOpen(url: string, { timeout, reloadIfAlreadyOpen, }?: {
         timeout?: number;
         reloadIfAlreadyOpen?: boolean;
     }): Promise<void>;
     webSleep(minMs?: number, maxMs?: number): Promise<void>;
+    webScrollPageDown(scrollLength?: number, scrollSpeed?: number, { scrollBackTop, }?: {
+        scrollBackTop?: boolean;
+    }): Promise<void>;
     private isDisabled;
     private isDisplayed;
+    private isSelected;
     private inputText;
     private selectOption;
     private clickMatchingComboboxOption;

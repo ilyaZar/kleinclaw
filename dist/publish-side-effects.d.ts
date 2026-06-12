@@ -64,6 +64,7 @@ export interface CreateBrowserPublishUpdateSideEffectsOptions extends BrowserPub
         flush?: () => string | null;
     };
     webControllerOptions?: ConstructorParameters<typeof WebController>[1];
+    workspaceBrowserProfileDir?: string | null;
     publishAdFormImpl?: (controller: PublishingFormController, ad: Ad, options: PublishAdFormOptions) => Promise<PublishAdFormResult>;
 }
-export declare function createBrowserPublishUpdateSideEffects(config: Config, { allowLiveBrowser, command, configPath, controller, diagnosticsDir, driver, loginBeforeCommands, loginOptions, logFilePath, now, publishingResultTimeout, paginationFollowUpTimeout, paginationInitialTimeout, rootUrl, saveAdConfig, session, sessionTimeout, strictPublishedAds, timingCollector, webControllerOptions, publishAdFormImpl, ...formOptions }?: CreateBrowserPublishUpdateSideEffectsOptions): Promise<BrowserPublishUpdateSideEffects>;
+export declare function createBrowserPublishUpdateSideEffects(config: Config, { allowLiveBrowser, command, configPath, controller, diagnosticsDir, driver, loginBeforeCommands, loginOptions, logFilePath, now, publishingResultTimeout, paginationFollowUpTimeout, paginationInitialTimeout, rootUrl, saveAdConfig, session, sessionTimeout, strictPublishedAds, timingCollector, webControllerOptions, workspaceBrowserProfileDir, publishAdFormImpl, ...formOptions }?: CreateBrowserPublishUpdateSideEffectsOptions): Promise<BrowserPublishUpdateSideEffects>;

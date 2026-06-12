@@ -4,7 +4,7 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import { By, Is, TimeoutError } from "../web-primitives.js";
-import { CAPTCHA_IFRAME_SELECTOR, CONFIRMATION_URL_FRAGMENT, IMPRINT_GUIDANCE_SUBMIT_ID, NO_IMAGE_HINT_BUTTON_XPATH, PAYMENT_FORM_ID, SUBMIT_BUTTON_XPATH, TRACKING_SCRIPT_TEXT_JS, } from "./constants.js";
+import { CAPTCHA_IFRAME_SELECTOR, CONFIRMATION_URL_FRAGMENT, IMPRINT_GUIDANCE_SUBMIT_ID, NO_IMAGE_HINT_BUTTON_XPATH, PAYMENT_FORM_ID, SUBMIT_BUTTON_XPATH, TRACKING_SCRIPT_TEXT_JS, VISIBILITY_UPSELL_SKIP_BUTTON_XPATH, } from "./constants.js";
 import { CaptchaEncountered, PublishSubmissionUncertainError, } from "./errors.js";
 import { clickElement } from "./element-helpers.js";
 export async function checkAndWaitForCaptcha(controller, { autoRestart = false, captchaDetectionTimeout, isLoginPage = true, onManualCaptcha, restartDelaySeconds = null, scrollPageDown, } = {}) {
@@ -102,6 +102,10 @@ async function handlePostSubmitPrompts(controller, ad, { onPaymentForm, quickDom
         if (imageHintButton !== null) {
             await clickElement(imageHintButton, "Unable to confirm publish without image");
         }
+    }
+    const visibilityUpsellSkipButton = await controller.webProbe(By.XPATH, VISIBILITY_UPSELL_SKIP_BUTTON_XPATH, { timeout: quickDomTimeout });
+    if (visibilityUpsellSkipButton !== null) {
+        await clickElement(visibilityUpsellSkipButton, "Unable to continue without paid visibility upsell");
     }
     const paymentForm = await controller.webProbe(By.ID, PAYMENT_FORM_ID, { timeout: quickDomTimeout });
     if (paymentForm !== null && onPaymentForm) {

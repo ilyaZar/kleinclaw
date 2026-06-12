@@ -226,7 +226,7 @@ export async function setSpecialAttributes(controller, specialAttributes, { setC
                 if (!selected.info.id) {
                     throw new TimeoutError(`Failed to set attribute '${key}'`);
                 }
-                await controller.webSelectButtonCombobox(selected.info.id, value);
+                await selectButtonComboboxByValue(controller, selected.info.id, value);
             }
             else if (selected.info.localName === "input" &&
                 selected.info.role === "combobox" &&
@@ -243,5 +243,38 @@ export async function setSpecialAttributes(controller, specialAttributes, { setC
             }
             throw error;
         }
+    }
+}
+async function selectButtonComboboxByValue(controller, elementId, value) {
+    await controller.webClick(By.ID, elementId);
+    const listboxId = `${elementId}-menu`;
+    await controller.webFind(By.ID, listboxId);
+    const jsButtonId = JSON.stringify(elementId);
+    const jsListboxId = JSON.stringify(listboxId);
+    const jsValue = JSON.stringify(value);
+    const ok = await controller.webExecute(`(function() {
+    const listbox = document.getElementById(${jsListboxId});
+    if (!listbox) return false;
+    const liOptions = Array.from(listbox.querySelectorAll('[role="option"]'));
+    const btnEl = document.getElementById(${jsButtonId});
+    if (!btnEl) return false;
+    const fiberKey = Object.keys(btnEl).find(k => k.startsWith('__reactFiber'));
+    let fiber = fiberKey ? btnEl[fiberKey] : null;
+    for (let i = 0; i < 20 && fiber; i++, fiber = fiber.return) {
+      if (fiber.memoizedProps && fiber.memoizedProps.options) {
+        const optionsData = fiber.memoizedProps.options;
+        for (let j = 0; j < optionsData.length; j++) {
+          if (optionsData[j].value === ${jsValue} && liOptions[j]) {
+            liOptions[j].click();
+            return true;
+          }
+        }
+        return false;
+      }
+    }
+    return false;
+  })()`);
+    if (!ok) {
+        throw new TimeoutError(`Option '${value}' not found in button combobox '${elementId}'`);
     }
 }

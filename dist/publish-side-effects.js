@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
+import path from "node:path";
 import { createBrowserSession, } from "./browser-session.js";
 import { login as loginToKleinanzeigen, } from "./auth.js";
 import { AdUpdateStrategy, applyAutoPriceReduction, } from "./model/ad-model.js";
@@ -40,7 +41,7 @@ async function runPublishForm(controller, context, mode, { formOptions, now, pub
         saveAdConfig,
     });
 }
-export async function createBrowserPublishUpdateSideEffects(config, { allowLiveBrowser = false, command = "browser", configPath, controller, diagnosticsDir, driver, loginBeforeCommands = true, loginOptions, logFilePath, now = () => new Date(), publishingResultTimeout, paginationFollowUpTimeout, paginationInitialTimeout, rootUrl = "https://www.kleinanzeigen.de", saveAdConfig = saveDataFile, session, sessionTimeout, strictPublishedAds = false, timingCollector, webControllerOptions, publishAdFormImpl, ...formOptions } = {}) {
+export async function createBrowserPublishUpdateSideEffects(config, { allowLiveBrowser = false, command = "browser", configPath, controller, diagnosticsDir, driver, loginBeforeCommands = true, loginOptions, logFilePath, now = () => new Date(), publishingResultTimeout, paginationFollowUpTimeout, paginationInitialTimeout, rootUrl = "https://www.kleinanzeigen.de", saveAdConfig = saveDataFile, session, sessionTimeout, strictPublishedAds = false, timingCollector, webControllerOptions, workspaceBrowserProfileDir = null, publishAdFormImpl, ...formOptions } = {}) {
     const timeouts = config.timeouts;
     const resolvedFormOptions = {
         ...formOptions,
@@ -71,6 +72,8 @@ export async function createBrowserPublishUpdateSideEffects(config, { allowLiveB
         ? null
         : await createBrowserSession(config, {
             allowLiveBrowser,
+            cwd: configPath ? path.dirname(configPath) : undefined,
+            defaultUserDataDir: workspaceBrowserProfileDir,
             driver,
             timeout: resolvedSessionTimeout,
         }));

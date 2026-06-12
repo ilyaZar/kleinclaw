@@ -7,13 +7,15 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { chromium } from "playwright-core";
-
 import {
   buildBrowserSessionPlan,
   writeInitialPrefs,
   type BrowserSessionPlan,
 } from "./browser.js";
+import {
+  connectCdpBrowser,
+  launchCdpBrowser,
+} from "./browser/cdp-adapter.js";
 import { BrowserConfig, Config } from "./model/config-model.js";
 
 export interface BrowserSessionPage {
@@ -33,26 +35,20 @@ export interface BrowserSessionBrowser {
 }
 
 export interface BrowserSessionDriver {
-  connectOverCDP(
+  connectCdpBrowser(
     endpointURL: string,
     options?: { timeout?: number },
   ): Promise<BrowserSessionBrowser>;
-  launchPersistentContext(
-    userDataDir: string,
-    options?: {
-      acceptDownloads?: boolean;
-      args?: string[];
-      chromiumSandbox?: boolean;
-      env?: Record<string, string | undefined>;
-      executablePath?: string;
-      headless?: boolean;
-      timeout?: number;
-    },
+  launchBrowser(
+    plan: BrowserSessionPlan,
+    options?: { timeout?: number },
   ): Promise<BrowserSessionContext>;
 }
 
 export interface CreateBrowserSessionOptions {
   allowLiveBrowser?: boolean;
+  cwd?: string;
+  defaultUserDataDir?: string | null;
   driver?: BrowserSessionDriver;
   timeout?: number;
   ensureProfilePrefs?: boolean;
@@ -79,13 +75,14 @@ export class LiveBrowserSessionDisabledError extends Error {
 
 function defaultDriver(): BrowserSessionDriver {
   return {
-    connectOverCDP: (endpointURL, options) =>
-      chromium.connectOverCDP(endpointURL, options) as Promise<BrowserSessionBrowser>,
-    launchPersistentContext: (userDataDir, options) =>
-      chromium.launchPersistentContext(
-        userDataDir,
-        options,
-      ) as Promise<BrowserSessionContext>,
+    connectCdpBrowser: (endpointURL, options) =>
+      connectCdpBrowser(endpointURL, {
+        timeoutMs: options?.timeout,
+      }) as Promise<BrowserSessionBrowser>,
+    launchBrowser: (plan, options) =>
+      launchCdpBrowser(plan, {
+        timeoutMs: options?.timeout,
+      }) as Promise<BrowserSessionContext>,
   };
 }
 
@@ -136,7 +133,11 @@ async function closeBrowserSession(
   context: BrowserSessionContext,
 ): Promise<void> {
   if (mode === "launch") {
-    await context.close();
+    if (browser) {
+      await browser.close();
+    } else {
+      await context.close();
+    }
     return;
   }
   if (browser) {
@@ -150,6 +151,8 @@ export async function createBrowserSession(
   source: Config | BrowserConfig | BrowserSessionPlan,
   {
     allowLiveBrowser = false,
+    cwd,
+    defaultUserDataDir = null,
     driver = defaultDriver(),
     timeout,
     ensureProfilePrefs: shouldEnsureProfilePrefs = true,
@@ -159,7 +162,9 @@ export async function createBrowserSession(
     throw new LiveBrowserSessionDisabledError();
   }
 
-  const plan = browserSessionPlanFrom(source);
+  const plan = isBrowserSessionPlan(source)
+    ? source
+    : buildBrowserSessionPlan(source, { cwd, defaultUserDataDir });
   let browser: BrowserSessionBrowser | null = null;
   let context: BrowserSessionContext;
 
@@ -167,7 +172,7 @@ export async function createBrowserSession(
     if (plan.remotePort === null) {
       throw new Error("Remote browser session plan is missing remotePort");
     }
-    browser = await driver.connectOverCDP(
+    browser = await driver.connectCdpBrowser(
       `http://${plan.remoteHost}:${plan.remotePort}`,
       timeout === undefined ? undefined : { timeout: timeout * 1000 },
     );
@@ -176,17 +181,9 @@ export async function createBrowserSession(
     if (shouldEnsureProfilePrefs) {
       ensureProfilePrefs(plan);
     }
-    context = await driver.launchPersistentContext(
-      plan.userDataDir ?? "",
-      {
-        acceptDownloads: true,
-        args: plan.browserArgs,
-        chromiumSandbox: plan.sandbox,
-        env: { ...process.env, ...plan.environment },
-        executablePath: plan.browserExecutablePath || undefined,
-        headless: false,
-        timeout: timeout === undefined ? undefined : timeout * 1000,
-      },
+    context = await driver.launchBrowser(
+      plan,
+      timeout === undefined ? undefined : { timeout: timeout * 1000 },
     );
     browser = context.browser?.() ?? null;
   }

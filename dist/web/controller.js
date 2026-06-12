@@ -144,7 +144,15 @@ export class WebController {
         const locator = this.locatorFor(type, value, parent);
         const first = locator.first ? locator.first() : locator;
         if (first.waitFor) {
-            await first.waitFor({ state: "attached", timeout: timeout * 1000 });
+            try {
+                await first.waitFor({ state: "attached", timeout: timeout * 1000 });
+            }
+            catch (error) {
+                if (isTimeoutLike(error)) {
+                    throw new TimeoutError(this.notFoundMessage(type, value, timeout, false));
+                }
+                throw error;
+            }
             return first;
         }
         if (first.count) {
@@ -175,9 +183,22 @@ export class WebController {
         });
     }
     async webFindAllOnce(type, value, timeout, parent = null) {
+        if (type === By.ID) {
+            throw new assert.AssertionError({
+                message: `Unsupported selector type: ${type}`,
+            });
+        }
         const locator = this.locatorFor(type, value, parent);
         if (locator.waitFor) {
-            await locator.waitFor({ state: "attached", timeout: timeout * 1000 });
+            try {
+                await locator.waitFor({ state: "attached", timeout: timeout * 1000 });
+            }
+            catch (error) {
+                if (isTimeoutLike(error)) {
+                    throw new TimeoutError(this.notFoundMessage(type, value, timeout, true));
+                }
+                throw error;
+            }
         }
         if (locator.all) {
             const all = await locator.all();
@@ -207,8 +228,11 @@ export class WebController {
                     ? (await element.getAttribute("readonly")) !== null
                     : false;
             case Is.SELECTED:
-                return element.isChecked ? element.isChecked() : false;
+                return this.isSelected(element);
         }
+        throw new assert.AssertionError({
+            message: `Unsupported attribute: ${String(attr)}`,
+        });
     }
     async webClick(type, value, timeout) {
         const element = await this.webFind(type, value, { timeout });
@@ -282,10 +306,10 @@ export class WebController {
         throw new Error("Element does not support text extraction");
     }
     async webSelect(type, value, selectedValue, timeout) {
-        const clickable = await this.webCheck(type, value, Is.CLICKABLE, timeout);
-        if (!clickable) {
-            throw new TimeoutError(`No clickable HTML element with selector: ${type}='${value}' found`);
-        }
+        await this.webAwait(() => this.webCheck(type, value, Is.CLICKABLE), {
+            timeout,
+            timeoutErrorMessage: `No clickable HTML element with selector: ${type}='${value}' found`,
+        });
         const element = await this.webFind(type, value, { timeout });
         try {
             await this.selectOption(element, selectedValue);
@@ -312,7 +336,7 @@ export class WebController {
         else {
             try {
                 dropdown = await this.webFind(By.CSS_SELECTOR, '[role="listbox"]', {
-                    timeout,
+                    timeout: this.baseTimeout("quickDom"),
                 });
             }
             catch (error) {
@@ -340,6 +364,35 @@ export class WebController {
         await this.webSleep();
         return listbox;
     }
+    async webAwait(condition, { timeout, timeoutErrorMessage = "", applyMultiplier = true, } = {}) {
+        const baseTimeout = timeout ?? this.baseTimeout("default");
+        const effectiveTimeout = applyMultiplier
+            ? this.effectiveTimeout("default", baseTimeout, 0)
+            : baseTimeout;
+        const startedAt = this.timeSource();
+        while (true) {
+            let currentError = null;
+            try {
+                const result = await condition();
+                if (result) {
+                    return result;
+                }
+            }
+            catch (error) {
+                currentError = error;
+            }
+            const elapsed = this.timeSource() - startedAt;
+            if (elapsed >= effectiveTimeout) {
+                if (currentError) {
+                    throw currentError;
+                }
+                throw new TimeoutError(timeoutErrorMessage ||
+                    `Condition not met within ${effectiveTimeout} seconds`);
+            }
+            const remainingMs = Math.max(effectiveTimeout - elapsed, 0) * 1000;
+            await this.sleeper(Math.min(500, remainingMs));
+        }
+    }
     async webOpen(url, { timeout, reloadIfAlreadyOpen = false, } = {}) {
         if (!reloadIfAlreadyOpen && this.page.url === url) {
             return;
@@ -348,10 +401,11 @@ export class WebController {
         const goto = requirePageMethod(this.page.goto, "goto");
         await goto.call(this.page, url, {
             timeout: effectiveTimeout * 1000,
-            waitUntil: "load",
         });
-        await this.page.waitForLoadState?.("load", {
-            timeout: effectiveTimeout * 1000,
+        await this.webAwait(() => this.webExecute("document.readyState == 'complete'"), {
+            applyMultiplier: false,
+            timeout: effectiveTimeout,
+            timeoutErrorMessage: `Page did not finish loading within ${effectiveTimeout} seconds.`,
         });
     }
     async webSleep(minMs, maxMs) {
@@ -360,6 +414,23 @@ export class WebController {
         const duration = max <= min ? min : this.randomInt(max - min) + min;
         if (duration > 0) {
             await this.sleeper(duration);
+        }
+    }
+    async webScrollPageDown(scrollLength = 10, scrollSpeed = 10000, { scrollBackTop = false, } = {}) {
+        let currentYPos = 0;
+        const bottomYPos = Number(await this.webExecute("document.body.scrollHeight"));
+        while (currentYPos < bottomYPos) {
+            currentYPos += scrollLength;
+            await this.webExecute(`window.scrollTo(0, ${currentYPos})`);
+            await this.sleeper((scrollLength / scrollSpeed) * 1000);
+        }
+        if (!scrollBackTop) {
+            return;
+        }
+        while (currentYPos > 0) {
+            currentYPos -= scrollLength;
+            await this.webExecute(`window.scrollTo(0, ${currentYPos})`);
+            await this.sleeper((scrollLength / scrollSpeed / 2) * 1000);
         }
     }
     async isDisabled(element) {
@@ -387,6 +458,21 @@ export class WebController {
       `));
         }
         return true;
+    }
+    async isSelected(element) {
+        if (element.evaluate) {
+            return Boolean(await element.evaluate(`
+        function (element) {
+          if (element.tagName.toLowerCase() === 'input') {
+            if (element.type === 'checkbox' || element.type === 'radio') {
+              return element.checked
+            }
+          }
+          return false
+        }
+      `));
+        }
+        return element.isChecked ? element.isChecked() : false;
     }
     async inputText(element, text) {
         if (element.pressSequentially) {

@@ -29,9 +29,17 @@ export const DEFAULT_BROWSER_ARGS = [
 ] as const;
 
 export interface BrowserSessionPlanOptions {
+  defaultUserDataDir?: string | null;
   debugLogging?: boolean;
   homeDir?: string;
   cwd?: string;
+}
+
+export interface BrowserCandidateOptions {
+  env?: NodeJS.ProcessEnv;
+  homeDir?: string;
+  platform?: NodeJS.Platform;
+  searchPath?: string;
 }
 
 export interface BrowserSessionPlan {
@@ -47,6 +55,112 @@ export interface BrowserSessionPlan {
   sandbox: boolean;
   environment: Record<string, string>;
   warnings: string[];
+}
+
+function fileIsExecutable(filePath: string): boolean {
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function fileIsFile(filePath: string): boolean {
+  try {
+    return fs.statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function pathExists(filePath: string): boolean {
+  try {
+    fs.accessSync(filePath, fs.constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function which(command: string, searchPath = process.env.PATH ?? ""): string | null {
+  for (const directory of searchPath.split(path.delimiter)) {
+    if (!directory) {
+      continue;
+    }
+    const candidate = path.join(directory, command);
+    if (fs.existsSync(candidate) && fileIsExecutable(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+export function browserCandidatePaths({
+  env = process.env,
+  homeDir = os.homedir(),
+  platform = process.platform,
+  searchPath = process.env.PATH ?? "",
+}: BrowserCandidateOptions = {}): Array<string | null> {
+  void homeDir;
+  const winPath = (...parts: string[]) => path.win32.join(...parts);
+  const programFiles = env.PROGRAMFILES ?? "C:\\Program Files";
+  const programFilesX86 = env["PROGRAMFILES(X86)"] ?? "C:\\Program Files (x86)";
+  const localAppData = env.LOCALAPPDATA ??
+    (env.USERPROFILE
+      ? winPath(env.USERPROFILE, "AppData", "Local")
+      : null);
+  return (
+    platform === "linux"
+      ? [
+          which("chromium", searchPath),
+          which("chromium-browser", searchPath),
+          which("google-chrome", searchPath),
+          which("microsoft-edge", searchPath),
+        ]
+      : platform === "darwin"
+        ? [
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+          ]
+        : platform === "win32"
+          ? [
+              localAppData ? winPath(localAppData, "Google", "Chrome", "Application", "chrome.exe") : null,
+              winPath(programFiles, "Google", "Chrome", "Application", "chrome.exe"),
+              winPath(programFilesX86, "Google", "Chrome", "Application", "chrome.exe"),
+              localAppData ? winPath(localAppData, "Microsoft", "Edge", "Application", "msedge.exe") : null,
+              winPath(programFiles, "Microsoft", "Edge", "Application", "msedge.exe"),
+              winPath(programFilesX86, "Microsoft", "Edge", "Application", "msedge.exe"),
+              localAppData ? winPath(localAppData, "Chromium", "Application", "chrome.exe") : null,
+              winPath(programFiles, "Chromium", "Application", "chrome.exe"),
+              winPath(programFilesX86, "Chromium", "Application", "chrome.exe"),
+              winPath(programFiles, "Chrome", "Application", "chrome.exe"),
+              winPath(programFilesX86, "Chrome", "Application", "chrome.exe"),
+              localAppData ? winPath(localAppData, "Chrome", "Application", "chrome.exe") : null,
+              which("msedge.exe", searchPath),
+              which("chromium.exe", searchPath),
+              which("chrome.exe", searchPath),
+            ]
+          : []
+  );
+}
+
+export function getCompatibleBrowser(
+  options: BrowserCandidateOptions = {},
+): string {
+  const candidates = browserCandidatePaths(options);
+  if (candidates.length === 0) {
+    throw new Error(
+      `Installed browser for OS ${options.platform ?? process.platform} could not be detected`,
+    );
+  }
+  for (const candidate of candidates) {
+    if (candidate && fileIsFile(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error("Installed browser could not be detected");
 }
 
 export function buildInitialPrefs(): Record<string, unknown> {
@@ -94,6 +208,10 @@ function expandUser(filePath: string, homeDir: string): string {
   return filePath;
 }
 
+function resolveConfiguredPath(filePath: string, cwd: string, homeDir: string): string {
+  return path.resolve(cwd, expandUser(filePath, homeDir));
+}
+
 export function resolveUserDataDirPaths(
   argValue: string,
   configValue: string,
@@ -132,6 +250,7 @@ function userDataDirFromArguments(args: string[], warnings: string[]): string | 
 export function buildBrowserSessionPlan(
   configOrBrowserConfig: Config | BrowserConfig,
   {
+    defaultUserDataDir = null,
     debugLogging = false,
     homeDir = os.homedir(),
     cwd = process.cwd(),
@@ -141,10 +260,19 @@ export function buildBrowserSessionPlan(
     ? configOrBrowserConfig
     : configOrBrowserConfig.browser;
   const warnings: string[] = [];
-  const binaryLocation = browserConfig.binaryLocation.trim();
+  const configuredBinaryLocation = browserConfig.binaryLocation.trim();
+  if (configuredBinaryLocation && !pathExists(configuredBinaryLocation)) {
+    throw new Error(
+      `Specified browser binary [${configuredBinaryLocation}] does not exist.`,
+    );
+  }
+  const binaryLocation = configuredBinaryLocation || getCompatibleBrowser({ homeDir });
   const remoteHost = remoteDebuggingHostFromArguments(browserConfig.arguments);
   const remotePort = remoteDebuggingPortFromArguments(browserConfig.arguments);
   const environment: Record<string, string> = {};
+  const extensionPaths = browserConfig.extensions.map((extensionPath) =>
+    resolveConfiguredPath(extensionPath, cwd, homeDir)
+  );
 
   if (remotePort !== null) {
     return {
@@ -153,10 +281,10 @@ export function buildBrowserSessionPlan(
       remoteHost,
       remotePort,
       browserArgs: [],
-      userDataDir: browserConfig.userDataDir.trim() || null,
+      userDataDir: null,
       profileDir: null,
       preferencesFile: null,
-      extensionPaths: [...browserConfig.extensions],
+      extensionPaths: [],
       sandbox: true,
       environment,
       warnings,
@@ -188,7 +316,10 @@ export function buildBrowserSessionPlan(
     warnings,
   );
   const configuredUserDataDir = browserConfig.userDataDir.trim();
-  const effectiveUserDataDir = userDataDirFromArgs || configuredUserDataDir || null;
+  const rawUserDataDir = userDataDirFromArgs || configuredUserDataDir || defaultUserDataDir;
+  const effectiveUserDataDir = rawUserDataDir
+    ? resolveConfiguredPath(rawUserDataDir, cwd, homeDir)
+    : null;
   if (userDataDirFromArgs && configuredUserDataDir) {
     const [argPath, configPath] = resolveUserDataDirPaths(
       userDataDirFromArgs,
@@ -221,7 +352,7 @@ export function buildBrowserSessionPlan(
     userDataDir: effectiveUserDataDir,
     profileDir,
     preferencesFile: profileDir ? path.join(profileDir, "Preferences") : null,
-    extensionPaths: [...browserConfig.extensions],
+    extensionPaths,
     sandbox: !browserArgs.includes("--no-sandbox"),
     environment,
     warnings,
