@@ -26,6 +26,10 @@ jobs:
         with:
           node-version: 22
 
+      - run: npm ci --ignore-scripts
+
+      - run: npm run build:miniclaw
+
       - run: npm test
 
       - run: npm run coverage
