@@ -937,7 +937,10 @@ describe("package install boundary", () => {
 
   it("keeps published runtime files free of stale external runtime surface", async () => {
     const files = await npmPackDryRunFiles();
-    const provenanceOnlyFiles = new Set(["miniclaw/LICENSE.txt"]);
+    const provenanceOnlyFiles = new Set([
+      "CHANGELOG.md",
+      "miniclaw/LICENSE.txt",
+    ]);
     const stalePatterns = [
       [/kleinanzeigen-bot/, "kleinanzeigen-bot"],
       [/cliPath/, "cliPath"],

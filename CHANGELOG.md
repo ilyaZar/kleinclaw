@@ -2,11 +2,31 @@
 
 ## Unreleased
 
-- embed the built miniclaw runtime and TypeScript source for the local runtime
-  migration
+### Changed
+
+- replace the external `kleinanzeigen-bot` command dependency with the embedded
+  TypeScript `miniclaw` runtime
+- keep the browser automation model inside the package with CDP-style Chromium
+  control, local browser profile handling, and the existing KleinClaw approval
+  gates
 - make embedded miniclaw defaults use miniclaw app names and local schema hints
-- remove unused embedded miniclaw resource files from the published package
 - switch package metadata to AGPL-3.0-or-later for the embedded derived code
+
+### Removed
+
+- remove the old `cliPath`/external executable configuration surface from the
+  OpenClaw plugin config
+- remove unused embedded miniclaw resource files from the published package
+- avoid Python, Playwright, and upstream bot package dependencies in the
+  ClawHub package
+
+### Verified
+
+- package checks assert that the npm lockfile, packed runtime files, generated
+  default config, and plugin config schema no longer expose the stale external
+  runtime surface
+- VM release testing proved the packaged branch can run, publish, and delete
+  through embedded miniclaw from an isolated Omarchy guest
 
 ## 0.1.6
 
