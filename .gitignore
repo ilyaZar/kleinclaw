@@ -1,4 +1,8 @@
 lcov.info
 node_modules/
+reports/
 
 assets/psc
+
+# Local planning notes, not package or repo material.
+specs/

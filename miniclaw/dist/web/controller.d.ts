@@ -1,0 +1,76 @@
+import { type TimeoutKey } from "../model/config-model.js";
+import { By, type WebSelector } from "./selector.js";
+import { Is, type WebControllerOptions, type WebElement, type WebLocator, type WebPage, type WebResponse } from "./types.js";
+export declare class WebController {
+    readonly page: WebPage;
+    readonly defaultTimeout: number;
+    private readonly timeSource;
+    private readonly timeoutConfig;
+    private readonly timingCollector;
+    private readonly defaultTimeoutOverride;
+    private readonly sleepRangeMs;
+    private readonly randomInt;
+    private readonly sleeper;
+    constructor(page: WebPage, options?: WebControllerOptions);
+    locatorFor(type: By, value: string, parent?: WebLocator | null): WebLocator;
+    webExecute(jscode: string): Promise<unknown>;
+    webRequest(url: string, method?: string, validResponseCodes?: number | Iterable<number>, headers?: Record<string, string> | null): Promise<WebResponse>;
+    webFind(type: By, value: string, { parent, timeout, }?: {
+        parent?: WebLocator | null;
+        timeout?: number;
+    }): Promise<WebLocator>;
+    webFindFirstAvailable(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: {
+        description?: string;
+        key?: TimeoutKey;
+        parent?: WebLocator | null;
+        timeout?: number;
+    }): Promise<[WebLocator, number]>;
+    webTextFirstAvailable(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: {
+        description?: string;
+        key?: TimeoutKey;
+        parent?: WebLocator | null;
+        timeout?: number;
+    }): Promise<[string, number]>;
+    private webFindOnce;
+    webProbe(type: By, value: string, { parent, timeout, }?: {
+        parent?: WebLocator | null;
+        timeout?: number;
+    }): Promise<WebLocator | null>;
+    webFindAll(type: By, value: string, { parent, timeout, }?: {
+        parent?: WebLocator | null;
+        timeout?: number;
+    }): Promise<WebElement[]>;
+    private webFindAllOnce;
+    webCheck(type: By, value: string, attr: Is, timeout?: number): Promise<boolean>;
+    webClick(type: By, value: string, timeout?: number): Promise<WebLocator>;
+    clearInput(element: WebElement): Promise<void>;
+    dispatchArrowDownAndEnter(element: WebElement): Promise<void>;
+    webInput(type: By, value: string, text: string | number, timeout?: number): Promise<WebLocator>;
+    webText(type: By, value: string, { parent, timeout, }?: {
+        parent?: WebLocator | null;
+        timeout?: number;
+    }): Promise<string>;
+    extractVisibleText(element: WebElement): Promise<string>;
+    webSelect(type: By, value: string, selectedValue: unknown, timeout?: number): Promise<WebLocator>;
+    webSelectCombobox(type: By, value: string, selectedValue: string | number, timeout?: number): Promise<WebElement>;
+    webSelectButtonCombobox(elementId: string, selectedValue: string, timeout?: number): Promise<WebElement>;
+    webOpen(url: string, { timeout, reloadIfAlreadyOpen, }?: {
+        timeout?: number;
+        reloadIfAlreadyOpen?: boolean;
+    }): Promise<void>;
+    webSleep(minMs?: number, maxMs?: number): Promise<void>;
+    private isDisabled;
+    private isDisplayed;
+    private inputText;
+    private selectOption;
+    private clickMatchingComboboxOption;
+    private clickMatchingButtonComboboxOption;
+    private confirmComboboxFallback;
+    private currentInputValue;
+    private baseTimeout;
+    private effectiveTimeout;
+    private timeoutAttempts;
+    private recordTiming;
+    private runWithTimeoutRetries;
+    private notFoundMessage;
+}

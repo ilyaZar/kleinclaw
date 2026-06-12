@@ -24,7 +24,11 @@ import {
   sanitizeText,
   setKleinanzeigenAdActive,
 } from "../src/cli.js";
-import { createNodeCommandRunner, withCommandRunner } from "./helpers/command-runner.js";
+import {
+  createNodeCommandRunner,
+  withCommandRunner,
+  withMockMiniclawScript,
+} from "./helpers/command-runner.js";
 
 describe("kleinanzeigen CLI argument builder", () => {
   it("builds fixed verify args with redacted config args", () => {
@@ -156,8 +160,7 @@ describe("kleinanzeigen CLI status", () => {
     );
     await fs.chmod(mockCli, 0o700);
 
-    const status = await getKleinanzeigenStatus(withCommandRunner({
-      cliPath: mockCli,
+    const status = await getKleinanzeigenStatus(withMockMiniclawScript(mockCli, {
       configPath: mockConfig,
       workingDirectory: tmp,
       workspaceMode: "portable",
@@ -170,6 +173,32 @@ describe("kleinanzeigen CLI status", () => {
     assert.deepEqual(status.commands, {
       verify: true,
       diagnose: false,
+      publish: true,
+      update: true,
+      delete: true,
+      download: true,
+      extend: true,
+    });
+    assert.doesNotMatch(JSON.stringify(status), /should-not-be-read|password/);
+  });
+
+  it("uses the embedded miniclaw runtime by default", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-status-"));
+    const mockConfig = path.join(tmp, "config.yaml");
+    await fs.writeFile(mockConfig, "password: should-not-be-read\n", "utf8");
+
+    const status = await getKleinanzeigenStatus(withCommandRunner({
+      configPath: mockConfig,
+      workingDirectory: tmp,
+      workspaceMode: "portable",
+    }));
+
+    assert.equal(status.ok, true);
+    assert.equal(status.executable, "miniclaw");
+    assert.equal(status.version, "2026+miniclaw");
+    assert.deepEqual(status.commands, {
+      verify: true,
+      diagnose: true,
       publish: true,
       update: true,
       delete: true,
@@ -262,7 +291,7 @@ describe("browser config tools", () => {
         binaryLocation: mockBrowser,
         allowUnsupportedBrowser: true,
         usePrivateWindow: false,
-        profileMode: "bot",
+        profileMode: "workspace",
       },
       withCommandRunner({
         configPath: mockConfig,
@@ -304,11 +333,11 @@ describe("browser config tools", () => {
           { confirm: true, binaryLocation: mockBrave },
           withCommandRunner({ configPath: mockConfig, workingDirectory: tmp }),
         ),
-      /not a supported kleinanzeigen-bot browser/,
+      /not a supported miniclaw browser/,
     );
   });
 
-  it("checks a browser through bot diagnostics without changing config", async () => {
+  it("checks a browser through miniclaw diagnostics without changing config", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-browser-"));
     const mockConfig = path.join(tmp, "config.yaml");
     const mockBrowser = path.join(tmp, "mock-browser");
@@ -345,8 +374,7 @@ describe("browser config tools", () => {
         allowUnsupportedBrowser: true,
         usePrivateWindow: false,
       },
-      withCommandRunner({
-        cliPath: mockCli,
+      withMockMiniclawScript(mockCli, {
         configPath: mockConfig,
         workingDirectory: tmp,
       }),
@@ -374,14 +402,14 @@ describe("ad authoring tools", () => {
 
   it("reads one selected ad with contact fields redacted by default", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-read-ad-"));
-    const adDir = path.join(tmp, "ONGOING", "boxen");
+    const adDir = path.join(tmp, "drafts", "sample-listing");
     const adPath = path.join(adDir, "ad.yaml");
     await fs.mkdir(adDir, { recursive: true });
     await fs.writeFile(
       adPath,
       [
         "active: true",
-        "title: Boxen von Kenwood",
+        "title: Sample Listing Audio",
         "description: Guter Zustand",
         "category: Elektronik > Audio",
         "contact:",
@@ -397,18 +425,18 @@ describe("ad authoring tools", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.equal(result.adPath, path.join("ONGOING", "boxen", "ad.yaml"));
-    assert.equal(result.summary.title, "Boxen von Kenwood");
+    assert.equal(result.adPath, path.join("drafts", "sample-listing", "ad.yaml"));
+    assert.equal(result.summary.title, "Sample Listing Audio");
     assert.match(result.yaml, /name: \[redacted-contact\]/);
     assert.doesNotMatch(result.yaml, /Secret Name|01234/);
   });
 
-  it("lists local image files with dimensions and bot support", async () => {
+  it("lists local image files with dimensions and miniclaw support", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-images-"));
-    const adDir = path.join(tmp, "ONGOING", "boxen");
+    const adDir = path.join(tmp, "drafts", "sample-listing");
     await fs.mkdir(adDir, { recursive: true });
     await fs.writeFile(
-      path.join(adDir, "boxen.png"),
+      path.join(adDir, "sample-listing.png"),
       Buffer.from(
         "iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAIAAAA2jvWyAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
         "base64",
@@ -423,27 +451,27 @@ describe("ad authoring tools", () => {
 
     assert.equal(result.ok, true);
     assert.equal(result.count, 1);
-    assert.equal(result.images[0].file, "boxen.png");
+    assert.equal(result.images[0].file, "sample-listing.png");
     assert.equal(result.images[0].width, 2);
     assert.equal(result.images[0].height, 3);
-    assert.equal(result.images[0].supportedByBot, true);
+    assert.equal(result.images[0].supportedByMiniclaw, true);
   });
 
   it("creates a safe inactive ad draft under configured roots", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-draft-"));
-    const adDir = path.join(tmp, "ONGOING", "boxen");
+    const adDir = path.join(tmp, "drafts", "sample-listing");
 
     const result = await draftKleinanzeigenAd(
       {
         confirm: true,
         directory: adDir,
-        title: "Boxen von Kenwood",
+        title: "Sample Listing Audio",
         description: "Guter Zustand.\nAbholung bevorzugt.",
         category: "Elektronik > Audio",
         price: 25,
         priceType: "NEGOTIABLE",
         shippingType: "PICKUP",
-        images: ["boxen_*.{jpg,png}"],
+        images: ["sample-listing_*.{jpg,png}"],
         specialAttributes: { condition_s: "like_new" },
       },
       { adRoots: [tmp] },
@@ -453,10 +481,10 @@ describe("ad authoring tools", () => {
     assert.equal(result.ok, true);
     assert.equal(result.active, false);
     assert.match(yaml, /active: false/);
-    assert.match(yaml, /title: "Boxen von Kenwood"/);
+    assert.match(yaml, /title: "Sample Listing Audio"/);
     assert.match(yaml, /description: \|/);
     assert.match(yaml, /condition_s: "like_new"/);
-    assert.match(yaml, /images:\n  - "boxen_\*\.\{jpg,png\}"/);
+    assert.match(yaml, /images:\n  - "sample-listing_\*\.\{jpg,png\}"/);
   });
 
   it("rejects draft image paths that escape the ad directory", async () => {
@@ -468,7 +496,7 @@ describe("ad authoring tools", () => {
           {
             confirm: true,
             directory: path.join(tmp, "draft"),
-            title: "Boxen von Kenwood",
+            title: "Sample Listing Audio",
             description: "Guter Zustand",
             category: "Elektronik > Audio",
             images: ["../secret.jpg"],
@@ -481,7 +509,7 @@ describe("ad authoring tools", () => {
 
   it("sets one YAML ad active without rewriting other fields", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-active-"));
-    const adDir = path.join(tmp, "ONGOING", "lamp");
+    const adDir = path.join(tmp, "drafts", "lamp");
     const adPath = path.join(adDir, "ad.yaml");
     await fs.mkdir(adDir, { recursive: true });
     await fs.writeFile(
@@ -520,7 +548,7 @@ describe("ad authoring tools", () => {
 
   it("inserts an active flag when a YAML ad has no active field", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-active-"));
-    const adDir = path.join(tmp, "ONGOING", "lamp");
+    const adDir = path.join(tmp, "drafts", "lamp");
     const adPath = path.join(adDir, "ad.yaml");
     await fs.mkdir(adDir, { recursive: true });
     await fs.writeFile(
@@ -554,40 +582,40 @@ describe("ad authoring tools", () => {
 describe("scoped ad configs", () => {
   it("lists ad folders under configured roots", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-list-"));
-    const adDir = path.join(tmp, "ONGOING", "boxen");
+    const adDir = path.join(tmp, "drafts", "sample-listing");
     await fs.mkdir(adDir, { recursive: true });
     await fs.writeFile(
       path.join(adDir, "ad.yaml"),
       [
         "active: true",
-        "title: Boxen von Kenwood",
+        "title: Sample Listing Audio",
         "category: Audio_und_Hifi",
         "price: 15.00",
         "id: 2923863425",
         "images:",
-        "  - boxen_*.{jpg,png}",
+        "  - sample-listing_*.{jpg,png}",
       ].join("\n"),
       "utf8",
     );
 
-    const result = await listKleinanzeigenAds({ adRoots: [tmp] }, { query: "boxen" });
+    const result = await listKleinanzeigenAds({ adRoots: [tmp] }, { query: "sample-listing" });
 
     assert.equal(result.ok, true);
     assert.equal(result.count, 1);
-    assert.equal(result.ads[0].relativeDirectory, path.join("ONGOING", "boxen"));
-    assert.equal(result.ads[0].title, "Boxen von Kenwood");
+    assert.equal(result.ads[0].relativeDirectory, path.join("drafts", "sample-listing"));
+    assert.equal(result.ads[0].title, "Sample Listing Audio");
     assert.equal(result.ads[0].id, "2923863425");
-    assert.deepEqual(result.ads[0].imageGlobs, ["boxen_*.{jpg,png}"]);
+    assert.deepEqual(result.ads[0].imageGlobs, ["sample-listing_*.{jpg,png}"]);
   });
 
   it("runs with a temporary config limited to selected ad directories", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-scope-"));
     const adRoot = path.join(tmp, "ads");
-    const adDir = path.join(adRoot, "boxen");
+    const adDir = path.join(adRoot, "sample-listing");
     const mockCli = path.join(tmp, "mock-cli.mjs");
     const configPath = path.join(tmp, "config.yaml");
     await fs.mkdir(adDir, { recursive: true });
-    await fs.writeFile(path.join(adDir, "ad.yaml"), "title: Boxen\n", "utf8");
+    await fs.writeFile(path.join(adDir, "ad.yaml"), "title: Sample Listing\n", "utf8");
     await fs.writeFile(
       configPath,
       [
@@ -614,8 +642,7 @@ describe("scoped ad configs", () => {
     const result = await runKleinanzeigenOperation(
       "verify",
       { adDirectories: [adDir] },
-      withCommandRunner({
-        cliPath: mockCli,
+      withMockMiniclawScript(mockCli, {
         configPath,
         adRoots: [adRoot],
         maxOutputChars: 2000,
@@ -623,7 +650,7 @@ describe("scoped ad configs", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.match(result.stdout, /ad_files:\n  - "\[redacted-path\]\/boxen\/ad\.yaml"/);
+    assert.match(result.stdout, /ad_files:\n  - "\[redacted-path\]\/sample-listing\/ad\.yaml"/);
     assert.doesNotMatch(result.stdout, /unrelated|should-not-leak/);
   });
 
@@ -643,7 +670,6 @@ describe("scoped ad configs", () => {
           "verify",
           { adDirectories: [outside] },
           {
-            cliPath: "kleinanzeigen-bot",
             configPath,
             adRoots: [adRoot],
           },
@@ -657,7 +683,7 @@ describe("scoped ad configs", () => {
     const adDir = path.join(tmp, "ads", "lamp");
     const mockCli = path.join(tmp, "mock-cli.mjs");
     const configPath = path.join(tmp, "config.yaml");
-    const marker = path.join(tmp, "bot-ran");
+    const marker = path.join(tmp, "miniclaw-ran");
     const adPath = path.join(adDir, "ad.yaml");
     await fs.mkdir(adDir, { recursive: true });
     await fs.writeFile(
@@ -681,8 +707,7 @@ describe("scoped ad configs", () => {
     const result = await runKleinanzeigenOperation(
       "publish",
       { confirm: true, adDirectories: [adDir] },
-      withCommandRunner({
-        cliPath: mockCli,
+      withMockMiniclawScript(mockCli, {
         configPath,
         adRoots: [path.join(tmp, "ads")],
       }),
@@ -700,12 +725,12 @@ describe("scoped ad configs", () => {
 
   it("returns publish success evidence even when the process exits noisy", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-outcome-"));
-    const adDir = path.join(tmp, "ads", "boxen");
+    const adDir = path.join(tmp, "ads", "sample-listing");
     const mockCli = path.join(tmp, "mock-cli.mjs");
     const configPath = path.join(tmp, "config.yaml");
     const adPath = path.join(adDir, "ad.yaml");
     await fs.mkdir(adDir, { recursive: true });
-    await fs.writeFile(adPath, "active: true\ntitle: Boxen\n", "utf8");
+    await fs.writeFile(adPath, "active: true\ntitle: Sample Listing\n", "utf8");
     await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
     await fs.writeFile(
       mockCli,
@@ -722,8 +747,7 @@ describe("scoped ad configs", () => {
     const result = await runKleinanzeigenOperation(
       "publish",
       { confirm: true, adDirectories: [adDir] },
-      withCommandRunner({
-        cliPath: mockCli,
+      withMockMiniclawScript(mockCli, {
         configPath,
         adRoots: [path.join(tmp, "ads")],
       }),
@@ -739,12 +763,12 @@ describe("scoped ad configs", () => {
 
   it("uses selected ad config changes as publish success evidence", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-outcome-"));
-    const adDir = path.join(tmp, "ads", "boxen");
+    const adDir = path.join(tmp, "ads", "sample-listing");
     const mockCli = path.join(tmp, "mock-cli.mjs");
     const configPath = path.join(tmp, "config.yaml");
     const adPath = path.join(adDir, "ad.yaml");
     await fs.mkdir(adDir, { recursive: true });
-    await fs.writeFile(adPath, "active: true\ntitle: Boxen\n", "utf8");
+    await fs.writeFile(adPath, "active: true\ntitle: Sample Listing\n", "utf8");
     await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
     await fs.writeFile(
       mockCli,
@@ -762,8 +786,7 @@ describe("scoped ad configs", () => {
     const result = await runKleinanzeigenOperation(
       "publish",
       { confirm: true, adDirectories: [adDir] },
-      withCommandRunner({
-        cliPath: mockCli,
+      withMockMiniclawScript(mockCli, {
         configPath,
         adRoots: [path.join(tmp, "ads")],
       }),
@@ -774,8 +797,8 @@ describe("scoped ad configs", () => {
     assert.equal(result.outcome.status, "succeeded");
     assert.deepEqual(result.outcome.changedAdConfigs, [
       {
-        adPath: path.join("boxen", "ad.yaml"),
-        title: "Boxen",
+        adPath: path.join("sample-listing", "ad.yaml"),
+        title: "Sample Listing",
         id: "2923863425",
         changedFields: ["id"],
       },
@@ -784,12 +807,12 @@ describe("scoped ad configs", () => {
 
   it("parses delete completion counts as changed and total ads", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-outcome-"));
-    const adDir = path.join(tmp, "ads", "boxen");
+    const adDir = path.join(tmp, "ads", "sample-listing");
     const mockCli = path.join(tmp, "mock-cli.mjs");
     const configPath = path.join(tmp, "config.yaml");
     const adPath = path.join(adDir, "ad.yaml");
     await fs.mkdir(adDir, { recursive: true });
-    await fs.writeFile(adPath, "title: Boxen\nid: 2923863425\n", "utf8");
+    await fs.writeFile(adPath, "title: Sample Listing\nid: 2923863425\n", "utf8");
     await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
     await fs.writeFile(
       mockCli,
@@ -805,8 +828,7 @@ describe("scoped ad configs", () => {
     const result = await runKleinanzeigenOperation(
       "delete",
       { confirm: true, adIds: ["2923863425"], adDirectories: [adDir] },
-      withCommandRunner({
-        cliPath: mockCli,
+      withMockMiniclawScript(mockCli, {
         configPath,
         adRoots: [path.join(tmp, "ads")],
       }),
@@ -820,9 +842,9 @@ describe("scoped ad configs", () => {
 });
 
 describe("diagnostics", () => {
-  it("adds structured guidance for bot validation errors", async () => {
+  it("adds structured guidance for miniclaw validation errors", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-diag-"));
-    const adDir = path.join(tmp, "ONGOING", "cut-n-run");
+    const adDir = path.join(tmp, "drafts", "cut-n-run");
     await fs.mkdir(adDir, { recursive: true });
     await fs.writeFile(
       path.join(adDir, "ad.yaml"),
@@ -841,14 +863,14 @@ describe("diagnostics", () => {
     assert.equal(diagnostics.length, 1);
     assert.equal(diagnostics[0].kind, "ad_validation");
     assert.equal(diagnostics[0].field, "title");
-    assert.equal(diagnostics[0].adPath, path.join("ONGOING", "cut-n-run", "ad.yaml"));
+    assert.equal(diagnostics[0].adPath, path.join("drafts", "cut-n-run", "ad.yaml"));
     assert.equal(diagnostics[0].titleLength, 75);
     assert.equal(diagnostics[0].limit, 65);
   });
 
-  it("returns diagnostics and next actions from failed bot runs", async () => {
+  it("returns diagnostics and next actions from failed miniclaw runs", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-diag-"));
-    const adDir = path.join(tmp, "ONGOING", "cut-n-run");
+    const adDir = path.join(tmp, "drafts", "cut-n-run");
     const unrelatedDir = path.join(tmp, "SOLD", "shoes");
     const mockCli = path.join(tmp, "mock-cli.mjs");
     const configPath = path.join(tmp, "config.yaml");
@@ -884,15 +906,14 @@ describe("diagnostics", () => {
     const result = await runKleinanzeigenOperation(
       "verify",
       {},
-      withCommandRunner({
-        cliPath: mockCli,
+      withMockMiniclawScript(mockCli, {
         configPath,
         adRoots: [tmp],
       }),
     );
 
     assert.equal(result.ok, false);
-    assert.equal(result.diagnostics[0].adPath, path.join("ONGOING", "cut-n-run", "ad.yaml"));
+    assert.equal(result.diagnostics[0].adPath, path.join("drafts", "cut-n-run", "ad.yaml"));
     assert.equal(result.diagnostics[0].candidates.length, 1);
     assert.deepEqual(result.nextActions, [
       "use kleinanzeigen_list_ads to find the target ad",
@@ -982,7 +1003,7 @@ describe("redacted output handling", () => {
     assert.equal(sanitizeText(result.stderr, [], 5), "yyyyy\n[truncated]");
   });
 
-  it("detects local bot prompts that need a direct user run", () => {
+  it("detects miniclaw prompts that need a direct user run", () => {
     assert.equal(detectUserActionRequest("Press ENTER when done...").needsUserAction, true);
     assert.equal(detectUserActionRequest("Captcha detected. Sleeping 6h before restart...").needsUserAction, true);
     assert.equal(detectUserActionRequest("# Captcha vorhanden! Bitte lösen Sie das Captcha.").needsUserAction, true);

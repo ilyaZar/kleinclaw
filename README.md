@@ -5,7 +5,7 @@
   <a href="https://codecov.io/gh/ilyaZar/kleinclaw"><img alt="coverage" src="https://img.shields.io/codecov/c/github/ilyaZar/kleinclaw/main?style=flat-square&logo=codecov&logoColor=white&labelColor=6b3fa0&color=4b2d73"></a>
   <a href="https://github.com/ilyaZar/kleinclaw/blob/main/package.json"><img alt="version" src="https://img.shields.io/github/package-json/v/ilyaZar/kleinclaw?style=flat-square&label=version&labelColor=4a999d&color=346c6e"></a>
   <a href="https://docs.openclaw.ai/tools/clawhub"><img alt="OpenClaw code plugin" src="https://img.shields.io/badge/OpenClaw-code%20plugin-b83232?style=flat-square&labelColor=111111"></a>
-  <a href="https://nodejs.org"><img alt="JavaScript Node 22+" src="https://img.shields.io/badge/JavaScript-Node%2022%2B-264a6e?style=flat-square&logo=javascript&logoColor=111827&labelColor=f7df1e"></a>
+  <a href="https://nodejs.org"><img alt="TypeScript Node 22+" src="https://img.shields.io/badge/TypeScript-Node%2022%2B-264a6e?style=flat-square&logo=typescript&logoColor=ffffff&labelColor=3178c6"></a>
   <a href="https://github.com/ilyaZar/kleinclaw/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/github/license/ilyaZar/kleinclaw?style=flat-square&labelColor=629944&color=446a30"></a>
 </p>
 
@@ -13,17 +13,17 @@
   <img alt="kleinclaw-logo" src="assets/repo_logo2.png" width="240">
 </p>
 
-KleinClaw is an OpenClaw plugin for running a local
-[`kleinanzeigen-bot`][kleinanzeigen-bot] setup through typed Kleinanzeigen
-helper tools. It does not store Kleinanzeigen credentials and it does not read
-the full bot config. Browser tools read and write only the non-secret
-`browser:` section. The bot stays installed and configured on the user's
-machine; this plugin just passes narrow commands to it and redacts the output
-before returning it to your OpenClaw agent.
+KleinClaw is an OpenClaw plugin for running the bundled TypeScript `miniclaw`
+runtime through typed Kleinanzeigen helper tools. It does not store
+Kleinanzeigen credentials and it does not read the full miniclaw config.
+Browser tools read and write only the non-secret `browser:` section. The
+runtime uses your local config and ad workspace, while KleinClaw redacts command
+output before returning it to your OpenClaw agent.
 
 ## What it adds
 
-- `kleinanzeigen_status`: checks local bot availability and config wiring.
+- `kleinanzeigen_status`: checks embedded runtime availability and config
+  wiring.
 - `kleinanzeigen_list_ads`: lists local ad folders under trusted `adRoots`.
 - `kleinanzeigen_ad_schema`: explains the safe ad YAML shape and limits.
 - `kleinanzeigen_read_ad`: reads one selected ad config under `adRoots`, with
@@ -32,19 +32,19 @@ before returning it to your OpenClaw agent.
   directory.
 - `kleinanzeigen_browser_status`: shows selected browser settings and locally
   detected browser binaries.
-- `kleinanzeigen_browser_check`: runs the bot browser diagnostics against the
+- `kleinanzeigen_browser_check`: runs miniclaw browser diagnostics against the
   current or proposed browser settings.
-- `kleinanzeigen_browser_configure`: changes the bot browser binary, private
-  window flag, or browser profile settings.
+- `kleinanzeigen_browser_configure`: changes the miniclaw browser binary,
+  private-window flag, or browser profile settings.
 - `kleinanzeigen_draft_ad`: writes a safe inactive `ad.yaml` draft under
   `adRoots`.
 - `kleinanzeigen_set_ad_active`: flips one YAML ad draft between inactive and
   publishable.
-- `kleinanzeigen_verify`: checks the configured local bot setup.
+- `kleinanzeigen_verify`: checks the configured miniclaw workspace.
 - `kleinanzeigen_publish`: publishes or republishes selected ads.
 - `kleinanzeigen_update`: updates changed or selected ads.
 - `kleinanzeigen_delete`: deletes explicit ad IDs.
-- `kleinanzeigen_download`: downloads selected ads into the bot workspace.
+- `kleinanzeigen_download`: downloads selected ads into the miniclaw workspace.
 - `kleinanzeigen_extend`: extends eligible selected ads.
 
 The tools are optional because they run a local command. By default all tools
@@ -63,23 +63,12 @@ description.
 
 ## Install
 
-### Kleinanzeigen tool
-
-Install and set up [`kleinanzeigen-bot`][kleinanzeigen-bot] separately first,
-then point this plugin at that local executable and config.
-
-[kleinanzeigen-bot]:
-  https://github.com/Second-Hand-Friends/kleinanzeigen-bot#installation
-
-### This plugin
-
 ```bash
 openclaw plugins install clawhub:kleinclaw
 ```
 
-Installing this plugin does not download or install the upstream bot. For a
-source checkout, point `cliPath` at a small executable wrapper script instead of
-putting a shell command such as `pdm run app` there.
+The package includes the TypeScript `miniclaw` runtime. Configure only your
+miniclaw workspace path.
 
 For local development:
 
@@ -94,7 +83,7 @@ Restart the Gateway after installing plugin code.
 
 Add the plugin config under `plugins.entries.kleinclaw.config`. Either
 `configPath` or `workingDirectory` must be set. `workspaceMode` defaults to
-`portable`. Set it to `xdg` only when your local bot setup already uses user
+`portable`. Set it to `xdg` only when your miniclaw workspace already uses user
 directories.
 
 ```json
@@ -104,8 +93,7 @@ directories.
       "kleinclaw": {
         "enabled": true,
         "config": {
-          "cliPath": "kleinanzeigen-bot",
-          "configPath": "/home/me/kleinanzeigen-bot/config.yaml",
+          "configPath": "/home/me/kleinanzeigen/config.yaml",
           "adRoots": ["/home/me/kleinanzeigen-ads"],
           "workspaceMode": "portable",
           "lang": "de",
@@ -149,7 +137,7 @@ to your home directory. The authoring tools are scoped to configured `adRoots`:
 
 Use `kleinanzeigen_ad_schema` before drafting. It returns the supported YAML
 shape, title and description limits, enum values, image-glob rules, and a safe
-draft workflow. The key bot constraints are:
+draft workflow. The key miniclaw constraints are:
 
 - `title`: 10 to 65 characters.
 - `description`: at most 4000 characters.
@@ -162,7 +150,7 @@ image filenames and dimensions:
 
 ```json
 {
-  "directory": "/home/me/kleinanzeigen-ads/ONGOING/boxen",
+  "directory": "/home/me/kleinanzeigen-ads/examples/sample-listing",
   "maxDepth": 1
 }
 ```
@@ -173,7 +161,7 @@ unless `includeContact` is set to `true`:
 
 ```json
 {
-  "adDirectories": ["/home/me/kleinanzeigen-ads/ONGOING/example"]
+  "adDirectories": ["/home/me/kleinanzeigen-ads/examples/sample-listing"]
 }
 ```
 
@@ -184,14 +172,14 @@ activate them:
 ```json
 {
   "confirm": true,
-  "directory": "/home/me/kleinanzeigen-ads/ONGOING/boxen",
-  "title": "Boxen von Kenwood",
+  "directory": "/home/me/kleinanzeigen-ads/examples/sample-listing",
+  "title": "Gebrauchte Kompaktlautsprecher",
   "description": "Guter Zustand. Abholung bevorzugt.",
   "category": "Elektronik > Audio",
   "price": 25,
   "priceType": "NEGOTIABLE",
   "shippingType": "PICKUP",
-  "images": ["boxen_*.{jpg,png}"]
+  "images": ["listing_*.{jpg,png}"]
 }
 ```
 
@@ -201,7 +189,7 @@ config before publishing. The tool only changes the top-level `active:` value:
 ```json
 {
   "confirm": true,
-  "adDirectories": ["/home/me/kleinanzeigen-ads/ONGOING/boxen"],
+  "adDirectories": ["/home/me/kleinanzeigen-ads/examples/sample-listing"],
   "active": true
 }
 ```
@@ -217,32 +205,33 @@ Recommended loop:
 7. Publish with `kleinanzeigen_publish` scoped to the same directory.
 
 For scoped publish calls, KleinClaw checks the selected ad file before running
-the bot. If the selected ad is not `active: true`, the tool returns a preflight
-diagnostic instead of running a publish command that the bot would skip.
+miniclaw. If the selected ad is not `active: true`, the tool returns a
+preflight diagnostic instead of running a publish command that miniclaw would
+skip.
 
 ### Browser settings
 
 Use `kleinanzeigen_browser_status` before publishing when browser state matters.
-It reports the configured `browser:` values, the effective browser the bot will
+It reports the configured `browser:` values, the effective browser miniclaw will
 try, and locally detected Chromium, Brave, Chrome, and Edge binaries. The
-supported `browser` choices intentionally match `kleinanzeigen-bot` support:
+supported `browser` choices intentionally match embedded miniclaw support:
 `auto`, `chromium`, `google-chrome`, and `microsoft-edge`.
 
 ```json
 {
   "browser": "chromium",
   "usePrivateWindow": true,
-  "profileMode": "bot",
+  "profileMode": "workspace",
   "confirm": true
 }
 ```
 
-`profileMode: "bot"` clears `browser.user_data_dir` and `profile_name`, so the
-bot uses its dedicated workspace browser profile. The `system-default` mode
-points the config at the chosen browser's normal local profile root. That can
-reuse local login state, but it can also fail if the same browser profile is
-already open or locked. The `custom` mode requires `userDataDir` and can also
-set `profileName`:
+`profileMode: "workspace"` clears `browser.user_data_dir` and `profile_name`,
+so the runtime uses its dedicated workspace browser profile. The
+`system-default` mode points the config at the chosen browser's normal local
+profile root. That can reuse local login state, but it can also fail if the
+same browser profile is already open or locked. The `custom` mode requires
+`userDataDir` and can also set `profileName`:
 
 ```json
 {
@@ -256,62 +245,63 @@ set `profileName`:
 ```
 
 Use `browser: "auto"` to clear `browser.binary_location` and let
-`kleinanzeigen-bot` choose its default Chromium, Chrome, or Edge executable.
+miniclaw choose its default Chromium, Chrome, or Edge executable.
 `kleinanzeigen_browser_configure` edits only selected scalar keys under
 `browser:` and still requires `confirm: true`.
 
 Brave is a Chromium-family browser and may work as a custom executable, but it
-is not documented or auto-detected by `kleinanzeigen-bot`. KleinClaw reports it
-from `kleinanzeigen_browser_status` when installed, but does not expose it as a
-supported `browser` choice. To try it anyway, use an explicit `binaryLocation`
-and set `allowUnsupportedBrowser: true`:
+is not documented or auto-detected by miniclaw. KleinClaw reports it from
+`kleinanzeigen_browser_status` when installed, but does not expose it as a
+supported `browser` choice. To try it anyway, use an explicit
+`binaryLocation` and set `allowUnsupportedBrowser: true`:
 
 ```json
 {
   "binaryLocation": "/usr/bin/brave",
   "allowUnsupportedBrowser": true,
   "usePrivateWindow": true,
-  "profileMode": "bot",
+  "profileMode": "workspace",
   "confirm": true
 }
 ```
 
 Use `kleinanzeigen_browser_check` before changing the real config when you want
-to test whether the bot diagnostics accept a proposed browser setup. The check
-writes a temporary config and leaves the real bot config unchanged:
+to test whether miniclaw diagnostics accept a proposed browser setup. The check
+writes a temporary config and leaves the real miniclaw config unchanged:
 
 ```json
 {
   "browser": "chromium",
   "usePrivateWindow": false,
-  "profileMode": "bot"
+  "profileMode": "workspace"
 }
 ```
 
 After publishing or updating, operation tools return a structured `outcome`
-with success state, final `DONE:` counts, published or updated IDs when the bot
-prints them, and selected ad config changes observed after the bot exits. This
-lets agents distinguish a real failure from a successful browser run with noisy
-process cleanup.
+with success state, final `DONE:` counts, published or updated IDs when
+miniclaw prints them, and selected ad config changes observed after miniclaw
+exits. This lets agents distinguish a real failure from a successful browser
+run with noisy process cleanup.
 
-When the bot config contains many ads, one invalid unrelated ad can make the
-bot reject the whole run before it applies `--ads` filtering. To operate on one
-known source folder, configure `adRoots`, use `kleinanzeigen_list_ads` to find
-the folder, then pass `adDirectories` or `adConfigPaths` to
+When the miniclaw config contains many ads, one invalid unrelated ad can make
+the runtime reject the whole run before it applies `--ads` filtering. To
+operate on one known source folder, configure `adRoots`, use
+`kleinanzeigen_list_ads` to find the folder, then pass `adDirectories` or
+`adConfigPaths` to
 `kleinanzeigen_verify`, `kleinanzeigen_publish`, or the other operation tools:
 
 ```json
 {
-  "adDirectories": ["/home/me/kleinanzeigen-ads/ONGOING/boxen"]
+  "adDirectories": ["/home/me/kleinanzeigen-ads/examples/sample-listing"]
 }
 ```
 
 For publishing that one folder only, combine the scoped directory with
 `selector: "all"` or an explicit `adIds` list plus `confirm: true`. The scoped
-paths must be inside `adRoots`; KleinClaw writes a temporary bot config with
-only those ad files and deletes it after the run.
+paths must be inside `adRoots`; KleinClaw writes a temporary miniclaw config
+with only those ad files and deletes it after the run.
 
-When the bot reports validation failures, KleinClaw returns structured
+When miniclaw reports validation failures, KleinClaw returns structured
 `diagnostics` and `nextActions` alongside the sanitized stdout/stderr. For
 example, a full verify blocked by an unrelated overlong title can point the
 agent at the failing ad and suggest either fixing it or using a scoped operation
@@ -341,17 +331,17 @@ and a `kleinanzeigen_status` smoke test.
 
 ## Notes
 
-The local bot still owns browser automation and account checks. KleinClaw can
-select the browser binary, private-window flag, and profile config, but it does
-not work around Kleinanzeigen checks. If Kleinanzeigen asks for a normal account
-check, run the bot directly in a terminal/browser, handle it there, and then
-come back to `kleinanzeigen_verify`.
+The embedded runtime still owns browser automation and account checks.
+KleinClaw can select the browser binary, private-window flag, and profile
+config, but it does not work around Kleinanzeigen checks. If Kleinanzeigen asks
+for a normal account check, handle it outside chat in a terminal/browser, and
+then come back to `kleinanzeigen_verify`.
 
-**Keep passwords, cookies, browser profile data, and full bot config files out
-of chat**. The intermediate CLI tools, the `kleinclaw` plugin plus the
-`kleinanzeigen-bot`, handle the work without your agent ever having to know the
-location of your kleinanzeigen credentials, thus: fix bot auth and account state
-locally, then run `kleinanzeigen_verify` again.
+**Keep passwords, cookies, browser profile data, and full miniclaw config files
+out of chat**. The intermediate CLI tools and the `kleinclaw` plugin handle the
+work without your agent ever having to know the location of your Kleinanzeigen
+credentials. Fix auth and account state locally, then run
+`kleinanzeigen_verify` again.
 
 ## Development
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- embed the built miniclaw runtime and TypeScript source for the local runtime
+  migration
+- make embedded miniclaw defaults use miniclaw app names and local schema hints
+- remove unused embedded miniclaw resource files from the published package
+- switch package metadata to AGPL-3.0-or-later for the embedded derived code
+
 ## 0.1.6
 
 - add a concise troubleshooting section for sandboxed routed agents
@@ -32,9 +40,9 @@
 
 Initial KleinClaw package.
 
-- registers typed OpenClaw tools for a local kleinanzeigen-bot setup
-- keeps bot credentials and full config contents outside the plugin
+- registers typed OpenClaw tools for a local Kleinanzeigen helper workflow
+- keeps credentials and full config contents outside the plugin
 - scopes ad reads, drafts, and operations to configured ad roots
 - defaults drafts to inactive and blocks scoped publish for inactive ads
 - adds approval prompts, confirm flags, output caps, and redaction
-- includes browser status/config/check helpers for the bot's browser settings
+- includes browser status/config/check helpers for browser settings

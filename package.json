@@ -1,8 +1,8 @@
 {
   "name": "kleinclaw",
   "version": "0.1.6",
-  "description": "Kleinanzeigen helper tools for a local kleinanzeigen-bot setup with redacted output",
-  "license": "MIT",
+  "description": "Kleinanzeigen helper tools for local KleinClaw and miniclaw workflows with redacted output",
+  "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ilyaZar/kleinclaw.git"
@@ -24,9 +24,11 @@
   "files": [
     "CHANGELOG.md",
     "LICENSE",
+    "LICENSES/",
     "README.md",
     "SECURITY.md",
     "index.js",
+    "miniclaw/",
     "openclaw.plugin.json",
     "skills/",
     "src/"
@@ -35,6 +37,12 @@
     "coverage": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info",
     "package:check": "node --test test/package.test.js",
     "test": "node --test"
+  },
+  "dependencies": {
+    "decimal.js": "^10.6.0",
+    "glob": "^13.0.6",
+    "playwright-core": "^1.60.0",
+    "yaml": "^2.9.0"
   },
   "peerDependencies": {
     "openclaw": ">=2026.5.3-beta.3"

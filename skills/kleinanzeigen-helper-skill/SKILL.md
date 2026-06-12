@@ -8,7 +8,7 @@ license: MIT-0
 
 Use this skill when the user wants help preparing, verifying, publishing,
 updating, deleting, downloading, or extending Kleinanzeigen listings through
-their already configured local `kleinanzeigen-bot` setup.
+the configured KleinClaw plugin and embedded `miniclaw` runtime.
 
 ## Load Details
 
@@ -25,7 +25,7 @@ their already configured local `kleinanzeigen-bot` setup.
 - Read [Listing Discovery and Scoping](references/listing-discovery-scoping.md)
   before acting on a specific listing.
 - Read [Browser Behaviour](references/browser-behaviour.md) when diagnosing or
-  changing bot browser settings.
+  changing runtime browser settings.
 - Read [Publish Result Caveats](references/publish-result-caveats.md) when
   interpreting publish/update results.
 - Read [Tool Selection](references/tool-selection.md) when choosing tool

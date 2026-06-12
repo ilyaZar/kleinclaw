@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
 
+const EMBEDDED_MINICLAW_CLI_RE = /[/\\]miniclaw[/\\]dist[/\\]cli\.js$/;
+
 export function createNodeCommandRunner() {
   return (argv, options = {}) =>
     new Promise((resolve, reject) => {
@@ -53,9 +55,32 @@ export function createNodeCommandRunner() {
     });
 }
 
+export function createMockMiniclawCommandRunner(scriptPath) {
+  const runNodeCommand = createNodeCommandRunner();
+
+  return (argv, options = {}) => {
+    const [command, maybeCli, ...args] = argv;
+    if (
+      command === process.execPath &&
+      EMBEDDED_MINICLAW_CLI_RE.test(String(maybeCli ?? ""))
+    ) {
+      return runNodeCommand([process.execPath, scriptPath, ...args], options);
+    }
+
+    return runNodeCommand(argv, options);
+  };
+}
+
 export function withCommandRunner(config = {}) {
   return {
     commandRunner: createNodeCommandRunner(),
+    ...config,
+  };
+}
+
+export function withMockMiniclawScript(scriptPath, config = {}) {
+  return {
+    commandRunner: createMockMiniclawCommandRunner(scriptPath),
     ...config,
   };
 }

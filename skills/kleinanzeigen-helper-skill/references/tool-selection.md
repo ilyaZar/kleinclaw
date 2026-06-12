@@ -1,7 +1,7 @@
 ## Tool Selection
 
-- `kleinanzeigen_status`: check bot availability, config wiring, workspace mode,
-  version, and supported commands without reading the config contents.
+- `kleinanzeigen_status`: check runtime availability, config wiring, workspace
+  mode, version, and supported commands without reading the config contents.
 - `kleinanzeigen_list_ads`: discover configured local ad folders and resolve
   titles, IDs, active state, config paths, and directories before scoped
   operations.
@@ -14,14 +14,14 @@
 - `kleinanzeigen_browser_status`: inspect sanitized effective browser settings
   and detected local browsers.
 - `kleinanzeigen_browser_check`: test current or proposed browser settings
-  through bot diagnostics without changing the real config.
-- `kleinanzeigen_browser_configure`: change local bot browser settings only
-  after explicit confirmation.
+  through miniclaw diagnostics without changing the real config.
+- `kleinanzeigen_browser_configure`: change miniclaw browser settings only after
+  explicit confirmation.
 - `kleinanzeigen_draft_ad`: create or replace a local ad draft under configured
   `adRoots` only after explicit confirmation.
 - `kleinanzeigen_set_ad_active`: set the top-level `active` flag for one YAML
   ad config before scoped verify/publish.
-- `kleinanzeigen_verify`: validate the already configured local bot setup.
+- `kleinanzeigen_verify`: validate the already configured miniclaw workspace.
 - `kleinanzeigen_publish`: publish or republish due, new, changed, all, combined
   selectors, or explicitly selected ads.
 - `kleinanzeigen_update`: update changed, all, or explicitly selected ads.
