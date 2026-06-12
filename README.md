@@ -14,46 +14,43 @@
 </p>
 
 KleinClaw is an OpenClaw plugin for running the bundled TypeScript `miniclaw`
-runtime through typed Kleinanzeigen helper tools. It does not store
-Kleinanzeigen credentials and it does not read the full miniclaw config.
-Browser tools read and write only the non-secret `browser:` section. The
-runtime uses your local config and ad workspace, while KleinClaw redacts command
-output before returning it to your OpenClaw agent.
+runtime through typed Kleinanzeigen helper tools. The plugin wrapper does not
+store Kleinanzeigen credentials or return full config contents to OpenClaw.
+Operation tools pass the configured local miniclaw config path to the runtime,
+and miniclaw reads that config locally when it verifies or changes listings.
+Browser helper tools inspect or edit only selected non-secret `browser:` keys.
+Command output returned to OpenClaw is capped and redacted.
 
 ## What it adds
 
-- `kleinanzeigen_status`: checks embedded runtime availability and config
-  wiring.
-- `kleinanzeigen_list_ads`: lists local ad folders under trusted `adRoots`.
-- `kleinanzeigen_ad_schema`: explains the safe ad YAML shape and limits.
-- `kleinanzeigen_read_ad`: reads one selected ad config under `adRoots`, with
-  contact fields redacted by default.
-- `kleinanzeigen_images_list`: inventories local image files under one trusted
-  directory.
-- `kleinanzeigen_browser_status`: shows selected browser settings and locally
-  detected browser binaries.
-- `kleinanzeigen_browser_check`: runs miniclaw browser diagnostics against the
-  current or proposed browser settings.
-- `kleinanzeigen_browser_configure`: changes the miniclaw browser binary,
-  private-window flag, or browser profile settings.
-- `kleinanzeigen_draft_ad`: writes a safe inactive `ad.yaml` draft under
-  `adRoots`.
-- `kleinanzeigen_set_ad_active`: flips one YAML ad draft between inactive and
-  publishable.
-- `kleinanzeigen_verify`: checks the configured miniclaw workspace.
-- `kleinanzeigen_publish`: publishes or republishes selected ads.
-- `kleinanzeigen_update`: updates changed or selected ads.
-- `kleinanzeigen_delete`: deletes explicit ad IDs.
-- `kleinanzeigen_download`: downloads selected ads into the miniclaw workspace.
-- `kleinanzeigen_extend`: extends eligible selected ads.
+KleinClaw gives an OpenClaw agent a local, approval-gated bridge to miniclaw.
+Most users should think in terms of workflows rather than individual helper
+names:
+
+- Check setup, config wiring, and browser readiness before a live run.
+- Discover listing folders inside configured `adRoots`.
+- Draft inactive local ads from user-provided text and local image filenames.
+- Verify one listing folder or the full miniclaw workspace before changes.
+- Publish or republish, update, delete explicit IDs, download listings, and
+  extend eligible ads after confirmation.
+- Return capped, redacted outcomes so agents can report what happened without
+  needing credentials, cookies, or full config contents.
+
+The primary operation tools are `kleinanzeigen_verify`,
+`kleinanzeigen_publish`, `kleinanzeigen_update`, `kleinanzeigen_delete`,
+`kleinanzeigen_download`, and `kleinanzeigen_extend`. Drafting, discovery, and
+browser helpers are available for agent-led setup and preflight, but the
+bundled helper skill should choose those details during normal use.
 
 The tools are optional because they run a local command. By default all tools
-require OpenClaw approval before they run. Set `approvalMode` to `mutating` only
-for local checks where status and verify should run without an approval route.
-Set it to `none` only for local TUI/dev sessions where no OpenClaw approval UI
-is connected. Account-changing tools still require `confirm: true`. Tool output
-is capped and redacted for configured paths, email addresses, and
-credential-like lines.
+require OpenClaw approval before they run. OpenClaw approvals and `confirm:
+true` parameters are human review gates, not sandbox boundaries. Keep `adRoots`
+limited to listing workspaces you intend the plugin to read or write. Set
+`approvalMode` to `mutating` only for local checks where status and verify
+should run without an approval route. Set it to `none` only for local TUI/dev
+sessions where no OpenClaw approval UI is connected. Account-changing tools
+still require `confirm: true`. Tool output is capped and redacted for configured
+paths, email addresses, and credential-like lines.
 
 The package also ships a `kleinanzeigen-helper-skill` under `skills/`. OpenClaw
 loads plugin skills when the plugin is enabled, so agents get the longer
@@ -67,8 +64,8 @@ description.
 openclaw plugins install clawhub:kleinclaw
 ```
 
-The package includes the TypeScript `miniclaw` runtime. Configure only your
-miniclaw workspace path.
+The package includes the TypeScript `miniclaw` runtime. Configure the path to
+your local miniclaw config or workspace.
 
 For local development:
 
@@ -107,15 +104,21 @@ directories.
 }
 ```
 
-Also expose the optional tools through OpenClaw tool policy. Include `kleinclaw`
-in the explicit allowlist, or include the individual tool names if you need
-finer control. For a minimal KleinClaw-only dev agent:
+Also expose the optional tools through OpenClaw tool policy. Include
+`kleinclaw` in `tools.alsoAllow` and, for sandboxed sessions, in
+`tools.sandbox.tools.alsoAllow`. You can include individual tool names instead
+when you need finer control. For a minimal KleinClaw-only dev agent:
 
 ```json
 {
   "tools": {
     "profile": "full",
-    "allow": ["session_status", "kleinclaw"]
+    "alsoAllow": ["kleinclaw"],
+    "sandbox": {
+      "tools": {
+        "alsoAllow": ["kleinclaw"]
+      }
+    }
   }
 }
 ```
@@ -333,14 +336,15 @@ and a `kleinanzeigen_status` smoke test.
 
 The embedded runtime still owns browser automation and account checks.
 KleinClaw can select the browser binary, private-window flag, and profile
-config, but it does not work around Kleinanzeigen checks. If Kleinanzeigen asks
-for a normal account check, handle it outside chat in a terminal/browser, and
-then come back to `kleinanzeigen_verify`.
+config, but it does not work around Kleinanzeigen checks. Browser profile modes
+can reuse local login state, so use the workspace profile by default unless you
+deliberately want system-default or custom profile behavior. If Kleinanzeigen
+asks for a normal account check, handle it outside chat in a terminal/browser,
+and then come back to `kleinanzeigen_verify`.
 
 **Keep passwords, cookies, browser profile data, and full miniclaw config files
-out of chat**. The intermediate CLI tools and the `kleinclaw` plugin handle the
-work without your agent ever having to know the location of your Kleinanzeigen
-credentials. Fix auth and account state locally, then run
+out of chat**. The runtime handles auth and listing work locally through your
+configured workspace. Fix auth and account state locally, then run
 `kleinanzeigen_verify` again.
 
 ## Development

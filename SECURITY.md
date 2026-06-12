@@ -8,12 +8,23 @@ or full miniclaw configs in public issues.
 
 ## Scope
 
-This plugin starts the bundled TypeScript `miniclaw` runtime with fixed
-arguments. It does not store credentials, read full config contents, or call
-Kleinanzeigen from automated tests. Output returned to OpenClaw is redacted and
-capped, but local runtime logs and browser/session state remain outside this
-package. If an account step needs hands-on work, handle that outside OpenClaw
-and then run the plugin again.
+This plugin registers OpenClaw tools that start the bundled TypeScript
+`miniclaw` runtime with fixed arguments. The plugin wrapper does not store
+credentials or return full config contents to OpenClaw. Runtime operations pass
+the configured local config path to miniclaw, so miniclaw reads that config
+locally when it verifies or changes listings. Browser status and configure
+tools inspect or edit only selected `browser:` settings.
+
+Output returned to OpenClaw is redacted and capped. Local runtime logs,
+temporary configs, diagnostics, browser profiles, and browser/session state
+remain on the local machine and should be treated as sensitive. If an account
+step needs hands-on work, handle that outside OpenClaw and then run the plugin
+again.
+
+OpenClaw approvals and `confirm: true` parameters are human review gates, not
+sandbox boundaries. Keep `adRoots` limited to listing workspaces you intend the
+plugin to read or write. Use `approvalMode: none` only for controlled local
+development sessions where no approval UI is connected.
 
 Package install scripts are not used for this plugin. Installing the plugin
 does not run setup commands.
