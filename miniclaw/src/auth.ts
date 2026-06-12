@@ -505,6 +505,13 @@ export async function fillLoginDataAndSend(
   const resolvedOptions = loginOptionsWithDefaults(options);
   await waitForAuth0LoginContext(controller, resolvedOptions);
   await controller.webInput(By.ID, "username", credentials.username);
+  await checkAndWaitForCaptcha(controller, {
+    captchaDetectionTimeout: resolvedOptions.captchaDetectionTimeout,
+    isLoginPage: true,
+    onManualCaptcha: async () => {
+      await (resolvedOptions.onManualCaptcha ?? defaultManualCaptchaPrompt)();
+    },
+  });
   await controller.webClick(By.CSS_SELECTOR, "button[type='submit']");
 
   await waitForAuth0PasswordStep(controller, resolvedOptions);

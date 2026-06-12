@@ -17,7 +17,7 @@ export declare const SHIPPING_DIALOG_NEXT_BUTTON_XPATH = "//*[self::dialog or @r
 export declare const IMAGE_FILE_INPUT_SELECTOR = "input[type=file]";
 export declare const IMAGE_MARKER_SELECTOR = "input[name^='adImages'][name$='.url']";
 export declare const IMAGE_REMOVE_BUTTON_SELECTOR = "button[aria-label='Bild entfernen']";
-export declare const CAPTCHA_IFRAME_SELECTOR = "iframe[name^='a-'][src^='https://www.google.com/recaptcha/api2/anchor?']";
+export declare const CAPTCHA_IFRAME_SELECTOR: string;
 export declare const SUBMIT_BUTTON_XPATH: string;
 export declare const IMPRINT_GUIDANCE_SUBMIT_ID = "imprint-guidance-submit";
 export declare const NO_IMAGE_HINT_BUTTON_XPATH = "//button[contains(., \"Ohne Bild ver\u00F6ffentlichen\")]";
