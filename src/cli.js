@@ -259,6 +259,9 @@ export function buildKleinanzeigenArgs(operation, params = {}, config = {}) {
     }
     args.push(`--lang=${lang}`);
   }
+  if (spec.sideEffect) {
+    args.push("--allow-live-browser");
+  }
 
   args.push(spec.command);
 

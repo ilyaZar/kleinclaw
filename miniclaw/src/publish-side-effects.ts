@@ -4,6 +4,8 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 
+import path from "node:path";
+
 import {
   createBrowserSession,
   type BrowserSession,
@@ -150,6 +152,7 @@ export interface CreateBrowserPublishUpdateSideEffectsOptions
   strictPublishedAds?: boolean;
   timingCollector?: TimingRecorder & { flush?: () => string | null };
   webControllerOptions?: ConstructorParameters<typeof WebController>[1];
+  workspaceBrowserProfileDir?: string | null;
   publishAdFormImpl?: (
     controller: PublishingFormController,
     ad: Ad,
@@ -231,6 +234,7 @@ export async function createBrowserPublishUpdateSideEffects(
     strictPublishedAds = false,
     timingCollector,
     webControllerOptions,
+    workspaceBrowserProfileDir = null,
     publishAdFormImpl,
     ...formOptions
   }: CreateBrowserPublishUpdateSideEffectsOptions = {},
@@ -280,6 +284,8 @@ export async function createBrowserPublishUpdateSideEffects(
       ? null
       : await createBrowserSession(config, {
         allowLiveBrowser,
+        cwd: configPath ? path.dirname(configPath) : undefined,
+        defaultUserDataDir: workspaceBrowserProfileDir,
         driver,
         timeout: resolvedSessionTimeout,
       })

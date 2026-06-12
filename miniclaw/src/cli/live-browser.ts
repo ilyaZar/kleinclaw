@@ -84,6 +84,7 @@ export async function runLiveBrowserCommand(
             diagnosticsDir: workspace.diagnosticsDir,
             logFilePath: parsed.logfilePath,
             strictPublishedAds: NUMERIC_IDS_RE.test(loaded.effectiveSelector),
+            workspaceBrowserProfileDir: workspace.browserProfileDir,
           })
       );
       if (!hasInjectedDownloadHandlers(parsed.command, sideEffects)) {
@@ -123,6 +124,7 @@ export async function runLiveBrowserCommand(
           configPath: parsed.configPath,
           diagnosticsDir: workspace?.diagnosticsDir,
           logFilePath: parsed.logfilePath,
+          workspaceBrowserProfileDir: workspace?.browserProfileDir,
         })
     );
     if (parsed.command === "delete") {

@@ -18,8 +18,13 @@ export function remoteDebuggingPortFromArguments(args: string[]): number | null 
     if (!arg.startsWith("--remote-debugging-port=")) {
       continue;
     }
-    const value = Number(arg.split("=", 2)[1]);
-    if (Number.isInteger(value) && value > 0) {
+    const raw = arg.split("=", 2)[1] ?? "";
+    const valueText = raw.trim();
+    if (!/^[+-]?\d+$/.test(valueText)) {
+      throw new Error(`Invalid --remote-debugging-port value: ${raw}`);
+    }
+    const value = Number(valueText);
+    if (value > 0) {
       return value;
     }
   }

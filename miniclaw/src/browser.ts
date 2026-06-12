@@ -34,6 +34,7 @@ export {
   DEFAULT_BROWSER_ARGS,
   buildBrowserSessionPlan,
   buildInitialPrefs,
+  getCompatibleBrowser,
   hasNonEmptyUserDataDirArg,
   resolveUserDataDirPaths,
   writeInitialPrefs,

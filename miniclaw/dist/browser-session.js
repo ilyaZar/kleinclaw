@@ -5,8 +5,8 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { chromium } from "playwright-core";
 import { buildBrowserSessionPlan, writeInitialPrefs, } from "./browser.js";
+import { connectCdpBrowser, launchCdpBrowser, } from "./browser/cdp-adapter.js";
 export class LiveBrowserSessionDisabledError extends Error {
     constructor() {
         super("Live browser sessions are disabled. Pass allowLiveBrowser: true " +
@@ -16,8 +16,12 @@ export class LiveBrowserSessionDisabledError extends Error {
 }
 function defaultDriver() {
     return {
-        connectOverCDP: (endpointURL, options) => chromium.connectOverCDP(endpointURL, options),
-        launchPersistentContext: (userDataDir, options) => chromium.launchPersistentContext(userDataDir, options),
+        connectCdpBrowser: (endpointURL, options) => connectCdpBrowser(endpointURL, {
+            timeoutMs: options?.timeout,
+        }),
+        launchBrowser: (plan, options) => launchCdpBrowser(plan, {
+            timeoutMs: options?.timeout,
+        }),
     };
 }
 function isBrowserSessionPlan(value) {
@@ -54,7 +58,12 @@ function ensureProfilePrefs(plan) {
 }
 async function closeBrowserSession(mode, browser, context) {
     if (mode === "launch") {
-        await context.close();
+        if (browser) {
+            await browser.close();
+        }
+        else {
+            await context.close();
+        }
         return;
     }
     if (browser) {
@@ -64,33 +73,27 @@ async function closeBrowserSession(mode, browser, context) {
         await context.close();
     }
 }
-export async function createBrowserSession(source, { allowLiveBrowser = false, driver = defaultDriver(), timeout, ensureProfilePrefs: shouldEnsureProfilePrefs = true, } = {}) {
+export async function createBrowserSession(source, { allowLiveBrowser = false, cwd, defaultUserDataDir = null, driver = defaultDriver(), timeout, ensureProfilePrefs: shouldEnsureProfilePrefs = true, } = {}) {
     if (!allowLiveBrowser) {
         throw new LiveBrowserSessionDisabledError();
     }
-    const plan = browserSessionPlanFrom(source);
+    const plan = isBrowserSessionPlan(source)
+        ? source
+        : buildBrowserSessionPlan(source, { cwd, defaultUserDataDir });
     let browser = null;
     let context;
     if (plan.mode === "connect") {
         if (plan.remotePort === null) {
             throw new Error("Remote browser session plan is missing remotePort");
         }
-        browser = await driver.connectOverCDP(`http://${plan.remoteHost}:${plan.remotePort}`, timeout === undefined ? undefined : { timeout: timeout * 1000 });
+        browser = await driver.connectCdpBrowser(`http://${plan.remoteHost}:${plan.remotePort}`, timeout === undefined ? undefined : { timeout: timeout * 1000 });
         context = firstContext(browser);
     }
     else {
         if (shouldEnsureProfilePrefs) {
             ensureProfilePrefs(plan);
         }
-        context = await driver.launchPersistentContext(plan.userDataDir ?? "", {
-            acceptDownloads: true,
-            args: plan.browserArgs,
-            chromiumSandbox: plan.sandbox,
-            env: { ...process.env, ...plan.environment },
-            executablePath: plan.browserExecutablePath || undefined,
-            headless: false,
-            timeout: timeout === undefined ? undefined : timeout * 1000,
-        });
+        context = await driver.launchBrowser(plan, timeout === undefined ? undefined : { timeout: timeout * 1000 });
         browser = context.browser?.() ?? null;
     }
     const page = await firstPage(context);

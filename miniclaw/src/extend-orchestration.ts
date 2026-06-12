@@ -68,12 +68,12 @@ function findPublishedAd(
   return publishedAds.find((publishedAd) => idsMatch(ad.id, publishedAd.id)) ?? null;
 }
 
-function dateOnlyMillis(date: Date): number {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-  ).valueOf();
+function utcDateOnlyMillis(date: Date): number {
+  return Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+  );
 }
 
 export function parseGermanDate(value: unknown): Date | null {
@@ -88,11 +88,11 @@ export function parseGermanDate(value: unknown): Date | null {
   const day = Number.parseInt(match[1]!, 10);
   const month = Number.parseInt(match[2]!, 10);
   const year = Number.parseInt(match[3]!, 10);
-  const parsed = new Date(year, month - 1, day);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
   if (
-    parsed.getFullYear() !== year ||
-    parsed.getMonth() !== month - 1 ||
-    parsed.getDate() !== day
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
   ) {
     return null;
   }
@@ -105,7 +105,7 @@ export function daysUntilEndDate(
 ): number {
   const millisPerDay = 24 * 60 * 60 * 1000;
   return Math.round(
-    (dateOnlyMillis(endDate) - dateOnlyMillis(now)) / millisPerDay,
+    (utcDateOnlyMillis(endDate) - utcDateOnlyMillis(now)) / millisPerDay,
   );
 }
 
@@ -201,12 +201,20 @@ export async function runExtendAdsBatch(
       relativePath: loadedAd.relativePath,
     }));
     if (extended) {
-      result.extended += 1;
       loadedAd.raw.updated_on = formatUtcIsoSeconds(now);
       loadedAd.ad.updatedOn = now;
       if (saveAdConfig) {
-        await saveAdConfig(loadedAd.filePath, loadedAd.raw);
+        try {
+          await saveAdConfig(loadedAd.filePath, loadedAd.raw);
+        } catch {
+          result.events.push(eventFor(loadedAd, "failed", daysUntilExpiry));
+          if (sleep) {
+            await sleep();
+          }
+          continue;
+        }
       }
+      result.extended += 1;
       result.events.push(eventFor(loadedAd, "extended", daysUntilExpiry));
     } else {
       result.events.push(eventFor(loadedAd, "failed", daysUntilExpiry));
