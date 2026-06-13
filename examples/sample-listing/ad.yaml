@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=miniclaw://schemas/ad.schema.json
+# Copy this directory into an adRoot before using it.
+# The example is inactive until you explicitly activate it.
+active: false
+type: OFFER
+title: "Sample Compact Speakers"
+description: |
+  Pair of compact bookshelf speakers in working condition.
+  Example text only; adjust details, pickup notes, and images before publishing.
+category: Audio_und_Hifi
+price: 25
+price_type: NEGOTIABLE
+shipping_type: PICKUP
+sell_directly: false
+special_attributes:
+  condition_s: ok
+images:
+  - "images/*.{jpg,jpeg,png}"

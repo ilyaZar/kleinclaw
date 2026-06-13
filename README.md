@@ -67,8 +67,8 @@ description.
 openclaw plugins install clawhub:kleinclaw
 ```
 
-The package includes the TypeScript `miniclaw` runtime. Configure the path to
-your local miniclaw config or workspace.
+The package includes the TypeScript `miniclaw` runtime. Listing config, ad
+roots, and workspace mode are configured under the plugin config below.
 
 For local development:
 
@@ -81,8 +81,18 @@ Restart the Gateway after installing plugin code.
 
 ## Configure
 
-Add the plugin config under `plugins.entries.kleinclaw.config`. Either
-`configPath` or `workingDirectory` must be set. `workspaceMode` defaults to
+Add the plugin config under `plugins.entries.kleinclaw.config` in your active
+OpenClaw config file. For normal installs that file is usually
+`~/.openclaw/openclaw.json`; wrappers or service installs can override it with
+`OPENCLAW_CONFIG_PATH`. Check the exact file with:
+
+```bash
+openclaw config file
+```
+
+Either `configPath` or `workingDirectory` must be set. `configPath` points at
+the local miniclaw `config.yaml`. If you use `workingDirectory` instead,
+miniclaw reads `config.yaml` from that directory. `workspaceMode` defaults to
 `portable`. Set it to `xdg` only when your miniclaw workspace already uses user
 directories.
 
@@ -150,6 +160,11 @@ draft workflow. The key miniclaw constraints are:
 - `category`: built-in category name, custom mapped name, or category ID.
 - `images`: glob patterns relative to the ad config file.
 - `priceType: "FIXED"` requires `price`; `GIVE_AWAY` must not set `price`.
+
+The package also ships a copyable inactive example at
+`examples/sample-listing/ad.yaml`. It is not used automatically. Copy it into a
+directory under your configured `adRoots`, adjust the text, category, price, and
+image globs, then run scoped `kleinanzeigen_verify` before activating it.
 
 Use `kleinanzeigen_images_list` on a selected folder to discover candidate image
 filenames and dimensions:
