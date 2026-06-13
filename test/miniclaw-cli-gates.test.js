@@ -1,8 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { Config } from "../miniclaw/dist/model/config-model.js";
 import { parseArgs } from "../miniclaw/dist/cli/parser.js";
@@ -81,6 +83,88 @@ async function createListingWorkspace({ active = true, id = null } = {}) {
     "utf8",
   );
   return { configPath, tmp };
+}
+
+async function runSignalCleanupSmoke(signal, expectedCode) {
+  const { configPath, tmp } = await createListingWorkspace();
+  const markerPath = path.join(tmp, `${signal}.closed`);
+  const scriptPath = path.join(tmp, "signal-child.mjs");
+  const cliModuleUrl = pathToFileURL(
+    path.resolve("miniclaw/dist/cli.js"),
+  ).href;
+
+  await fs.writeFile(
+    scriptPath,
+    [
+      "import fs from 'node:fs/promises';",
+      `const { run } = await import(${JSON.stringify(cliModuleUrl)});`,
+      "const [, , configPath, markerPath] = process.argv;",
+      "const keepAlive = setInterval(() => {}, 1000);",
+      "await run([",
+      "  'node',",
+      "  'miniclaw',",
+      "  '--allow-live-browser',",
+      "  '--workspace-mode=portable',",
+      "  `--config=${configPath}`,",
+      "  'publish',",
+      "], {",
+      "  createLiveSideEffects: () => ({",
+      "    close: async () => {",
+      "      clearInterval(keepAlive);",
+      "      await fs.writeFile(markerPath, 'closed', 'utf8');",
+      "    },",
+      "    fetchPublishedAds: async () => {",
+      "      console.log('ready');",
+      "      return new Promise(() => {});",
+      "    },",
+      "    publishAd: async () => {},",
+      "  }),",
+      "});",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const child = spawn(
+        process.execPath,
+        [scriptPath, configPath, markerPath],
+        { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] },
+      );
+      let stdout = "";
+      let stderr = "";
+      let signaled = false;
+      const timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        reject(new Error(`child did not exit after ${signal}: ${stderr}`));
+      }, 5000);
+
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", (chunk) => {
+        stdout += String(chunk);
+        if (!signaled && stdout.includes("ready")) {
+          signaled = true;
+          child.kill(signal);
+        }
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += String(chunk);
+      });
+      child.on("error", reject);
+      child.on("close", (code, exitSignal) => {
+        clearTimeout(timer);
+        resolve({ code, signal: exitSignal, stderr, stdout });
+      });
+    });
+
+    assert.equal(result.code, expectedCode);
+    assert.equal(result.signal, null);
+    assert.equal(await fs.readFile(markerPath, "utf8"), "closed");
+  } finally {
+    await fs.rm(tmp, { force: true, recursive: true });
+  }
 }
 
 describe("miniclaw CLI planning", () => {
@@ -217,6 +301,11 @@ describe("miniclaw CLI browser gates", () => {
     } finally {
       await fs.rm(tmp, { force: true, recursive: true });
     }
+  });
+
+  it("closes live side effects before exiting on SIGINT and SIGTERM", async () => {
+    await runSignalCleanupSmoke("SIGINT", 130);
+    await runSignalCleanupSmoke("SIGTERM", 143);
   });
 });
 

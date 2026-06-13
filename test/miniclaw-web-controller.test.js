@@ -201,10 +201,12 @@ describe("miniclaw web controller waits", () => {
     const previousFetch = globalThis.fetch;
     globalThis.fetch = async (url, options) => {
       assert.equal(url, "/api/delete");
+      assert.equal(options.signal instanceof AbortSignal, true);
       assert.deepEqual(options, {
         headers: { "x-csrf-token": "token" },
         method: "POST",
         redirect: "follow",
+        signal: options.signal,
       });
       return {
         status: 202,
@@ -236,6 +238,7 @@ describe("miniclaw web controller waits", () => {
       assert.deepEqual(evaluateArgs, [{
         requestHeaders: { "x-csrf-token": "token" },
         requestMethod: "POST",
+        requestTimeoutMs: 60000,
         requestUrl: "/api/delete",
       }]);
       assert.deepEqual(response, {
@@ -250,6 +253,27 @@ describe("miniclaw web controller waits", () => {
     } finally {
       globalThis.fetch = previousFetch;
     }
+  });
+
+  it("times out page-context HTTP requests", async () => {
+    const controller = new WebController({
+      async evaluate() {
+        return new Promise(() => {});
+      },
+    });
+
+    await assert.rejects(
+      () => controller.webRequest(
+        "https://example.test/slow",
+        "GET",
+        200,
+        null,
+        { timeout: 0.01 },
+      ),
+      (error) =>
+        error instanceof TimeoutError &&
+        /did not finish within 0\.01 seconds/.test(error.message),
+    );
   });
 
   it("raises Python-style assertion errors for unsupported webCheck attributes", async () => {
@@ -314,6 +338,62 @@ describe("miniclaw web controller waits", () => {
     assert.equal(await controller.webCheck(By.ID, "checkbox", Is.SELECTED), true);
     assert.equal(await controller.webCheck(By.ID, "custom", Is.SELECTED), false);
     assert.equal(await controller.webCheck(By.ID, "radio", Is.SELECTED), false);
+  });
+
+  it("keeps selector-group probes single-attempt", async () => {
+    const waitForCalls = [];
+    const records = [];
+    const missing = {
+      first() {
+        return missing;
+      },
+      async waitFor(options) {
+        waitForCalls.push(options);
+        throw new TimeoutError("missing");
+      },
+    };
+    const controller = new WebController({
+      locator() {
+        return missing;
+      },
+    }, {
+      sleepRangeMs: [0, 0],
+      timeoutConfig: new TimeoutConfig({
+        quick_dom: 0.2,
+        retry_max_attempts: 5,
+      }),
+      timingCollector: {
+        record(entry) {
+          records.push(entry);
+        },
+      },
+    });
+
+    await assert.rejects(
+      () => controller.webTextFirstAvailableOnce(
+        [
+          [By.ID, "first"],
+          [By.ID, "second"],
+        ],
+        { key: "quickDom" },
+      ),
+      TimeoutError,
+    );
+
+    assert.equal(waitForCalls.length, 2);
+    assert.deepEqual(records.map((entry) => ({
+      attemptIndex: entry.attemptIndex,
+      effectiveTimeout: entry.effectiveTimeout,
+      operationType: entry.operationType,
+      success: entry.success,
+    })), [
+      {
+        attemptIndex: 0,
+        effectiveTimeout: 0.2,
+        operationType: "web_find_first_available",
+        success: false,
+      },
+    ]);
   });
 
   it("waits for select elements to become clickable before selecting", async () => {

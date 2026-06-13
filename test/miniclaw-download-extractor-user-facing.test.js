@@ -14,6 +14,7 @@ import {
   extractSellDirectlyFromAdPage,
 } from "../miniclaw/dist/download-extractor/contact.js";
 import {
+  downloadAndSaveImage,
   downloadImagesFromAdPage,
 } from "../miniclaw/dist/download-extractor/images.js";
 import {
@@ -309,14 +310,21 @@ describe("miniclaw download images and persistence", () => {
 
     const images = await downloadImagesFromAdPage(
       controller,
-      async (url, directory, prefix, imageNumber) => {
-        calls.push({ directory, imageNumber, prefix, url });
+      async (url, directory, prefix, imageNumber, options = {}) => {
+        calls.push({
+          directory,
+          imageNumber,
+          prefix,
+          timeout: options.timeout,
+          url,
+        });
         return imageNumber === 1
           ? path.join(directory, `${prefix}${imageNumber}.jpg`)
           : null;
       },
       "/tmp/downloads",
       "ad_123",
+      { imageDownloadTimeout: 60 },
     );
 
     assert.deepEqual(images, ["ad_123__img1.jpg"]);
@@ -325,15 +333,50 @@ describe("miniclaw download images and persistence", () => {
         directory: "/tmp/downloads",
         imageNumber: 1,
         prefix: "ad_123__img",
+        timeout: 60,
         url: "https://img.example/a.jpg",
       },
       {
         directory: "/tmp/downloads",
         imageNumber: 2,
         prefix: "ad_123__img",
+        timeout: 60,
         url: "https://img.example/b.jpg",
       },
     ]);
+  });
+
+  it("times out stalled image downloads", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "miniclaw-image-"));
+    const originalFetch = globalThis.fetch;
+    let aborted = false;
+    globalThis.fetch = async (_url, options = {}) =>
+      new Promise((_resolve, reject) => {
+        options.signal?.addEventListener("abort", () => {
+          aborted = true;
+          const error = new Error("aborted");
+          error.name = "AbortError";
+          reject(error);
+        });
+      });
+
+    try {
+      const startedAt = Date.now();
+      const result = await downloadAndSaveImage(
+        "https://img.example/slow.jpg",
+        tmp,
+        "ad__img",
+        1,
+        { timeout: 0.01 },
+      );
+
+      assert.equal(result, null);
+      assert.equal(aborted, true);
+      assert.ok(Date.now() - startedAt < 1000);
+    } finally {
+      globalThis.fetch = originalFetch;
+      await fs.rm(tmp, { force: true, recursive: true });
+    }
   });
 
   it("does not overwrite an existing backup during downloaded ad save", async () => {
