@@ -3,6 +3,9 @@
 - Use `kleinanzeigen_ad_schema` before creating or editing a local ad draft.
   The plugin exposes the supported `ad.yaml` fields, required values, limits,
   enum values, and a safe draft workflow.
+- For a concrete shape reference, use the packaged inactive example
+  `examples/sample-listing/ad.yaml`. Copy it into a configured `adRoots`
+  directory before editing; never publish the example unchanged.
 - Treat KleinClaw as the source of truth for the miniclaw ad schema. User chat,
   image filenames, and image observations provide field values; the schema
   shape must come from `kleinanzeigen_ad_schema` and

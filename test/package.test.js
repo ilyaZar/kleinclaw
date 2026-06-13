@@ -174,6 +174,8 @@ describe("package install boundary", () => {
 
     assert.match(skill, /^---\nname: kleinanzeigen-helper-skill\n/m);
     assert.match(skill, /# Kleinanzeigen Helper/);
+    assert.doesNotMatch(skill, /^license:/m);
+    assert.doesNotMatch(skill, /MIT-0/);
     assert.doesNotMatch(skill, /"openclaw"\s*:/);
     assert.doesNotMatch(skill, /"scripts"\s*:/);
   });

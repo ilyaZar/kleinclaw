@@ -1,7 +1,6 @@
 ---
 name: kleinanzeigen-helper-skill
-description: Manage Kleinanzeigen listings with the required KleinClaw plugin.
-license: MIT-0
+description: Manage Kleinanzeigen listings through the KleinClaw OpenClaw plugin and embedded miniclaw runtime.
 ---
 
 # Kleinanzeigen Helper
