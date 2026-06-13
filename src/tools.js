@@ -246,6 +246,15 @@ const profileModeSchema = {
   ].join(" "),
 };
 
+const configurableProfileModeSchema = {
+  type: "string",
+  enum: ["workspace", "system-default"],
+  description: [
+    "workspace clears profile settings, system-default uses the chosen browser's",
+    "normal profile root.",
+  ].join(" "),
+};
+
 const draftStringMapSchema = {
   type: "object",
   additionalProperties: { type: "string" },
@@ -699,28 +708,15 @@ function browserConfigureTool(config) {
         {
           confirm: confirmSchema,
           browser: browserSchema,
-          binaryLocation: {
-            type: "string",
-            description:
-              "Explicit executable path. Use browser for known installed browsers when possible.",
-          },
           usePrivateWindow: {
             type: "boolean",
             description: "Whether miniclaw should launch a private or incognito browser window.",
           },
-          profileMode: profileModeSchema,
-          userDataDir: {
-            type: "string",
-            description: "Browser user data directory. Required when profileMode is custom.",
-          },
+          profileMode: configurableProfileModeSchema,
           profileName: {
             type: "string",
-            description: "Optional browser profile directory name, such as Default or Profile 1.",
-          },
-          allowUnsupportedBrowser: {
-            type: "boolean",
             description:
-              "Allow binaryLocation to point at a custom browser that miniclaw does not officially support.",
+              "Optional browser profile directory name for profileMode system-default.",
           },
         },
         ["confirm"],
