@@ -1,6 +1,6 @@
 {
   "name": "kleinclaw",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Kleinanzeigen tools that can change live listings and run miniclaw with redacted output",
   "license": "AGPL-3.0-or-later",
   "repository": {

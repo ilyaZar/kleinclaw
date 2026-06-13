@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1
+
+- make live listing and browser automation impact explicit in published metadata
+  and helper guidance
+- require plugin approval routing by removing the no-approval mode
+- restrict persistent browser configuration to supported browser/profile choices
+- keep publish-error diagnostics sparse and avoid storing ad payloads or page
+  captures
+
 ## 0.2.0
 
 ### Changed
