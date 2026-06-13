@@ -16,18 +16,23 @@
 - `kleinanzeigen_browser_check`: test current or proposed browser settings
   through miniclaw diagnostics without changing the real config.
 - `kleinanzeigen_browser_configure`: change miniclaw browser settings only after
-  explicit confirmation.
+  explicit confirmation. Browser settings affect which local browser profile the
+  live runtime can open.
 - `kleinanzeigen_draft_ad`: create or replace a local ad draft under configured
   `adRoots` only after explicit confirmation.
 - `kleinanzeigen_set_ad_active`: set the top-level `active` flag for one YAML
   ad config before scoped verify/publish.
 - `kleinanzeigen_verify`: validate the already configured miniclaw workspace.
 - `kleinanzeigen_publish`: publish or republish due, new, changed, all, combined
-  selectors, or explicitly selected ads.
-- `kleinanzeigen_update`: update changed, all, or explicitly selected ads.
-- `kleinanzeigen_delete`: delete only explicitly selected ad IDs.
-- `kleinanzeigen_download`: download new, all, or explicitly selected ads.
-- `kleinanzeigen_extend`: extend all eligible ads or explicitly selected IDs.
+  selectors, or explicitly selected ads. This can create or replace live
+  Kleinanzeigen listings.
+- `kleinanzeigen_update`: update changed, all, or explicitly selected live ads.
+- `kleinanzeigen_delete`: delete only explicitly selected live Kleinanzeigen ad
+  IDs. Deleted listings may not be reversible from the plugin.
+- `kleinanzeigen_download`: download new, all, or explicitly selected live ads
+  into the local workspace.
+- `kleinanzeigen_extend`: extend all eligible live ads or explicitly selected
+  IDs.
 
 Do not mix explicit ad IDs with selectors. For publish combinations, use
 `selectors`, for example `["changed", "due"]`.

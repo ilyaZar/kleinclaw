@@ -24,7 +24,8 @@ export function createKleinClawPluginEntry() {
     id: "kleinclaw",
     name: "KleinClaw",
     description:
-      "Kleinanzeigen helper tools for the embedded miniclaw runtime with redacted output.",
+      "Kleinanzeigen tools that can change live listings, edit local browser " +
+      "settings, and run the embedded miniclaw browser runtime with redacted output.",
     register(api) {
       const pluginConfig = {
         ...(api.pluginConfig ?? {}),
