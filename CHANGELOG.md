@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2
+
+- make the readme easier to follow for first-time KleinClaw users
+- explain where OpenClaw plugin config and tool policy snippets belong
+- document common config fields and allowed values near their examples
+- publish a matching GitHub and Clawhub release after the 0.2.1 Clawhub-only
+  release drift
+
 ## 0.2.1
 
 - make live listing and browser automation impact explicit in published metadata
