@@ -21,6 +21,7 @@ import {
   downloadAndSaveImage as downloadImageFile,
   downloadImagesFromAdPage as downloadPageImages,
   type DownloadImage,
+  type DownloadImageOptions,
 } from "./download-extractor/images.js";
 import {
   dimensionsFromBelenConf,
@@ -55,6 +56,7 @@ import {
   TimeoutError,
   type WebElement,
   type WebLocator,
+  type WebRequestOptions,
   type WebResponse,
 } from "./web-primitives.js";
 
@@ -92,6 +94,7 @@ export interface DownloadExtractorController {
     method?: string,
     validResponseCodes?: number | Iterable<number>,
     headers?: Record<string, string> | null,
+    options?: WebRequestOptions,
   ): Promise<WebResponse>;
 }
 
@@ -157,8 +160,9 @@ export class DownloadAdExtractor {
     directory: string,
     filenamePrefix: string,
     imageNumber: number,
+    options?: DownloadImageOptions,
   ): Promise<string | null> {
-    return downloadImageFile(url, directory, filenamePrefix, imageNumber);
+    return downloadImageFile(url, directory, filenamePrefix, imageNumber, options);
   }
 
   renderDownloadNameWithBudget(
@@ -192,6 +196,7 @@ export class DownloadAdExtractor {
       this.downloadImage,
       directory,
       adFileStem,
+      { imageDownloadTimeout: this.config.timeouts.resolve("imageDownload") },
     );
   }
 

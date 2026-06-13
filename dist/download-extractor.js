@@ -44,8 +44,8 @@ export class DownloadAdExtractor {
         }
         return value.slice(0, maxLength - ELLIPSIS.length) + ELLIPSIS;
     }
-    static async downloadAndSaveImage(url, directory, filenamePrefix, imageNumber) {
-        return downloadImageFile(url, directory, filenamePrefix, imageNumber);
+    static async downloadAndSaveImage(url, directory, filenamePrefix, imageNumber, options) {
+        return downloadImageFile(url, directory, filenamePrefix, imageNumber, options);
     }
     renderDownloadNameWithBudget(template, adId, title, maxLength) {
         return renderConfiguredDownloadNameWithBudget(template, adId, title, maxLength);
@@ -57,7 +57,7 @@ export class DownloadAdExtractor {
         return renderConfiguredDownloadFolderName(this.config, adId, title);
     }
     async downloadImagesFromAdPage(directory, adFileStem) {
-        return downloadPageImages(this.controller, this.downloadImage, directory, adFileStem);
+        return downloadPageImages(this.controller, this.downloadImage, directory, adFileStem, { imageDownloadTimeout: this.config.timeouts.resolve("imageDownload") });
     }
     async extractTitleFromAdPage() {
         return this.controller.webText(By.ID, "viewad-title");

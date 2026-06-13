@@ -17,6 +17,8 @@ export interface TimeoutConfigInput {
     publishing_confirmation?: number;
     imageUpload?: number;
     image_upload?: number;
+    imageDownload?: number;
+    image_download?: number;
     paginationInitial?: number;
     pagination_initial?: number;
     paginationFollowUp?: number;
@@ -25,6 +27,8 @@ export interface TimeoutConfigInput {
     quick_dom?: number;
     updateCheck?: number;
     update_check?: number;
+    webRequest?: number;
+    web_request?: number;
     chromeRemoteProbe?: number;
     chrome_remote_probe?: number;
     chromeRemoteDebugging?: number;
@@ -38,7 +42,7 @@ export interface TimeoutConfigInput {
     retryBackoffFactor?: number;
     retry_backoff_factor?: number;
 }
-export type TimeoutKey = "default" | "pageLoad" | "captchaDetection" | "smsVerification" | "emailVerification" | "loginDetection" | "publishingResult" | "publishingConfirmation" | "imageUpload" | "paginationInitial" | "paginationFollowUp" | "quickDom" | "updateCheck" | "chromeRemoteProbe" | "chromeRemoteDebugging" | "chromeBinaryDetection";
+export type TimeoutKey = "default" | "pageLoad" | "captchaDetection" | "smsVerification" | "emailVerification" | "loginDetection" | "publishingResult" | "publishingConfirmation" | "imageUpload" | "imageDownload" | "paginationInitial" | "paginationFollowUp" | "quickDom" | "updateCheck" | "webRequest" | "chromeRemoteProbe" | "chromeRemoteDebugging" | "chromeBinaryDetection";
 export declare class TimeoutConfig {
     readonly multiplier: number;
     readonly default: number;
@@ -50,10 +54,12 @@ export declare class TimeoutConfig {
     readonly publishingResult: number;
     readonly publishingConfirmation: number;
     readonly imageUpload: number;
+    readonly imageDownload: number;
     readonly paginationInitial: number;
     readonly paginationFollowUp: number;
     readonly quickDom: number;
     readonly updateCheck: number;
+    readonly webRequest: number;
     readonly chromeRemoteProbe: number;
     readonly chromeRemoteDebugging: number;
     readonly chromeBinaryDetection: number;

@@ -20,6 +20,7 @@ import {
 } from "./types.js";
 
 const CAPTCHA_EXIT_CODE = 3;
+const SIGNAL_CLEANUP_TIMEOUT_MS = 5000;
 
 function canRunLiveBrowserCommand(command: Command | string): boolean {
   return command === "publish" ||
@@ -54,6 +55,42 @@ function printCaptchaBoundaryMessage(error: unknown): void {
   console.error("Retry from the caller after the delay or rerun after solving it.");
 }
 
+function installLiveBrowserSignalCleanup(
+  getSideEffects: () => CloseableSideEffectHandlers | null,
+): () => void {
+  const signals = ["SIGINT", "SIGTERM"] as const;
+  const handlers = new Map<typeof signals[number], () => void>();
+
+  const removeHandlers = () => {
+    for (const [signal, handler] of handlers) {
+      process.off(signal, handler);
+    }
+    handlers.clear();
+  };
+
+  for (const signal of signals) {
+    const handler = () => {
+      removeHandlers();
+      const exitCode = signal === "SIGINT" ? 130 : 143;
+      const forceExit = setTimeout(() => process.exit(exitCode), SIGNAL_CLEANUP_TIMEOUT_MS);
+      forceExit.unref?.();
+
+      Promise.resolve(getSideEffects()?.close?.())
+        .catch((error) => {
+          console.error(`Failed to close live browser after ${signal}: ${String(error)}`);
+        })
+        .finally(() => {
+          clearTimeout(forceExit);
+          process.exit(exitCode);
+        });
+    };
+    handlers.set(signal, handler);
+    process.once(signal, handler);
+  }
+
+  return removeHandlers;
+}
+
 export async function runLiveBrowserCommand(
   parsed: ParsedArgs,
   createLiveSideEffects?: CreateLiveSideEffects,
@@ -73,6 +110,7 @@ export async function runLiveBrowserCommand(
     }
     const loaded = await loadDownloadCommand(parsed, workspace);
     let sideEffects: CloseableSideEffectHandlers | null = null;
+    const removeSignalCleanup = installLiveBrowserSignalCleanup(() => sideEffects);
     try {
       sideEffects = await (
         createLiveSideEffects
@@ -102,6 +140,7 @@ export async function runLiveBrowserCommand(
       }
       throw error;
     } finally {
+      removeSignalCleanup();
       await sideEffects?.close?.();
     }
   }
@@ -113,6 +152,7 @@ export async function runLiveBrowserCommand(
   }
 
   let sideEffects: CloseableSideEffectHandlers | null = null;
+  const removeSignalCleanup = installLiveBrowserSignalCleanup(() => sideEffects);
 
   try {
     sideEffects = await (
@@ -141,6 +181,7 @@ export async function runLiveBrowserCommand(
     }
     throw error;
   } finally {
+    removeSignalCleanup();
     await sideEffects?.close?.();
   }
 }

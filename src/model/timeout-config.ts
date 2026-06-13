@@ -25,6 +25,8 @@ export interface TimeoutConfigInput {
   publishing_confirmation?: number;
   imageUpload?: number;
   image_upload?: number;
+  imageDownload?: number;
+  image_download?: number;
   paginationInitial?: number;
   pagination_initial?: number;
   paginationFollowUp?: number;
@@ -33,6 +35,8 @@ export interface TimeoutConfigInput {
   quick_dom?: number;
   updateCheck?: number;
   update_check?: number;
+  webRequest?: number;
+  web_request?: number;
   chromeRemoteProbe?: number;
   chrome_remote_probe?: number;
   chromeRemoteDebugging?: number;
@@ -57,10 +61,12 @@ export type TimeoutKey =
   | "publishingResult"
   | "publishingConfirmation"
   | "imageUpload"
+  | "imageDownload"
   | "paginationInitial"
   | "paginationFollowUp"
   | "quickDom"
   | "updateCheck"
+  | "webRequest"
   | "chromeRemoteProbe"
   | "chromeRemoteDebugging"
   | "chromeBinaryDetection";
@@ -76,10 +82,12 @@ export class TimeoutConfig {
   readonly publishingResult: number;
   readonly publishingConfirmation: number;
   readonly imageUpload: number;
+  readonly imageDownload: number;
   readonly paginationInitial: number;
   readonly paginationFollowUp: number;
   readonly quickDom: number;
   readonly updateCheck: number;
+  readonly webRequest: number;
   readonly chromeRemoteProbe: number;
   readonly chromeRemoteDebugging: number;
   readonly chromeBinaryDetection: number;
@@ -104,12 +112,15 @@ export class TimeoutConfig {
     this.publishingConfirmation =
       input.publishingConfirmation ?? input.publishing_confirmation ?? 20;
     this.imageUpload = input.imageUpload ?? input.image_upload ?? 30;
+    this.imageDownload =
+      input.imageDownload ?? input.image_download ?? 60;
     this.paginationInitial =
       input.paginationInitial ?? input.pagination_initial ?? 10;
     this.paginationFollowUp =
       input.paginationFollowUp ?? input.pagination_follow_up ?? 5;
     this.quickDom = input.quickDom ?? input.quick_dom ?? 2;
     this.updateCheck = input.updateCheck ?? input.update_check ?? 10;
+    this.webRequest = input.webRequest ?? input.web_request ?? 60;
     this.chromeRemoteProbe =
       input.chromeRemoteProbe ?? input.chrome_remote_probe ?? 2;
     this.chromeRemoteDebugging =
@@ -165,10 +176,12 @@ export class TimeoutConfig {
       1,
     );
     validateNumber("timeouts.image_upload", this.imageUpload, 5);
+    validateNumber("timeouts.image_download", this.imageDownload, 1);
     validateNumber("timeouts.pagination_initial", this.paginationInitial, 1);
     validateNumber("timeouts.pagination_follow_up", this.paginationFollowUp, 1);
     validateNumber("timeouts.quick_dom", this.quickDom, 0.1);
     validateNumber("timeouts.update_check", this.updateCheck, 1);
+    validateNumber("timeouts.web_request", this.webRequest, 1);
     validateNumber("timeouts.chrome_remote_probe", this.chromeRemoteProbe, 0.1);
     validateNumber(
       "timeouts.chrome_remote_debugging",

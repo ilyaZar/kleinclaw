@@ -7,6 +7,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { elementAttribute } from "./browser-elements.js";
 import { By, TimeoutError, } from "../web-primitives.js";
+const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT = 60;
 function contentTypeExtension(contentType) {
     const normalized = (contentType ?? "").split(";", 1)[0]?.trim().toLowerCase();
     switch (normalized) {
@@ -24,9 +25,12 @@ function contentTypeExtension(contentType) {
             return "";
     }
 }
-export async function downloadAndSaveImage(url, directory, filenamePrefix, imageNumber) {
+export async function downloadAndSaveImage(url, directory, filenamePrefix, imageNumber, { timeout = DEFAULT_IMAGE_DOWNLOAD_TIMEOUT } = {}) {
+    const controller = new AbortController();
+    const timeoutMs = Math.max(1, Math.trunc(timeout * 1000));
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        const response = await fetch(url);
+        const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) {
             return null;
         }
@@ -38,8 +42,11 @@ export async function downloadAndSaveImage(url, directory, filenamePrefix, image
     catch {
         return null;
     }
+    finally {
+        clearTimeout(timer);
+    }
 }
-export async function downloadImagesFromAdPage(controller, downloadImage, directory, adFileStem) {
+export async function downloadImagesFromAdPage(controller, downloadImage, directory, adFileStem, { imageDownloadTimeout } = {}) {
     const imagePaths = [];
     try {
         const imageBox = await controller.webFind(By.CLASS_NAME, "galleryimage-large");
@@ -51,7 +58,7 @@ export async function downloadImagesFromAdPage(controller, downloadImage, direct
             if (currentImageUrl === null) {
                 continue;
             }
-            const imagePath = await downloadImage(currentImageUrl, directory, imageFilenamePrefix, imageNumber);
+            const imagePath = await downloadImage(currentImageUrl, directory, imageFilenamePrefix, imageNumber, { timeout: imageDownloadTimeout });
             if (imagePath) {
                 imagePaths.push(path.basename(imagePath));
             }

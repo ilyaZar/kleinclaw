@@ -8,12 +8,13 @@ import assert from "node:assert";
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 
-import { type LoginConfig } from "./model/config-model.js";
+import { type LoginConfig, type TimeoutKey } from "./model/config-model.js";
 import { checkAndWaitForCaptcha } from "./publish-form.js";
 import { hasErrorName } from "./value-guards.js";
 import {
   By,
   TimeoutError,
+  type WebSelector,
   type WebLocator,
 } from "./web-primitives.js";
 
@@ -73,6 +74,10 @@ export interface LoginController {
   webTextFirstAvailable?(
     selectors: readonly [By, string][],
     options?: { parent?: WebLocator | null; timeout?: number },
+  ): Promise<[string, number]>;
+  webTextFirstAvailableOnce?(
+    selectors: readonly WebSelector[],
+    options?: { parent?: WebLocator | null; key?: TimeoutKey; timeout?: number },
   ): Promise<[string, number]>;
 }
 
@@ -238,7 +243,16 @@ async function textFirstAvailable(
   controller: LoginController,
   selectors: readonly [By, string][],
   timeout: number,
+  key: "quickDom" | "loginDetection",
 ): Promise<TextMatch> {
+  if (controller.webTextFirstAvailableOnce) {
+    const [text, index] = await controller.webTextFirstAvailableOnce(selectors, {
+      key,
+      timeout,
+    });
+    return { index, text };
+  }
+
   if (controller.webTextFirstAvailable) {
     const [text, index] = await controller.webTextFirstAvailable(selectors, {
       timeout,
@@ -289,6 +303,7 @@ async function hasLoggedInMarker(
       controller,
       LOGIN_DETECTION_SELECTORS,
       quickDomTimeout,
+      "quickDom",
     );
     if (quickMatch.text.toLowerCase().includes(username)) {
       return true;
@@ -304,6 +319,7 @@ async function hasLoggedInMarker(
       controller,
       LOGIN_DETECTION_SELECTORS,
       loginDetectionTimeout,
+      "loginDetection",
     );
     return match.text.toLowerCase().includes(username);
   } catch (error) {
@@ -324,6 +340,7 @@ async function hasLoggedOutCta(
       controller,
       LOGGED_OUT_CTA_SELECTORS,
       quickDomTimeout,
+      "quickDom",
     );
     return match.text.trim().length > 0;
   } catch (error) {

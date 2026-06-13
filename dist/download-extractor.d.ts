@@ -1,7 +1,7 @@
-import { type DownloadImage } from "./download-extractor/images.js";
+import { type DownloadImage, type DownloadImageOptions } from "./download-extractor/images.js";
 import { type AdInput, type ContactInput } from "./model/ad-model.js";
 import { type Config } from "./model/config-model.js";
-import { By, type WebElement, type WebLocator, type WebResponse } from "./web-primitives.js";
+import { By, type WebElement, type WebLocator, type WebRequestOptions, type WebResponse } from "./web-primitives.js";
 export { sanitizeFolderName, } from "./download-extractor/naming.js";
 export { AD_SCHEMA_HEADER, FileExistsError, } from "./download-extractor/persistence.js";
 export interface DownloadExtractorController {
@@ -21,7 +21,7 @@ export interface DownloadExtractorController {
         parent?: WebLocator | WebElement | null;
         timeout?: number;
     }): Promise<string>;
-    webRequest(url: string, method?: string, validResponseCodes?: number | Iterable<number>, headers?: Record<string, string> | null): Promise<WebResponse>;
+    webRequest(url: string, method?: string, validResponseCodes?: number | Iterable<number>, headers?: Record<string, string> | null, options?: WebRequestOptions): Promise<WebResponse>;
 }
 export interface ExtractAdPageInfoResult {
     adConfig: AdInput;
@@ -47,7 +47,7 @@ export declare class DownloadAdExtractor {
     private readonly downloadImage;
     constructor({ controller, config, downloadDir, downloadImage, publishedAdsById, }: DownloadAdExtractorOptions);
     static truncateLogSnippet(value: string, maxLength?: number): string;
-    static downloadAndSaveImage(url: string, directory: string, filenamePrefix: string, imageNumber: number): Promise<string | null>;
+    static downloadAndSaveImage(url: string, directory: string, filenamePrefix: string, imageNumber: number, options?: DownloadImageOptions): Promise<string | null>;
     renderDownloadNameWithBudget(template: string, adId: number, title: string, maxLength: number): string;
     renderDownloadAdFileStem(adId: number, title: string): string;
     renderDownloadFolderName(adId: number, title: string): string;

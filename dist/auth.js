@@ -124,7 +124,14 @@ async function waitForCondition(controller, condition, { pollIntervalMs, timeout
         await controller.webSleep(pollIntervalMs, pollIntervalMs);
     }
 }
-async function textFirstAvailable(controller, selectors, timeout) {
+async function textFirstAvailable(controller, selectors, timeout, key) {
+    if (controller.webTextFirstAvailableOnce) {
+        const [text, index] = await controller.webTextFirstAvailableOnce(selectors, {
+            key,
+            timeout,
+        });
+        return { index, text };
+    }
     if (controller.webTextFirstAvailable) {
         const [text, index] = await controller.webTextFirstAvailable(selectors, {
             timeout,
@@ -160,7 +167,7 @@ async function hasLoggedInMarker(controller, credentials, options) {
     }
     const { loginDetectionTimeout = 12, quickDomTimeout = 2, } = options;
     try {
-        const quickMatch = await textFirstAvailable(controller, LOGIN_DETECTION_SELECTORS, quickDomTimeout);
+        const quickMatch = await textFirstAvailable(controller, LOGIN_DETECTION_SELECTORS, quickDomTimeout, "quickDom");
         if (quickMatch.text.toLowerCase().includes(username)) {
             return true;
         }
@@ -171,7 +178,7 @@ async function hasLoggedInMarker(controller, credentials, options) {
         }
     }
     try {
-        const match = await textFirstAvailable(controller, LOGIN_DETECTION_SELECTORS, loginDetectionTimeout);
+        const match = await textFirstAvailable(controller, LOGIN_DETECTION_SELECTORS, loginDetectionTimeout, "loginDetection");
         return match.text.toLowerCase().includes(username);
     }
     catch (error) {
@@ -184,7 +191,7 @@ async function hasLoggedInMarker(controller, credentials, options) {
 async function hasLoggedOutCta(controller, options) {
     const { quickDomTimeout = 2 } = options;
     try {
-        const match = await textFirstAvailable(controller, LOGGED_OUT_CTA_SELECTORS, quickDomTimeout);
+        const match = await textFirstAvailable(controller, LOGGED_OUT_CTA_SELECTORS, quickDomTimeout, "quickDom");
         return match.text.trim().length > 0;
     }
     catch (error) {
