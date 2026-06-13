@@ -54,10 +54,9 @@ require OpenClaw approval before they run. OpenClaw approvals and
 `confirm: true` parameters are human review gates, not sandbox boundaries. Keep
 `adRoots` limited to listing workspaces you intend the plugin to read or write.
 Set `approvalMode` to `mutating` only for local checks where status and verify
-should run without an approval route. Set it to `none` only for local TUI/dev
-sessions where no OpenClaw approval UI is connected. Account-changing tools
-still require `confirm: true`. Tool output is capped and redacted for configured
-paths, email addresses, and credential-like lines.
+should run without an approval route. Account-changing tools still require
+`confirm: true`. Tool output is capped and redacted for configured paths, email
+addresses, and credential-like lines.
 
 The package also ships a `kleinanzeigen-helper-skill` under `skills/`. OpenClaw
 loads plugin skills when the plugin is enabled, so agents get the longer
