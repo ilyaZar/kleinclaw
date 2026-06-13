@@ -19,5 +19,6 @@ export {
   type WebElement,
   type WebLocator,
   type WebPage,
+  type WebRequestOptions,
   type WebResponse,
 } from "./web/types.js";

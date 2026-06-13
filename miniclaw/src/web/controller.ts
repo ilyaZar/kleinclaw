@@ -33,8 +33,11 @@ import {
   type WebElement,
   type WebLocator,
   type WebPage,
+  type WebRequestOptions,
   type WebResponse,
 } from "./types.js";
+
+const DEFAULT_WEB_REQUEST_TIMEOUT = 60;
 
 export class WebController {
   readonly page: WebPage;
@@ -100,39 +103,60 @@ export class WebController {
     method = "GET",
     validResponseCodes: number | Iterable<number> = 200,
     headers: Record<string, string> | null = null,
+    { timeout }: WebRequestOptions = {},
   ): Promise<WebResponse> {
-    const response = await requirePageMethod(this.page.evaluate, "evaluate").call(
+    const effectiveTimeout = this.timeoutConfig
+      ? this.effectiveTimeout("webRequest", timeout, 0)
+      : timeout ?? DEFAULT_WEB_REQUEST_TIMEOUT;
+    const timeoutMs = Math.max(1, Math.trunc(effectiveTimeout * 1000));
+    const requestMethod = method.toUpperCase();
+    const response = await this.withTimeout(
+      requirePageMethod(this.page.evaluate, "evaluate").call(
       this.page,
       async ({
         requestUrl,
         requestMethod,
         requestHeaders,
+        requestTimeoutMs,
       }: {
         requestUrl: string;
         requestMethod: string;
         requestHeaders: Record<string, string>;
+        requestTimeoutMs: number;
       }) => {
-        const fetchResponse = await fetch(requestUrl, {
-          method: requestMethod,
-          redirect: "follow",
-          headers: requestHeaders,
-        });
-        const responseHeaders: Record<string, string> = {};
-        fetchResponse.headers.forEach((value, key) => {
-          responseHeaders[key] = value;
-        });
-        return {
-          statusCode: fetchResponse.status,
-          statusMessage: fetchResponse.statusText,
-          headers: responseHeaders,
-          content: await fetchResponse.text(),
-        };
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
+        try {
+          const fetchResponse = await fetch(requestUrl, {
+            method: requestMethod,
+            redirect: "follow",
+            headers: requestHeaders,
+            signal: controller.signal,
+          });
+          const responseHeaders: Record<string, string> = {};
+          fetchResponse.headers.forEach((value, key) => {
+            responseHeaders[key] = value;
+          });
+          return {
+            statusCode: fetchResponse.status,
+            statusMessage: fetchResponse.statusText,
+            headers: responseHeaders,
+            content: await fetchResponse.text(),
+          };
+        } finally {
+          clearTimeout(timer);
+        }
       },
       {
         requestUrl: url,
-        requestMethod: method.toUpperCase(),
+        requestMethod,
         requestHeaders: headers ?? {},
+        requestTimeoutMs: timeoutMs,
       },
+      ),
+      effectiveTimeout,
+      `HTTP ${requestMethod} to ${url} did not finish within ` +
+        `${effectiveTimeout} seconds.`,
     );
 
     const normalized = normalizeRemoteObjectResult(response);
@@ -141,7 +165,7 @@ export class WebController {
       throw new assert.AssertionError({
         message:
           `Invalid response "${normalized.statusCode} ` +
-          `${normalized.statusMessage}" received for HTTP ${method.toUpperCase()} to ${url}`,
+          `${normalized.statusMessage}" received for HTTP ${requestMethod} to ${url}`,
       });
     }
     return normalized;
@@ -234,6 +258,62 @@ export class WebController {
     );
   }
 
+  async webFindFirstAvailableOnce(
+    selectors: readonly WebSelector[],
+    {
+      description,
+      key = "default",
+      parent = null,
+      timeout,
+    }: {
+      description?: string;
+      key?: TimeoutKey;
+      parent?: WebLocator | null;
+      timeout?: number;
+    } = {},
+  ): Promise<[WebLocator, number]> {
+    if (selectors.length === 0) {
+      throw new Error("selectors must contain at least one selector");
+    }
+
+    const resolvedDescription =
+      description ?? `web_find_first_available(${selectors.length} selectors)`;
+    const configuredTimeout = this.baseTimeout(key, timeout);
+    const effectiveTimeout = this.effectiveTimeout(key, timeout, 0);
+    const startedAt = this.timeSource();
+    try {
+      const result = await this.webFindFirstAvailableWithinBudget(
+        selectors,
+        effectiveTimeout,
+        parent,
+      );
+      this.recordTiming(
+        key,
+        resolvedDescription,
+        configuredTimeout,
+        effectiveTimeout,
+        this.timeSource() - startedAt,
+        0,
+        true,
+      );
+      return result;
+    } catch (error) {
+      if (!isTimeoutLike(error)) {
+        throw error;
+      }
+      this.recordTiming(
+        key,
+        resolvedDescription,
+        configuredTimeout,
+        effectiveTimeout,
+        this.timeSource() - startedAt,
+        0,
+        false,
+      );
+      throw error;
+    }
+  }
+
   async webTextFirstAvailable(
     selectors: readonly WebSelector[],
     {
@@ -255,6 +335,67 @@ export class WebController {
       timeout,
     });
     return [await this.extractVisibleText(element), index];
+  }
+
+  async webTextFirstAvailableOnce(
+    selectors: readonly WebSelector[],
+    {
+      description,
+      key = "default",
+      parent = null,
+      timeout,
+    }: {
+      description?: string;
+      key?: TimeoutKey;
+      parent?: WebLocator | null;
+      timeout?: number;
+    } = {},
+  ): Promise<[string, number]> {
+    const [element, index] = await this.webFindFirstAvailableOnce(selectors, {
+      description,
+      key,
+      parent,
+      timeout,
+    });
+    return [await this.extractVisibleText(element), index];
+  }
+
+  private async webFindFirstAvailableWithinBudget(
+    selectors: readonly WebSelector[],
+    effectiveTimeout: number,
+    parent: WebLocator | null = null,
+  ): Promise<[WebLocator, number]> {
+    const budgets = allocateSelectorGroupBudgets(
+      effectiveTimeout,
+      selectors.length,
+    );
+    const failures: string[] = [];
+    for (const [index, selector] of selectors.entries()) {
+      const [type, value] = selector;
+      try {
+        return [
+          await this.webFindOnce(
+            type,
+            value,
+            budgets[index] ?? 0,
+            parent,
+          ),
+          index,
+        ];
+      } catch (error) {
+        if (!isTimeoutLike(error)) {
+          throw error;
+        }
+        failures.push(errorMessage(error));
+      }
+    }
+
+    const lastError = failures.at(-1) ?? "No selector candidates executed.";
+    throw new TimeoutError(
+      "No HTML element found using selector group after trying " +
+        `${selectors.length} alternatives within ${effectiveTimeout} ` +
+        `seconds. Last error: ${lastError}`,
+    );
   }
 
   private async webFindOnce(
@@ -872,6 +1013,29 @@ export class WebController {
       return await element.getAttribute("value") ?? "";
     }
     return "";
+  }
+
+  private async withTimeout<T>(
+    operation: Promise<T>,
+    timeout: number,
+    timeoutErrorMessage: string,
+  ): Promise<T> {
+    let timer: NodeJS.Timeout | null = null;
+    try {
+      return await Promise.race([
+        operation,
+        new Promise<T>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new TimeoutError(timeoutErrorMessage)),
+            Math.max(1, Math.trunc(timeout * 1000)),
+          );
+        }),
+      ]);
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }
   }
 
   private baseTimeout(key: TimeoutKey, override?: number | null): number {

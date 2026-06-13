@@ -1,6 +1,6 @@
 import { type TimeoutKey } from "../model/config-model.js";
 import { By, type WebSelector } from "./selector.js";
-import { Is, type WebControllerOptions, type WebElement, type WebLocator, type WebPage, type WebResponse } from "./types.js";
+import { Is, type WebControllerOptions, type WebElement, type WebLocator, type WebPage, type WebRequestOptions, type WebResponse } from "./types.js";
 export declare class WebController {
     readonly page: WebPage;
     readonly defaultTimeout: number;
@@ -14,12 +14,18 @@ export declare class WebController {
     constructor(page: WebPage, options?: WebControllerOptions);
     locatorFor(type: By, value: string, parent?: WebLocator | null): WebLocator;
     webExecute(jscode: string): Promise<unknown>;
-    webRequest(url: string, method?: string, validResponseCodes?: number | Iterable<number>, headers?: Record<string, string> | null): Promise<WebResponse>;
+    webRequest(url: string, method?: string, validResponseCodes?: number | Iterable<number>, headers?: Record<string, string> | null, { timeout }?: WebRequestOptions): Promise<WebResponse>;
     webFind(type: By, value: string, { parent, timeout, }?: {
         parent?: WebLocator | null;
         timeout?: number;
     }): Promise<WebLocator>;
     webFindFirstAvailable(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: {
+        description?: string;
+        key?: TimeoutKey;
+        parent?: WebLocator | null;
+        timeout?: number;
+    }): Promise<[WebLocator, number]>;
+    webFindFirstAvailableOnce(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: {
         description?: string;
         key?: TimeoutKey;
         parent?: WebLocator | null;
@@ -31,6 +37,13 @@ export declare class WebController {
         parent?: WebLocator | null;
         timeout?: number;
     }): Promise<[string, number]>;
+    webTextFirstAvailableOnce(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: {
+        description?: string;
+        key?: TimeoutKey;
+        parent?: WebLocator | null;
+        timeout?: number;
+    }): Promise<[string, number]>;
+    private webFindFirstAvailableWithinBudget;
     private webFindOnce;
     webProbe(type: By, value: string, { parent, timeout, }?: {
         parent?: WebLocator | null;
@@ -76,6 +89,7 @@ export declare class WebController {
     private clickMatchingButtonComboboxOption;
     private confirmComboboxFallback;
     private currentInputValue;
+    private withTimeout;
     private baseTimeout;
     private effectiveTimeout;
     private timeoutAttempts;
