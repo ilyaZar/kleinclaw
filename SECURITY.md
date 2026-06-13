@@ -21,6 +21,11 @@ remain on the local machine and should be treated as sensitive. If an account
 step needs hands-on work, handle that outside OpenClaw and then run the plugin
 again.
 
+Publish-error diagnostics intentionally avoid storing full ad configs, listing
+titles, page URLs, screenshots, or page HTML. If local log-copy diagnostics are
+enabled, copied logs can still contain sensitive runtime context and should stay
+local.
+
 OpenClaw approvals and `confirm: true` parameters are human review gates, not
 sandbox boundaries. Keep `adRoots` limited to listing workspaces you intend the
 plugin to read or write. Keep `approvalMode` at `all` unless local read-only
