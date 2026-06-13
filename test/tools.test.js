@@ -160,7 +160,10 @@ describe("kleinanzeigen plugin tools", () => {
       [...resolveApprovalToolNames({ approvalMode: "mutating" })],
       [...SIDE_EFFECT_TOOL_NAMES],
     );
-    assert.deepEqual([...resolveApprovalToolNames({ approvalMode: "none" })], []);
+    assert.deepEqual(
+      [...resolveApprovalToolNames({ approvalMode: "none" })],
+      [...OPTIONAL_TOOL_NAMES],
+    );
   });
 
   it("summarizes approval requests without leaking absolute ad roots", () => {

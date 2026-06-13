@@ -81,11 +81,10 @@
         "type": "string",
         "enum": [
           "all",
-          "mutating",
-          "none"
+          "mutating"
         ],
         "default": "all",
-        "description": "Approval mode for tool runs. Use none only when local approval UI is unavailable."
+        "description": "Approval mode for tool runs. Use all unless local checks should run without an approval route."
       }
     }
   }

@@ -23,8 +23,8 @@ again.
 
 OpenClaw approvals and `confirm: true` parameters are human review gates, not
 sandbox boundaries. Keep `adRoots` limited to listing workspaces you intend the
-plugin to read or write. Use `approvalMode: none` only for controlled local
-development sessions where no approval UI is connected.
+plugin to read or write. Keep `approvalMode` at `all` unless local read-only
+checks should run without an approval route.
 
 Package install scripts are not used for this plugin. Installing the plugin
 does not run setup commands.

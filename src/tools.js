@@ -44,10 +44,6 @@ export const APPROVAL_TOOL_NAMES = new Set(OPTIONAL_TOOL_NAMES);
 export function resolveApprovalToolNames(config = {}) {
   const mode = typeof config.approvalMode === "string" ? config.approvalMode : "all";
 
-  if (mode === "none") {
-    return new Set();
-  }
-
   if (mode === "mutating") {
     return new Set(SIDE_EFFECT_TOOL_NAMES);
   }
