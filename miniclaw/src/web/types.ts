@@ -73,6 +73,10 @@ export interface WebControllerOptions {
   timingCollector?: TimingRecorder | null;
 }
 
+export interface WebRequestOptions {
+  timeout?: number;
+}
+
 export interface WebResponse {
   statusCode: number;
   statusMessage: string;

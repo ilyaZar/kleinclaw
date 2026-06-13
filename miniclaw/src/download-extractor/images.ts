@@ -20,7 +20,16 @@ export type DownloadImage = (
   directory: string,
   filenamePrefix: string,
   imageNumber: number,
+  options?: DownloadImageOptions,
 ) => Promise<string | null> | string | null;
+
+export interface DownloadImageOptions {
+  timeout?: number;
+}
+
+export interface DownloadImagesFromAdPageOptions {
+  imageDownloadTimeout?: number;
+}
 
 interface DownloadImagesController {
   webFind(
@@ -34,6 +43,8 @@ interface DownloadImagesController {
     options?: { parent?: WebLocator | WebElement | null; timeout?: number },
   ): Promise<WebElement[]>;
 }
+
+const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT = 60;
 
 function contentTypeExtension(contentType: string | null): string {
   const normalized = (contentType ?? "").split(";", 1)[0]?.trim().toLowerCase();
@@ -58,9 +69,13 @@ export async function downloadAndSaveImage(
   directory: string,
   filenamePrefix: string,
   imageNumber: number,
+  { timeout = DEFAULT_IMAGE_DOWNLOAD_TIMEOUT }: DownloadImageOptions = {},
 ): Promise<string | null> {
+  const controller = new AbortController();
+  const timeoutMs = Math.max(1, Math.trunc(timeout * 1000));
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) {
       return null;
     }
@@ -73,6 +88,8 @@ export async function downloadAndSaveImage(
     return imagePath;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -81,6 +98,7 @@ export async function downloadImagesFromAdPage(
   downloadImage: DownloadImage,
   directory: string,
   adFileStem: string,
+  { imageDownloadTimeout }: DownloadImagesFromAdPageOptions = {},
 ): Promise<string[]> {
   const imagePaths: string[] = [];
   try {
@@ -106,6 +124,7 @@ export async function downloadImagesFromAdPage(
         directory,
         imageFilenamePrefix,
         imageNumber,
+        { timeout: imageDownloadTimeout },
       );
       if (imagePath) {
         imagePaths.push(path.basename(imagePath));

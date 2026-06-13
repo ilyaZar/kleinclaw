@@ -1,5 +1,5 @@
-import { type LoginConfig } from "./model/config-model.js";
-import { By, type WebLocator } from "./web-primitives.js";
+import { type LoginConfig, type TimeoutKey } from "./model/config-model.js";
+import { By, type WebSelector, type WebLocator } from "./web-primitives.js";
 export declare const LOGIN_DETECTION_SELECTORS: readonly [By, string][];
 export declare const LOGGED_OUT_CTA_SELECTORS: readonly [By, string][];
 export declare enum LoginDetectionReason {
@@ -33,6 +33,11 @@ export interface LoginController {
     }): Promise<string>;
     webTextFirstAvailable?(selectors: readonly [By, string][], options?: {
         parent?: WebLocator | null;
+        timeout?: number;
+    }): Promise<[string, number]>;
+    webTextFirstAvailableOnce?(selectors: readonly WebSelector[], options?: {
+        parent?: WebLocator | null;
+        key?: TimeoutKey;
         timeout?: number;
     }): Promise<[string, number]>;
 }
