@@ -143,6 +143,25 @@ describe("miniclaw price reduction", () => {
   });
 });
 
+describe("miniclaw config defaults", () => {
+  it("exposes request and image download timeout defaults", () => {
+    const config = new Config();
+
+    assert.equal(config.timeouts.imageDownload, 60);
+    assert.equal(config.timeouts.webRequest, 60);
+
+    const overridden = new Config({
+      timeouts: {
+        image_download: 61,
+        web_request: 62,
+      },
+    });
+
+    assert.equal(overridden.timeouts.imageDownload, 61);
+    assert.equal(overridden.timeouts.webRequest, 62);
+  });
+});
+
 describe("miniclaw workspace resolution", () => {
   function workspaceArgs(overrides = {}) {
     return {

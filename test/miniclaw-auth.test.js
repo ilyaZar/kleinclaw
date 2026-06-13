@@ -1,10 +1,41 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { fillLoginDataAndSend } from "../miniclaw/dist/auth.js";
+import {
+  fillLoginDataAndSend,
+  getLoginState,
+  LoginDetectionReason,
+} from "../miniclaw/dist/auth.js";
+import { Config } from "../miniclaw/dist/model/config-model.js";
 import { By } from "../miniclaw/dist/web-primitives.js";
 
 describe("miniclaw auth", () => {
+  it("uses the single-attempt selector-group helper for login probes", async () => {
+    const helperCalls = [];
+    const controller = {
+      page: { url: "https://www.kleinanzeigen.de/" },
+      async webTextFirstAvailable() {
+        throw new Error("legacy helper should not be used");
+      },
+      async webTextFirstAvailableOnce(selectors, options = {}) {
+        helperCalls.push({ options, selectors });
+        return ["User user@example.test", 1];
+      },
+    };
+
+    const result = await getLoginState(
+      controller,
+      new Config({ login: { username: "user@example.test" } }).login,
+      { quickDomTimeout: 0.1 },
+    );
+
+    assert.equal(result.isLoggedIn, true);
+    assert.equal(result.reason, LoginDetectionReason.USER_INFO_MATCH);
+    assert.equal(helperCalls.length, 1);
+    assert.equal(helperCalls[0].options.key, "quickDom");
+    assert.equal(helperCalls[0].options.timeout, 0.1);
+  });
+
   it("stops at captcha before submitting the username step", async () => {
     const expected = new Error("manual captcha boundary");
     let manualCaptchaCalls = 0;
