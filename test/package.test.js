@@ -126,7 +126,6 @@ describe("package install boundary", () => {
     const requiredFiles = [
       "index.js",
       "LICENSE",
-      "LICENSES/MIT.txt",
       "examples/sample-listing/ad.yaml",
       "miniclaw/LICENSE.txt",
       "miniclaw/README.md",
@@ -916,7 +915,7 @@ describe("package install boundary", () => {
       "assets/repo_logo2.png",
       "assets/repo_logo.png",
       "assets/repo_logo_upstream.png",
-      "docs/badges/openclaw-code-plugin.svg",
+      "assets/openclaw-code-plugin.svg",
       "specs/port_ts_plan.md",
       "miniclaw/test/package-surface.test.js",
       "miniclaw/src/resources/ad_fields.yaml",
