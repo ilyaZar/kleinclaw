@@ -51,18 +51,16 @@ function diagnosticsOutputDir(
   return null;
 }
 
-function errorDetails(error: unknown): Record<string, unknown> {
+function errorSummary(error: unknown): Record<string, unknown> {
   if (error instanceof Error) {
     return {
       message: error.message,
       name: error.name,
-      stack: error.stack,
     };
   }
   return {
     message: String(error),
     name: typeof error,
-    stack: null,
   };
 }
 
@@ -139,19 +137,13 @@ export function createPublishDiagnosticsCapture(
       basePrefix: "publish_error",
       copyLog: config.diagnostics.captureLogCopy,
       jsonPayload: {
-        ad_config_effective: context.ad as unknown as Record<string, unknown>,
-        ad_config_original: context.raw,
-        ad_file: context.adFile,
-        ad_title: context.ad.title,
-        exception: errorDetails(context.error),
-        page_url: controller.page?.url ?? null,
+        attempt: context.attempt,
+        exception: errorSummary(context.error),
         timestamp: now().toISOString().replace(/\.\d{3}Z$/, ""),
       },
       logFilePath,
       now,
       outputDir,
-      page: controller.page,
-      subject: path.parse(context.adFile).name,
     });
   };
 }
