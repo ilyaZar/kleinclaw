@@ -2,6 +2,7 @@ lcov.info
 node_modules/
 reports/
 TODO/
+RELEASE_CHECKLIST.md
 
 assets/psc
 
