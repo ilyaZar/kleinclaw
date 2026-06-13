@@ -263,15 +263,13 @@ supported `browser` choices intentionally match embedded miniclaw support:
 the runtime uses its dedicated workspace browser profile. The `system-default`
 mode points the config at the chosen browser's normal local profile root. That
 can reuse local login state, but it can also fail if the same browser profile is
-already open or locked. The `custom` mode requires `userDataDir` and can also
-set `profileName`:
+already open or locked. It can also set `profileName`:
 
 ```json
 {
   "browser": "google-chrome",
   "usePrivateWindow": false,
-  "profileMode": "custom",
-  "userDataDir": "/home/me/.config/google-chrome",
+  "profileMode": "system-default",
   "profileName": "Default",
   "confirm": true
 }
@@ -280,13 +278,16 @@ set `profileName`:
 Use `browser: "auto"` to clear `browser.binary_location` and let miniclaw choose
 its default Chromium, Chrome, or Edge executable.
 `kleinanzeigen_browser_configure` edits only selected scalar keys under
-`browser:` and still requires `confirm: true`.
+`browser:` and still requires `confirm: true`. It does not persist custom
+browser executable paths or custom profile directories from chat; edit those
+directly in the local miniclaw config if you deliberately need them.
 
 Brave is a Chromium-family browser and may work as a custom executable, but it
 is not documented or auto-detected by miniclaw. KleinClaw reports it from
 `kleinanzeigen_browser_status` when installed, but does not expose it as a
-supported `browser` choice. To try it anyway, use an explicit `binaryLocation`
-and set `allowUnsupportedBrowser: true`:
+supported `browser` choice. To test it without changing the real config, use
+`kleinanzeigen_browser_check` with an explicit `binaryLocation` and
+`allowUnsupportedBrowser: true`:
 
 ```json
 {
@@ -367,9 +368,9 @@ The embedded runtime still owns browser automation and account checks. KleinClaw
 can select the browser binary, private-window flag, and profile config, but it
 does not work around Kleinanzeigen checks. Browser profile modes can reuse local
 login state, so use the workspace profile by default unless you deliberately
-want system-default or custom profile behavior. If Kleinanzeigen asks for a
-normal account check, handle it outside chat in a terminal/browser, and then
-come back to `kleinanzeigen_verify`.
+want system-default profile behavior. If Kleinanzeigen asks for a normal account
+check, handle it outside chat in a terminal/browser, and then come back to
+`kleinanzeigen_verify`.
 
 **Keep passwords, cookies, browser profile data, and full miniclaw config files
 out of chat**. The runtime handles auth and listing work locally through your

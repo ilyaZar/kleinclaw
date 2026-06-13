@@ -285,16 +285,9 @@ describe("browser config tools", () => {
     assert.doesNotMatch(JSON.stringify(status), /should-not-leak|hidden@example/);
   });
 
-  it("updates only selected browser keys after confirmation", async () => {
+  it("updates only safe browser keys after confirmation", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-browser-"));
     const mockConfig = path.join(tmp, "config.yaml");
-    const mockBrowser = path.join(tmp, "mock-browser");
-    await fs.writeFile(
-      mockBrowser,
-      "#!/usr/bin/env node\nconsole.log('Mock Browser 1.0')\n",
-      "utf8",
-    );
-    await fs.chmod(mockBrowser, 0o700);
     await fs.writeFile(
       mockConfig,
       [
@@ -304,7 +297,7 @@ describe("browser config tools", () => {
         "browser:",
         "  arguments:",
         "    - --disable-dev-shm-usage",
-        "  binary_location: \"\"",
+        "  binary_location: \"/usr/bin/old-browser\"",
         "  extensions: []",
         "  use_private_window: true",
         "  user_data_dir: \"/secret/profile\"",
@@ -316,8 +309,7 @@ describe("browser config tools", () => {
     const result = await configureKleinanzeigenBrowser(
       {
         confirm: true,
-        binaryLocation: mockBrowser,
-        allowUnsupportedBrowser: true,
+        browser: "auto",
         usePrivateWindow: false,
         profileMode: "workspace",
       },
@@ -332,14 +324,14 @@ describe("browser config tools", () => {
     assert.equal(result.operation, "browser_configure");
     assert.equal(result.changed, true);
     assert.match(updated, /password: should-not-leak/);
-    assert.match(updated, new RegExp(`binary_location: ${JSON.stringify(mockBrowser)}`));
+    assert.match(updated, /binary_location: ""/);
     assert.match(updated, /use_private_window: false/);
     assert.match(updated, /user_data_dir: ""/);
     assert.match(updated, /profile_name: ""/);
     assert.doesNotMatch(JSON.stringify(result), /should-not-leak|hidden@example|\/secret\/profile/);
   });
 
-  it("rejects unsupported custom browser binaries by default", async () => {
+  it("rejects custom browser settings for persistent config changes", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-browser-"));
     const mockConfig = path.join(tmp, "config.yaml");
     const mockBrave = path.join(tmp, "brave");
@@ -358,10 +350,26 @@ describe("browser config tools", () => {
     await assert.rejects(
       () =>
         configureKleinanzeigenBrowser(
-          { confirm: true, binaryLocation: mockBrave },
+          { confirm: true, binaryLocation: mockBrave, allowUnsupportedBrowser: true },
           withCommandRunner({ configPath: mockConfig, workingDirectory: tmp }),
         ),
-      /not a supported miniclaw browser/,
+      /binaryLocation, allowUnsupportedBrowser cannot be changed/,
+    );
+    await assert.rejects(
+      () =>
+        configureKleinanzeigenBrowser(
+          { confirm: true, profileMode: "custom", userDataDir: "profile" },
+          withCommandRunner({ configPath: mockConfig, workingDirectory: tmp }),
+        ),
+      /userDataDir cannot be changed/,
+    );
+    await assert.rejects(
+      () =>
+        configureKleinanzeigenBrowser(
+          { confirm: true, profileName: "Default" },
+          withCommandRunner({ configPath: mockConfig, workingDirectory: tmp }),
+        ),
+      /profileName requires profileMode system-default/,
     );
   });
 

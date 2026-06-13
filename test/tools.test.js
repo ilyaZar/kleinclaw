@@ -195,10 +195,8 @@ describe("kleinanzeigen plugin tools", () => {
         confirm: true,
         browser: "chromium",
         usePrivateWindow: false,
-        profileMode: "custom",
-        userDataDir: "/private/profile",
+        profileMode: "system-default",
         profileName: "Default",
-        allowUnsupportedBrowser: false,
       },
       config: {},
     });
@@ -206,10 +204,8 @@ describe("kleinanzeigen plugin tools", () => {
     assert.match(description, /Operation: browser_configure/);
     assert.match(description, /Browser: chromium/);
     assert.match(description, /Private window: false/);
-    assert.match(description, /Profile mode: custom/);
-    assert.match(description, /User data dir: \[redacted-path\]\/profile/);
+    assert.match(description, /Profile mode: system-default/);
     assert.match(description, /Profile name: Default/);
-    assert.match(description, /Allow unsupported browser: false/);
     assert.doesNotMatch(description, /\/private/);
   });
 
