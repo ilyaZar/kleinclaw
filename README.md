@@ -13,10 +13,11 @@
   <img alt="kleinclaw-logo" src="assets/repo_logo2.png" width="240">
 </p>
 
-KleinClaw is an OpenClaw plugin for publishing "Inserate" on
-`kleinanzeigen.de`: adding and deleting your own ads, managing the kleinanzeigen
-publishing process, and related tasks around this more broadly. "Inserate" is
-the German word most people there use for ads/listings.
+KleinClaw is an OpenClaw plugin for publishing "Inserate" on `kleinanzeigen.de`:
+adding and deleting your own ads, managing the kleinanzeigen publishing process,
+and related tasks around this more broadly. For non-German natives, "Inserate"
+is the German word most people use for ads/listings on platforms resembling the
+Ebay/marketplace style.
 
 KleinClaw runs the bundled TypeScript `miniclaw` runtime through helper tools.
 The plugin wrapper does not store `kleinanzeigen` credentials or expose full
@@ -86,10 +87,10 @@ The plugin ships a built-in `kleinanzeigen-helper-skill`, so agents get workflow
 guidance when the plugin is enabled. The same guidance is also published as the
 standalone
 [`kleinanzeigen-helper`](https://clawhub.ai/ilyazar/kleinanzeigen-helper) skill
-from the [`ilyaZar/kleinanzeigen-helper` GitHub repo][helper-github]
-if you want to install, inspect, or update the skill separately. The standalone
-skill adds guidance only; the Kleinanzeigen publishing engine still comes from
-the KleinClaw plugin.
+from the [`ilyaZar/kleinanzeigen-helper` GitHub repo][helper-github] if you want
+to install, inspect, or update the skill separately. The standalone skill adds
+guidance only; the Kleinanzeigen publishing engine still comes from the
+KleinClaw plugin.
 
 [helper-github]: https://github.com/ilyaZar/kleinanzeigen-helper
 
@@ -159,17 +160,16 @@ Plugin config fields:
 
 - `enabled`: `true` loads the installed plugin.
 - `configPath`: path to the local miniclaw `config.yaml`.
-- `workingDirectory`: alternative to `configPath`; KleinClaw reads
-  `config.yaml` from that directory. Use either `configPath` or
-  `workingDirectory`.
+- `workingDirectory`: alternative to `configPath`; KleinClaw reads `config.yaml`
+  from that directory. Use either `configPath` or `workingDirectory`.
 - `adRoots`: directories where KleinClaw may discover, read, draft, or scope
   local ad folders. Keep this narrow.
 - `workspaceMode`: `portable` or `xdg`. `portable` is the default and keeps
   miniclaw workspace files beside `config.yaml`; `xdg` uses user config/cache
   directories.
 - `lang`: `de` or `en` for miniclaw display language.
-- `timeoutMs`: maximum runtime for one miniclaw command, from `1000` to
-  `600000` milliseconds.
+- `timeoutMs`: maximum runtime for one miniclaw command, from `1000` to `600000`
+  milliseconds.
 - `maxOutputChars`: maximum sanitized stdout or stderr characters returned to
   the agent, from `0` to `20000`.
 - `approvalMode`: `all` or `mutating`. `all` is the default and routes every
@@ -353,8 +353,8 @@ supported `browser` choices intentionally match embedded miniclaw support:
 
 Useful browser tool fields:
 
-- `browser`: `auto`, `chromium`, `google-chrome`, or `microsoft-edge`.
-  `auto` clears `browser.binary_location` and lets miniclaw choose.
+- `browser`: `auto`, `chromium`, `google-chrome`, or `microsoft-edge`. `auto`
+  clears `browser.binary_location` and lets miniclaw choose.
 - `usePrivateWindow`: `true` or `false`; controls private/incognito browser
   launch.
 - `profileMode`: for `kleinanzeigen_browser_configure`, use `workspace` or
