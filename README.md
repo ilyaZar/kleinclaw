@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img alt="kleinclaw-logo" src="assets/repo_logo2.png" width="240">
+  <img alt="kleinclaw-logo" src="assets/repo_logo2.png" width="480">
 </p>
 
 KleinClaw is an OpenClaw plugin for publishing "Inserate" on `kleinanzeigen.de`:
