@@ -10,4 +10,6 @@
 - Use `kleinanzeigen_browser_check` to test proposed browser settings without
   changing the real miniclaw config.
 - Only change browser configuration with `kleinanzeigen_browser_configure` after
-  explicit user confirmation.
+  explicit user confirmation. Persist only supported browser choices and
+  workspace or system-default profile modes; custom executables and custom
+  profile directories must be edited locally outside chat.

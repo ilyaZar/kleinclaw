@@ -869,6 +869,29 @@ function normalizeOptionalPathSetting(value, name) {
   return value.trim();
 }
 
+function assertSafeBrowserConfigureParams(params = {}) {
+  const forbidden = [
+    "binaryLocation",
+    "allowUnsupportedBrowser",
+    "userDataDir",
+  ].filter((key) => params[key] !== undefined);
+  if (forbidden.length > 0) {
+    throw new Error(
+      `${forbidden.join(", ")} cannot be changed through browser_configure; ` +
+        "edit the local miniclaw config outside OpenClaw",
+    );
+  }
+  if (params.profileMode === "custom") {
+    throw new Error(
+      "profileMode custom cannot be persisted through browser_configure; " +
+        "edit the local miniclaw config outside OpenClaw",
+    );
+  }
+  if (params.profileName !== undefined && params.profileMode !== "system-default") {
+    throw new Error("profileName requires profileMode system-default");
+  }
+}
+
 function uniqueValues(values) {
   return [...new Set(values.filter(Boolean))];
 }
@@ -2464,6 +2487,7 @@ export async function configureKleinanzeigenBrowser(params = {}, config = {}) {
   const stat = await fs.stat(cliConfig.configPath);
   const text = await fs.readFile(cliConfig.configPath, "utf8");
   const currentBrowserConfig = parseBrowserConfigText(text);
+  assertSafeBrowserConfigureParams(params);
   const detectedBrowsers = await detectInstalledBrowsers({
     commandRunner: cliConfig.commandRunner,
   });
