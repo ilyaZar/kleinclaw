@@ -16,16 +16,19 @@
 KleinClaw is an OpenClaw plugin for running the bundled TypeScript `miniclaw`
 runtime through typed Kleinanzeigen helper tools. The plugin wrapper does not
 store Kleinanzeigen credentials or return full config contents to OpenClaw.
-Operation tools pass the configured local miniclaw config path to the runtime,
-and miniclaw reads that config locally when it verifies or changes listings.
-Browser helper tools inspect or edit only selected non-secret `browser:` keys.
-Command output returned to OpenClaw is capped and redacted.
+
+Operation tools pass the configured local `miniclaw` config path to the runtime,
+and `miniclaw` reads that config locally when it verifies or changes ad
+listings. Browser helper tools inspect or edit only selected non-secret
+`browser:` keys. Command output returned to OpenClaw is capped and redacted.
 
 ## What it adds
 
-KleinClaw gives an OpenClaw agent a local, approval-gated bridge to miniclaw.
-Most users should think in terms of workflows rather than individual helper
-names:
+KleinClaw gives an OpenClaw agent a local miniclaw runtime for Kleinanzeigen
+listing workflows. The browser session, account checks, and credential-bearing
+config stay inside the local runtime. OpenClaw receives capped, redacted command
+results rather than credentials, cookies, or full config contents. Most users
+should think in terms of workflows rather than individual helper names:
 
 - Check setup, config wiring, and browser readiness before a live run.
 - Discover listing folders inside configured `adRoots`.
@@ -36,17 +39,17 @@ names:
 - Return capped, redacted outcomes so agents can report what happened without
   needing credentials, cookies, or full config contents.
 
-The primary operation tools are `kleinanzeigen_verify`,
-`kleinanzeigen_publish`, `kleinanzeigen_update`, `kleinanzeigen_delete`,
-`kleinanzeigen_download`, and `kleinanzeigen_extend`. Drafting, discovery, and
-browser helpers are available for agent-led setup and preflight, but the
-bundled helper skill should choose those details during normal use.
+The primary operation tools are `kleinanzeigen_verify`, `kleinanzeigen_publish`,
+`kleinanzeigen_update`, `kleinanzeigen_delete`, `kleinanzeigen_download`, and
+`kleinanzeigen_extend`. Drafting, discovery, and browser helpers are available
+for agent-led setup and preflight, but the bundled helper skill should choose
+those details during normal use.
 
 The tools are optional because they run a local command. By default all tools
-require OpenClaw approval before they run. OpenClaw approvals and `confirm:
-true` parameters are human review gates, not sandbox boundaries. Keep `adRoots`
-limited to listing workspaces you intend the plugin to read or write. Set
-`approvalMode` to `mutating` only for local checks where status and verify
+require OpenClaw approval before they run. OpenClaw approvals and
+`confirm: true` parameters are human review gates, not sandbox boundaries. Keep
+`adRoots` limited to listing workspaces you intend the plugin to read or write.
+Set `approvalMode` to `mutating` only for local checks where status and verify
 should run without an approval route. Set it to `none` only for local TUI/dev
 sessions where no OpenClaw approval UI is connected. Account-changing tools
 still require `confirm: true`. Tool output is capped and redacted for configured
@@ -104,8 +107,8 @@ directories.
 }
 ```
 
-Also expose the optional tools through OpenClaw tool policy. Include
-`kleinclaw` in `tools.alsoAllow` and, for sandboxed sessions, in
+Also expose the optional tools through OpenClaw tool policy. Include `kleinclaw`
+in `tools.alsoAllow` and, for sandboxed sessions, in
 `tools.sandbox.tools.alsoAllow`. You can include individual tool names instead
 when you need finer control. For a minimal KleinClaw-only dev agent:
 
@@ -148,8 +151,8 @@ draft workflow. The key miniclaw constraints are:
 - `images`: glob patterns relative to the ad config file.
 - `priceType: "FIXED"` requires `price`; `GIVE_AWAY` must not set `price`.
 
-Use `kleinanzeigen_images_list` on a selected folder to discover candidate
-image filenames and dimensions:
+Use `kleinanzeigen_images_list` on a selected folder to discover candidate image
+filenames and dimensions:
 
 ```json
 {
@@ -208,9 +211,8 @@ Recommended loop:
 7. Publish with `kleinanzeigen_publish` scoped to the same directory.
 
 For scoped publish calls, KleinClaw checks the selected ad file before running
-miniclaw. If the selected ad is not `active: true`, the tool returns a
-preflight diagnostic instead of running a publish command that miniclaw would
-skip.
+miniclaw. If the selected ad is not `active: true`, the tool returns a preflight
+diagnostic instead of running a publish command that miniclaw would skip.
 
 ### Browser settings
 
@@ -229,12 +231,12 @@ supported `browser` choices intentionally match embedded miniclaw support:
 }
 ```
 
-`profileMode: "workspace"` clears `browser.user_data_dir` and `profile_name`,
-so the runtime uses its dedicated workspace browser profile. The
-`system-default` mode points the config at the chosen browser's normal local
-profile root. That can reuse local login state, but it can also fail if the
-same browser profile is already open or locked. The `custom` mode requires
-`userDataDir` and can also set `profileName`:
+`profileMode: "workspace"` clears `browser.user_data_dir` and `profile_name`, so
+the runtime uses its dedicated workspace browser profile. The `system-default`
+mode points the config at the chosen browser's normal local profile root. That
+can reuse local login state, but it can also fail if the same browser profile is
+already open or locked. The `custom` mode requires `userDataDir` and can also
+set `profileName`:
 
 ```json
 {
@@ -247,16 +249,16 @@ same browser profile is already open or locked. The `custom` mode requires
 }
 ```
 
-Use `browser: "auto"` to clear `browser.binary_location` and let
-miniclaw choose its default Chromium, Chrome, or Edge executable.
+Use `browser: "auto"` to clear `browser.binary_location` and let miniclaw choose
+its default Chromium, Chrome, or Edge executable.
 `kleinanzeigen_browser_configure` edits only selected scalar keys under
 `browser:` and still requires `confirm: true`.
 
 Brave is a Chromium-family browser and may work as a custom executable, but it
 is not documented or auto-detected by miniclaw. KleinClaw reports it from
 `kleinanzeigen_browser_status` when installed, but does not expose it as a
-supported `browser` choice. To try it anyway, use an explicit
-`binaryLocation` and set `allowUnsupportedBrowser: true`:
+supported `browser` choice. To try it anyway, use an explicit `binaryLocation`
+and set `allowUnsupportedBrowser: true`:
 
 ```json
 {
@@ -280,17 +282,16 @@ writes a temporary config and leaves the real miniclaw config unchanged:
 }
 ```
 
-After publishing or updating, operation tools return a structured `outcome`
-with success state, final `DONE:` counts, published or updated IDs when
-miniclaw prints them, and selected ad config changes observed after miniclaw
-exits. This lets agents distinguish a real failure from a successful browser
-run with noisy process cleanup.
+After publishing or updating, operation tools return a structured `outcome` with
+success state, final `DONE:` counts, published or updated IDs when miniclaw
+prints them, and selected ad config changes observed after miniclaw exits. This
+lets agents distinguish a real failure from a successful browser run with noisy
+process cleanup.
 
 When the miniclaw config contains many ads, one invalid unrelated ad can make
-the runtime reject the whole run before it applies `--ads` filtering. To
-operate on one known source folder, configure `adRoots`, use
-`kleinanzeigen_list_ads` to find the folder, then pass `adDirectories` or
-`adConfigPaths` to
+the runtime reject the whole run before it applies `--ads` filtering. To operate
+on one known source folder, configure `adRoots`, use `kleinanzeigen_list_ads` to
+find the folder, then pass `adDirectories` or `adConfigPaths` to
 `kleinanzeigen_verify`, `kleinanzeigen_publish`, or the other operation tools:
 
 ```json
@@ -334,13 +335,13 @@ and a `kleinanzeigen_status` smoke test.
 
 ## Notes
 
-The embedded runtime still owns browser automation and account checks.
-KleinClaw can select the browser binary, private-window flag, and profile
-config, but it does not work around Kleinanzeigen checks. Browser profile modes
-can reuse local login state, so use the workspace profile by default unless you
-deliberately want system-default or custom profile behavior. If Kleinanzeigen
-asks for a normal account check, handle it outside chat in a terminal/browser,
-and then come back to `kleinanzeigen_verify`.
+The embedded runtime still owns browser automation and account checks. KleinClaw
+can select the browser binary, private-window flag, and profile config, but it
+does not work around Kleinanzeigen checks. Browser profile modes can reuse local
+login state, so use the workspace profile by default unless you deliberately
+want system-default or custom profile behavior. If Kleinanzeigen asks for a
+normal account check, handle it outside chat in a terminal/browser, and then
+come back to `kleinanzeigen_verify`.
 
 **Keep passwords, cookies, browser profile data, and full miniclaw config files
 out of chat**. The runtime handles auth and listing work locally through your
