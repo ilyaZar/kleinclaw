@@ -6,7 +6,10 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { parse as parseYaml } from "yaml";
 
+import { toAd } from "../miniclaw/dist/model/ad-normalization.js";
+import { BUILTIN_CATEGORIES } from "../miniclaw/dist/resources/categories.js";
 import { createKleinanzeigenTools } from "../src/tools.js";
 
 const execFileAsync = promisify(execFile);
@@ -124,6 +127,7 @@ describe("package install boundary", () => {
       "index.js",
       "LICENSE",
       "LICENSES/MIT.txt",
+      "examples/sample-listing/ad.yaml",
       "miniclaw/LICENSE.txt",
       "miniclaw/README.md",
       "miniclaw/package.json",
@@ -150,6 +154,20 @@ describe("package install boundary", () => {
     for (const file of requiredFiles) {
       assert.equal(files.has(file), true, `${file} should be published`);
     }
+  });
+
+  it("ships an inactive miniclaw-shaped example ad", async () => {
+    const exampleText = await fs.readFile("examples/sample-listing/ad.yaml", "utf8");
+    const example = parseYaml(exampleText);
+    const ad = toAd(example);
+
+    assert.equal(ad.active, false);
+    assert.equal(ad.type, "OFFER");
+    assert.equal(ad.priceType, "NEGOTIABLE");
+    assert.equal(ad.shippingType, "PICKUP");
+    assert.equal(ad.sellDirectly, false);
+    assert.equal(Object.hasOwn(BUILTIN_CATEGORIES, ad.category), true);
+    assert.deepEqual(ad.images, ["images/*.{jpg,jpeg,png}"]);
   });
 
   it("ships a real helper skill, not package metadata as SKILL.md", async () => {
