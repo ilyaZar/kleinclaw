@@ -27,8 +27,12 @@ listings. Browser helper tools inspect or edit only selected non-secret
 KleinClaw gives an OpenClaw agent a local miniclaw runtime for Kleinanzeigen
 listing workflows. The browser session, account checks, and credential-bearing
 config stay inside the local runtime. OpenClaw receives capped, redacted command
-results rather than credentials, cookies, or full config contents. Most users
-should think in terms of workflows rather than individual helper names:
+results: it **does not** receive credentials, cookies, or full config contents.
+
+Most users should think in terms of workflows rather than individual helper
+names: the user expresses the workflow, the agent drives the tools.
+
+### Workflow
 
 - Check setup, config wiring, and browser readiness before a live run.
 - Discover listing folders inside configured `adRoots`.
@@ -66,6 +70,16 @@ description.
 ```bash
 openclaw plugins install clawhub:kleinclaw
 ```
+
+The plugin ships a built-in `kleinanzeigen-helper-skill`, so agents get
+workflow guidance when the plugin is enabled. The same guidance is also
+published as the standalone
+[`kleinanzeigen-helper`](https://clawhub.ai/ilyazar/kleinanzeigen-helper)
+skill from
+[`ilyaZar/kleinanzeigen-helper`](https://github.com/ilyaZar/kleinanzeigen-helper)
+if you want to install, inspect, or update the skill separately. The standalone
+skill adds guidance only; Kleinanzeigen tools still come from the KleinClaw
+plugin.
 
 The package includes the TypeScript `miniclaw` runtime. Listing config, ad
 roots, and workspace mode are configured under the plugin config below.
