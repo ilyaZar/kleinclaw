@@ -155,6 +155,15 @@ describe("package install boundary", () => {
     }
   });
 
+  it("keeps local VM test material out of the package", async () => {
+    const files = await npmPackDryRunFiles();
+
+    for (const file of files) {
+      assert.equal(file.startsWith("tmp/testing-vm/"), false);
+      assert.equal(file.startsWith("skills/local/"), false);
+    }
+  });
+
   it("ships an inactive miniclaw-shaped example ad", async () => {
     const exampleText = await fs.readFile("examples/sample-listing/ad.yaml", "utf8");
     const example = parseYaml(exampleText);

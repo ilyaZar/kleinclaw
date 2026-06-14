@@ -8,3 +8,7 @@ assets/psc
 
 # Local planning notes, not package or repo material.
 specs/
+
+# Local VM test scratch space and unpublished agent skills.
+tmp/
+skills/local/

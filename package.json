@@ -30,7 +30,7 @@
     "index.js",
     "miniclaw/",
     "openclaw.plugin.json",
-    "skills/",
+    "skills/kleinanzeigen-helper-skill/",
     "src/"
   ],
   "scripts": {
