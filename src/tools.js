@@ -386,6 +386,29 @@ function textResult(payload) {
   };
 }
 
+function errorTextResult(error, operation, config, { needsUserAction } = {}) {
+  const stderr = sanitizeText(
+    error instanceof Error ? error.message : String(error),
+    buildRedactions(config),
+    2000,
+  );
+  const payload = {
+    ok: false,
+    operation,
+    exitCode: null,
+    signal: null,
+    timedOut: false,
+  };
+  if (needsUserAction !== undefined) {
+    payload.needsUserAction = needsUserAction;
+  }
+  return textResult({
+    ...payload,
+    stdout: "",
+    stderr,
+  });
+}
+
 function objectSchema(properties, required = []) {
   return {
     type: "object",
@@ -405,20 +428,7 @@ function operationTool({ name, label, description, operation, parameters }) {
       try {
         return textResult(await runKleinanzeigenOperation(operation, params ?? {}, this.config));
       } catch (error) {
-        const stderr = sanitizeText(
-          error instanceof Error ? error.message : String(error),
-          buildRedactions(this.config),
-          2000,
-        );
-        return textResult({
-          ok: false,
-          operation,
-          exitCode: null,
-          signal: null,
-          timedOut: false,
-          stdout: "",
-          stderr,
-        });
+        return errorTextResult(error, operation, this.config);
       }
     },
   };
@@ -447,20 +457,8 @@ function listAdsTool(config) {
         try {
           return textResult(await listKleinanzeigenAds(this.config, params ?? {}));
         } catch (error) {
-          const stderr = sanitizeText(
-            error instanceof Error ? error.message : String(error),
-            buildRedactions(this.config),
-            2000,
-          );
-          return textResult({
-            ok: false,
-            operation: "list_ads",
-            exitCode: null,
-            signal: null,
-            timedOut: false,
+          return errorTextResult(error, "list_ads", this.config, {
             needsUserAction: false,
-            stdout: "",
-            stderr,
           });
         }
       },
@@ -504,20 +502,8 @@ function readAdTool(config) {
         try {
           return textResult(await readKleinanzeigenAd(params ?? {}, this.config));
         } catch (error) {
-          const stderr = sanitizeText(
-            error instanceof Error ? error.message : String(error),
-            buildRedactions(this.config),
-            2000,
-          );
-          return textResult({
-            ok: false,
-            operation: "read_ad",
-            exitCode: null,
-            signal: null,
-            timedOut: false,
+          return errorTextResult(error, "read_ad", this.config, {
             needsUserAction: false,
-            stdout: "",
-            stderr,
           });
         }
       },
@@ -559,20 +545,8 @@ function imagesListTool(config) {
         try {
           return textResult(await listKleinanzeigenImages(params ?? {}, this.config));
         } catch (error) {
-          const stderr = sanitizeText(
-            error instanceof Error ? error.message : String(error),
-            buildRedactions(this.config),
-            2000,
-          );
-          return textResult({
-            ok: false,
-            operation: "images_list",
-            exitCode: null,
-            signal: null,
-            timedOut: false,
+          return errorTextResult(error, "images_list", this.config, {
             needsUserAction: false,
-            stdout: "",
-            stderr,
           });
         }
       },
@@ -596,20 +570,8 @@ function draftAdTool(config) {
         try {
           return textResult(await draftKleinanzeigenAd(params ?? {}, this.config));
         } catch (error) {
-          const stderr = sanitizeText(
-            error instanceof Error ? error.message : String(error),
-            buildRedactions(this.config),
-            2000,
-          );
-          return textResult({
-            ok: false,
-            operation: "draft_ad",
-            exitCode: null,
-            signal: null,
-            timedOut: false,
+          return errorTextResult(error, "draft_ad", this.config, {
             needsUserAction: false,
-            stdout: "",
-            stderr,
           });
         }
       },
@@ -641,20 +603,8 @@ function setAdActiveTool(config) {
         try {
           return textResult(await setKleinanzeigenAdActive(params ?? {}, this.config));
         } catch (error) {
-          const stderr = sanitizeText(
-            error instanceof Error ? error.message : String(error),
-            buildRedactions(this.config),
-            2000,
-          );
-          return textResult({
-            ok: false,
-            operation: "set_ad_active",
-            exitCode: null,
-            signal: null,
-            timedOut: false,
+          return errorTextResult(error, "set_ad_active", this.config, {
             needsUserAction: false,
-            stdout: "",
-            stderr,
           });
         }
       },
@@ -675,20 +625,8 @@ function browserStatusTool(config) {
         try {
           return textResult(await getKleinanzeigenBrowserStatus(this.config));
         } catch (error) {
-          const stderr = sanitizeText(
-            error instanceof Error ? error.message : String(error),
-            buildRedactions(this.config),
-            2000,
-          );
-          return textResult({
-            ok: false,
-            operation: "browser_status",
-            exitCode: null,
-            signal: null,
-            timedOut: false,
+          return errorTextResult(error, "browser_status", this.config, {
             needsUserAction: false,
-            stdout: "",
-            stderr,
           });
         }
       },
@@ -725,20 +663,8 @@ function browserConfigureTool(config) {
         try {
           return textResult(await configureKleinanzeigenBrowser(params ?? {}, this.config));
         } catch (error) {
-          const stderr = sanitizeText(
-            error instanceof Error ? error.message : String(error),
-            buildRedactions(this.config),
-            2000,
-          );
-          return textResult({
-            ok: false,
-            operation: "browser_configure",
-            exitCode: null,
-            signal: null,
-            timedOut: false,
+          return errorTextResult(error, "browser_configure", this.config, {
             needsUserAction: false,
-            stdout: "",
-            stderr,
           });
         }
       },
@@ -784,20 +710,8 @@ function browserCheckTool(config) {
         try {
           return textResult(await checkKleinanzeigenBrowser(params ?? {}, this.config));
         } catch (error) {
-          const stderr = sanitizeText(
-            error instanceof Error ? error.message : String(error),
-            buildRedactions(this.config),
-            2000,
-          );
-          return textResult({
-            ok: false,
-            operation: "browser_check",
-            exitCode: null,
-            signal: null,
-            timedOut: false,
+          return errorTextResult(error, "browser_check", this.config, {
             needsUserAction: false,
-            stdout: "",
-            stderr,
           });
         }
       },
@@ -829,20 +743,8 @@ export function createKleinanzeigenTools(config = {}) {
           try {
             return textResult(await getKleinanzeigenStatus(this.config));
           } catch (error) {
-            const stderr = sanitizeText(
-              error instanceof Error ? error.message : String(error),
-              buildRedactions(this.config),
-              2000,
-            );
-            return textResult({
-              ok: false,
-              operation: "status",
-              exitCode: null,
-              signal: null,
-              timedOut: false,
+            return errorTextResult(error, "status", this.config, {
               needsUserAction: false,
-              stdout: "",
-              stderr,
             });
           }
         },
