@@ -386,19 +386,24 @@ function textResult(payload) {
   };
 }
 
-function toolErrorResult(error, operation, config, extra = {}) {
+function errorTextResult(error, operation, config, { needsUserAction } = {}) {
   const stderr = sanitizeText(
     error instanceof Error ? error.message : String(error),
     buildRedactions(config),
     2000,
   );
-  return textResult({
+  const payload = {
     ok: false,
     operation,
     exitCode: null,
     signal: null,
     timedOut: false,
-    ...extra,
+  };
+  if (needsUserAction !== undefined) {
+    payload.needsUserAction = needsUserAction;
+  }
+  return textResult({
+    ...payload,
     stdout: "",
     stderr,
   });
@@ -423,7 +428,7 @@ function operationTool({ name, label, description, operation, parameters }) {
       try {
         return textResult(await runKleinanzeigenOperation(operation, params ?? {}, this.config));
       } catch (error) {
-        return toolErrorResult(error, operation, this.config);
+        return errorTextResult(error, operation, this.config);
       }
     },
   };
@@ -452,7 +457,9 @@ function listAdsTool(config) {
         try {
           return textResult(await listKleinanzeigenAds(this.config, params ?? {}));
         } catch (error) {
-          return toolErrorResult(error, "list_ads", this.config, { needsUserAction: false });
+          return errorTextResult(error, "list_ads", this.config, {
+            needsUserAction: false,
+          });
         }
       },
     },
@@ -495,7 +502,9 @@ function readAdTool(config) {
         try {
           return textResult(await readKleinanzeigenAd(params ?? {}, this.config));
         } catch (error) {
-          return toolErrorResult(error, "read_ad", this.config, { needsUserAction: false });
+          return errorTextResult(error, "read_ad", this.config, {
+            needsUserAction: false,
+          });
         }
       },
     },
@@ -536,7 +545,9 @@ function imagesListTool(config) {
         try {
           return textResult(await listKleinanzeigenImages(params ?? {}, this.config));
         } catch (error) {
-          return toolErrorResult(error, "images_list", this.config, { needsUserAction: false });
+          return errorTextResult(error, "images_list", this.config, {
+            needsUserAction: false,
+          });
         }
       },
     },
@@ -559,7 +570,9 @@ function draftAdTool(config) {
         try {
           return textResult(await draftKleinanzeigenAd(params ?? {}, this.config));
         } catch (error) {
-          return toolErrorResult(error, "draft_ad", this.config, { needsUserAction: false });
+          return errorTextResult(error, "draft_ad", this.config, {
+            needsUserAction: false,
+          });
         }
       },
     },
@@ -590,7 +603,7 @@ function setAdActiveTool(config) {
         try {
           return textResult(await setKleinanzeigenAdActive(params ?? {}, this.config));
         } catch (error) {
-          return toolErrorResult(error, "set_ad_active", this.config, {
+          return errorTextResult(error, "set_ad_active", this.config, {
             needsUserAction: false,
           });
         }
@@ -612,7 +625,7 @@ function browserStatusTool(config) {
         try {
           return textResult(await getKleinanzeigenBrowserStatus(this.config));
         } catch (error) {
-          return toolErrorResult(error, "browser_status", this.config, {
+          return errorTextResult(error, "browser_status", this.config, {
             needsUserAction: false,
           });
         }
@@ -650,7 +663,7 @@ function browserConfigureTool(config) {
         try {
           return textResult(await configureKleinanzeigenBrowser(params ?? {}, this.config));
         } catch (error) {
-          return toolErrorResult(error, "browser_configure", this.config, {
+          return errorTextResult(error, "browser_configure", this.config, {
             needsUserAction: false,
           });
         }
@@ -697,7 +710,7 @@ function browserCheckTool(config) {
         try {
           return textResult(await checkKleinanzeigenBrowser(params ?? {}, this.config));
         } catch (error) {
-          return toolErrorResult(error, "browser_check", this.config, {
+          return errorTextResult(error, "browser_check", this.config, {
             needsUserAction: false,
           });
         }
@@ -730,7 +743,7 @@ export function createKleinanzeigenTools(config = {}) {
           try {
             return textResult(await getKleinanzeigenStatus(this.config));
           } catch (error) {
-            return toolErrorResult(error, "status", this.config, {
+            return errorTextResult(error, "status", this.config, {
               needsUserAction: false,
             });
           }
