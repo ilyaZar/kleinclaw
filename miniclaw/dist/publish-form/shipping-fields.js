@@ -19,6 +19,17 @@ function shippingCarrierCheckboxXPath(carrierCode) {
     return (`${SHIPPING_DIALOG_XPATH}//input` +
         `[@type="checkbox" and @value=${xpathLiteral(carrierCode)}]`);
 }
+async function withTimeoutMessage(action, message) {
+    try {
+        return await action();
+    }
+    catch (error) {
+        if (error instanceof TimeoutError) {
+            throw new TimeoutError(message);
+        }
+        throw error;
+    }
+}
 async function enableShippingIfAvailable(controller, quickDomTimeout) {
     try {
         await controller.webClick(By.ID, "ad-shipping-enabled-yes", quickDomTimeout);
@@ -37,17 +48,11 @@ async function setPickupShipping(controller, quickDomTimeout) {
     if (pickupRadio === null) {
         return;
     }
-    try {
+    await withTimeoutMessage(async () => {
         if (!await controller.webCheck(By.ID, "ad-shipping-enabled-no", Is.SELECTED, quickDomTimeout)) {
             await controller.webClick(By.ID, "ad-shipping-enabled-no", quickDomTimeout);
         }
-    }
-    catch (error) {
-        if (error instanceof TimeoutError) {
-            throw new TimeoutError("Failed to set shipping attribute for type 'PICKUP'!");
-        }
-        throw error;
-    }
+    }, "Failed to set shipping attribute for type 'PICKUP'!");
 }
 async function setIndividualShippingPrice(controller, shippingCosts) {
     const priceText = shippingCostInputValue(shippingCosts);
@@ -87,28 +92,12 @@ async function setIndividualShipping(controller, ad, quickDomTimeout) {
     }
     const individualPrice = await controller.webProbe(By.ID, "ad-individual-shipping-price", { timeout: quickDomTimeout });
     if (individualPrice === null) {
-        try {
-            await controller.webClick(By.ID, "ad-individual-shipping-checkbox-control");
-        }
-        catch (error) {
-            if (error instanceof TimeoutError) {
-                throw new TimeoutError("Unable to select individual shipping option!");
-            }
-            throw error;
-        }
+        await withTimeoutMessage(() => controller.webClick(By.ID, "ad-individual-shipping-checkbox-control"), "Unable to select individual shipping option!");
     }
     if (ad.shippingCosts !== null && ad.shippingCosts !== undefined) {
         await setIndividualShippingPrice(controller, ad.shippingCosts);
     }
-    try {
-        await controller.webClick(By.XPATH, SHIPPING_DONE_BUTTON_XPATH);
-    }
-    catch (error) {
-        if (error instanceof TimeoutError) {
-            throw new TimeoutError("Unable to close shipping dialog!");
-        }
-        throw error;
-    }
+    await withTimeoutMessage(() => controller.webClick(By.XPATH, SHIPPING_DONE_BUTTON_XPATH), "Unable to close shipping dialog!");
 }
 export function shippingOptionCarrierCodes(options) {
     try {
@@ -155,7 +144,7 @@ export async function setShippingOptions(controller, ad, { quickDomTimeout } = {
     const { carrierCodesForSize, radioValue } = shippingSizeInfoForCarrierCodes(wantedCarrierCodes);
     const wantedCodes = new Set(wantedCarrierCodes);
     const sizeRadioXPath = shippingSizeRadioXPath(radioValue);
-    try {
+    await withTimeoutMessage(async () => {
         const sizeRadio = await controller.webFind(By.XPATH, sizeRadioXPath, { timeout: quickDomTimeout });
         if (!await elementHasAttribute(sizeRadio, "checked")) {
             await controller.webClick(By.XPATH, sizeRadioXPath, quickDomTimeout);
@@ -172,22 +161,8 @@ export async function setShippingOptions(controller, ad, { quickDomTimeout } = {
                 await controller.webClick(By.XPATH, checkboxXPath, quickDomTimeout);
             }
         }
-    }
-    catch (error) {
-        if (error instanceof TimeoutError) {
-            throw new TimeoutError("Failed to configure shipping options in dialog!");
-        }
-        throw error;
-    }
-    try {
-        await controller.webClick(By.XPATH, SHIPPING_DIALOG_DONE_BUTTON_XPATH, quickDomTimeout);
-    }
-    catch (error) {
-        if (error instanceof TimeoutError) {
-            throw new TimeoutError("Unable to close shipping dialog!");
-        }
-        throw error;
-    }
+    }, "Failed to configure shipping options in dialog!");
+    await withTimeoutMessage(() => controller.webClick(By.XPATH, SHIPPING_DIALOG_DONE_BUTTON_XPATH, quickDomTimeout), "Unable to close shipping dialog!");
 }
 export async function setShipping(controller, ad, { mode = AdUpdateStrategy.Replace, quickDomTimeout, } = {}) {
     if (ad.shippingType === "NOT_APPLICABLE") {
@@ -226,14 +201,6 @@ export async function setShipping(controller, ad, { mode = AdUpdateStrategy.Repl
         return;
     }
     await enableShippingIfAvailable(controller, quickDomTimeout);
-    try {
-        await controller.webClick(By.ID, "ad-shipping-options");
-    }
-    catch (error) {
-        if (error instanceof TimeoutError) {
-            throw new TimeoutError("Unable to open shipping options dialog!");
-        }
-        throw error;
-    }
+    await withTimeoutMessage(() => controller.webClick(By.ID, "ad-shipping-options"), "Unable to open shipping options dialog!");
     await setIndividualShipping(controller, ad, quickDomTimeout);
 }
