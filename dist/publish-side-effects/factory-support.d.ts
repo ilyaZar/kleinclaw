@@ -15,7 +15,7 @@ export declare function createLoginDiagnosticsCapture(config: Config, { configPa
     logFilePath?: string | null;
     now: () => Date;
 }): LoginOptions["captureDiagnostics"] | undefined;
-export declare function createPublishDiagnosticsCapture(config: Config, { configPath, controller, diagnosticsDir, logFilePath, now, }: {
+export declare function createPublishDiagnosticsCapture(config: Config, { configPath, diagnosticsDir, logFilePath, now, }: {
     configPath?: string;
     controller: DiagnosticsController;
     diagnosticsDir?: string;

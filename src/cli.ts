@@ -17,7 +17,6 @@ import {
   verifyConfig,
 } from "./cli/local-commands.js";
 import { parseArgs, prepareCommand } from "./cli/parser.js";
-import { planCommand } from "./cli/planning.js";
 import { runSideEffectCommand } from "./cli/side-effect-dispatch.js";
 import { resolveCommandWorkspace } from "./cli/workspace-resolution.js";
 import {

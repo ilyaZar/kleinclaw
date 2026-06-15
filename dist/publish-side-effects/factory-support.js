@@ -57,7 +57,7 @@ export function createLoginDiagnosticsCapture(config, { configPath, controller, 
         }
     };
 }
-export function createPublishDiagnosticsCapture(config, { configPath, controller, diagnosticsDir, logFilePath, now, }) {
+export function createPublishDiagnosticsCapture(config, { configPath, diagnosticsDir, logFilePath, now, }) {
     if (!config.diagnostics.captureOn.publish) {
         return undefined;
     }

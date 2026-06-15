@@ -111,7 +111,6 @@ export function createPublishDiagnosticsCapture(
   config: Config,
   {
     configPath,
-    controller,
     diagnosticsDir,
     logFilePath,
     now,
