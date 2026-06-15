@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs/promises";
 
 const EMBEDDED_MINICLAW_CLI_RE = /[/\\]miniclaw[/\\]dist[/\\]cli\.js$/;
 
@@ -83,4 +84,10 @@ export function withMockMiniclawScript(scriptPath, config = {}) {
     commandRunner: createMockMiniclawCommandRunner(scriptPath),
     ...config,
   };
+}
+
+export async function writeExecutableMockScript(scriptPath, lines) {
+  await fs.writeFile(scriptPath, lines.join("\n"), "utf8");
+  await fs.chmod(scriptPath, 0o700);
+  return scriptPath;
 }
