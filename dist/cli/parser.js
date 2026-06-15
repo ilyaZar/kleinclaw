@@ -1,5 +1,6 @@
 import path from "node:path";
-export const NUMERIC_IDS_RE = /^\d+(,\d+)*$/;
+import { isNumericIdSelector } from "../ad-selector.js";
+export { NUMERIC_IDS_RE, isNumericIdSelector } from "../ad-selector.js";
 function resolvePath(value) {
     return path.resolve(value);
 }
@@ -107,7 +108,7 @@ export function parseArgs(argv) {
 export function isValidAdsSelector(selector, validKeywords) {
     return (validKeywords.has(selector) ||
         selector.split(",").every((entry) => validKeywords.has(entry.trim())) ||
-        NUMERIC_IDS_RE.test(selector));
+        isNumericIdSelector(selector));
 }
 function selectorError(selector, validValues) {
     return `Invalid --ads selector: "${selector}". Valid values: ${validValues}.`;

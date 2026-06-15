@@ -1,10 +1,10 @@
 import { CaptchaEncountered } from "../publish-form.js";
 import { createBrowserPublishUpdateSideEffects } from "../publish-side-effects.js";
 import { hasErrorName, isRecord } from "../value-guards.js";
+import { isNumericIdSelector } from "../ad-selector.js";
 import { hasInjectedDownloadHandlers, runInjectedDeleteCommand, runInjectedDownloadCommand, runInjectedExtendCommand, runInjectedPublishUpdateCommand, } from "./injected-runners.js";
 import { loadDownloadCommand, loadSideEffectAds } from "./loaders.js";
 import { noAdsMessage, printDoneBlock } from "./messages.js";
-import { NUMERIC_IDS_RE } from "./parser.js";
 const CAPTCHA_EXIT_CODE = 3;
 const SIGNAL_CLEANUP_TIMEOUT_MS = 5000;
 function canRunLiveBrowserCommand(command) {
@@ -87,7 +87,7 @@ export async function runLiveBrowserCommand(parsed, createLiveSideEffects, works
                     configPath: parsed.configPath,
                     diagnosticsDir: workspace.diagnosticsDir,
                     logFilePath: parsed.logfilePath,
-                    strictPublishedAds: NUMERIC_IDS_RE.test(loaded.effectiveSelector),
+                    strictPublishedAds: isNumericIdSelector(loaded.effectiveSelector),
                     workspaceBrowserProfileDir: workspace.browserProfileDir,
                 }));
             if (!hasInjectedDownloadHandlers(parsed.command, sideEffects)) {

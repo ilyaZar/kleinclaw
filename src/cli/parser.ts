@@ -1,8 +1,9 @@
 import path from "node:path";
 
+import { isNumericIdSelector } from "../ad-selector.js";
 import { type CommandPreparation, type ParsedArgs } from "./types.js";
 
-export const NUMERIC_IDS_RE = /^\d+(,\d+)*$/;
+export { NUMERIC_IDS_RE, isNumericIdSelector } from "../ad-selector.js";
 
 function resolvePath(value: string): string {
   return path.resolve(value);
@@ -121,7 +122,7 @@ export function isValidAdsSelector(selector: string, validKeywords: Set<string>)
   return (
     validKeywords.has(selector) ||
     selector.split(",").every((entry) => validKeywords.has(entry.trim())) ||
-    NUMERIC_IDS_RE.test(selector)
+    isNumericIdSelector(selector)
   );
 }
 

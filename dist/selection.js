@@ -7,8 +7,8 @@ import path from "node:path";
 import { glob } from "glob";
 import { contentHashForAd, toAd, } from "./model/ad-model.js";
 import { ValidationError } from "./model/validation-error.js";
+import { isNumericIdSelector } from "./ad-selector.js";
 import { loadDataFile } from "./io.js";
-const NUMERIC_IDS_RE = /^\d+(,\d+)*$/;
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".gif", ".jpg", ".jpeg", ".png"]);
 export async function findAdFiles(configPath, config) {
     const root = path.dirname(configPath);
@@ -97,7 +97,7 @@ export async function loadSelectedAds({ configPath, config, selector, ignoreInac
     const adFiles = await findAdFiles(configPath, config);
     const root = path.dirname(configPath);
     const selectors = selector.split(",").map((entry) => entry.trim());
-    const useSpecificIds = NUMERIC_IDS_RE.test(selector);
+    const useSpecificIds = isNumericIdSelector(selector);
     const ids = new Set(useSpecificIds ? selectors.map((entry) => Number(entry)) : []);
     const ads = [];
     for (const filePath of adFiles) {

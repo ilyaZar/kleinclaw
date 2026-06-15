@@ -8,12 +8,11 @@ import {
   extractAdIdFromAdUrl,
   publishedAdId,
 } from "./ad-identity.js";
+import { isNumericIdSelector } from "./ad-selector.js";
 import { type PublishedAdState } from "./publish-orchestration.js";
 import { type LoadedAd } from "./selection.js";
 
 export { extractAdIdFromAdUrl } from "./ad-identity.js";
-
-const NUMERIC_IDS_RE = /^\d+(,\d+)*$/;
 
 export interface DownloadPublishedAdState extends PublishedAdState {}
 
@@ -274,7 +273,7 @@ export async function runDownloadAdsBatch(
     await runOverviewDownload(selector, result, options);
     return result;
   }
-  if (NUMERIC_IDS_RE.test(selector)) {
+  if (isNumericIdSelector(selector)) {
     await runNumericDownload(selector, result, options);
   }
   return result;
