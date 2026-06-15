@@ -125,8 +125,6 @@ export declare class CdpContext {
     close(): Promise<void>;
 }
 export declare class CdpBrowser {
-    private readonly endpoint;
-    private readonly timeoutMs;
     private readonly process;
     private readonly context;
     private readonly browserClient;

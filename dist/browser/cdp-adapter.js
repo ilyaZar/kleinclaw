@@ -153,6 +153,14 @@ function cdpValue(result) {
     }
     return result.unserializableValue ?? undefined;
 }
+function throwCdpException(response, fallback) {
+    if (!response.exceptionDetails) {
+        return;
+    }
+    throw new Error(response.exceptionDetails.exception?.description ??
+        response.exceptionDetails.text ??
+        fallback);
+}
 export class CdpClient {
     webSocketUrl;
     defaultTimeoutMs;
@@ -342,11 +350,7 @@ export class CdpPage {
             awaitPromise: true,
             returnByValue: true,
         });
-        if (response.exceptionDetails) {
-            throw new Error(response.exceptionDetails.exception?.description ??
-                response.exceptionDetails.text ??
-                "Runtime.evaluate failed");
-        }
+        throwCdpException(response, "Runtime.evaluate failed");
         return cdpValue(response.result);
     }
     async goto(url, options = {}) {
@@ -566,11 +570,7 @@ export class CdpLocator {
             userGesture: true,
             returnByValue: true,
         });
-        if (response.exceptionDetails) {
-            throw new Error(response.exceptionDetails.exception?.description ??
-                response.exceptionDetails.text ??
-                "Runtime.callFunctionOn failed");
-        }
+        throwCdpException(response, "Runtime.callFunctionOn failed");
     }
     async fill(value) {
         await this.evaluate(`
@@ -700,11 +700,7 @@ export class CdpLocator {
             returnByValue: true,
             userGesture: true,
         });
-        if (response.exceptionDetails) {
-            throw new Error(response.exceptionDetails.exception?.description ??
-                response.exceptionDetails.text ??
-                "Runtime.callFunctionOn failed");
-        }
+        throwCdpException(response, "Runtime.callFunctionOn failed");
         return cdpValue(response.result);
     }
     async resolveObjectId() {
@@ -779,14 +775,10 @@ export class CdpContext {
     }
 }
 export class CdpBrowser {
-    endpoint;
-    timeoutMs;
     process;
     context;
     browserClient;
     constructor(endpoint, timeoutMs, process = null, initialPages = []) {
-        this.endpoint = endpoint;
-        this.timeoutMs = timeoutMs;
         this.process = process;
         this.context = new CdpContext(endpoint, timeoutMs, this, initialPages);
         this.browserClient = null;
