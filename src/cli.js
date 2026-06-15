@@ -1864,17 +1864,15 @@ async function resolveSingleAdConfig(params = {}, config = {}) {
     throw new Error("provide exactly one adConfigPaths or adDirectories entry");
   }
   if (adConfigPaths.length) {
-    const stat = await fs.stat(adConfigPaths[0]);
-    if (!stat.isFile()) {
-      throw new Error("adConfigPaths entry is not a file");
-    }
-    return assertInsideAdRoots(adConfigPaths[0], config);
+    return resolveAdConfigPathEntry(adConfigPaths[0], config, {
+      includePathInError: false,
+      kind: "file",
+    });
   }
-  const stat = await fs.stat(adDirectories[0]);
-  if (!stat.isDirectory()) {
-    throw new Error("adDirectories entry is not a directory");
-  }
-  return assertInsideAdRoots(await resolveAdConfigInDirectory(adDirectories[0]), config);
+  return resolveAdConfigPathEntry(adDirectories[0], config, {
+    includePathInError: false,
+    kind: "directory",
+  });
 }
 
 export async function readKleinanzeigenAd(params = {}, config = {}) {
@@ -2253,20 +2251,48 @@ async function resolveScopedAdConfigPaths(params = {}, config = {}) {
 
   const resolved = [];
   for (const adConfigPath of adConfigPaths) {
-    const stat = await fs.stat(adConfigPath);
-    if (!stat.isFile()) {
-      throw new Error(`adConfigPaths entry is not a file: ${adConfigPath}`);
-    }
-    resolved.push(await assertInsideAdRoots(adConfigPath, config));
+    resolved.push(await resolveAdConfigPathEntry(adConfigPath, config, {
+      includePathInError: true,
+      kind: "file",
+    }));
   }
   for (const directory of adDirectories) {
-    const stat = await fs.stat(directory);
-    if (!stat.isDirectory()) {
-      throw new Error(`adDirectories entry is not a directory: ${directory}`);
-    }
-    resolved.push(await assertInsideAdRoots(await resolveAdConfigInDirectory(directory), config));
+    resolved.push(await resolveAdConfigPathEntry(directory, config, {
+      includePathInError: true,
+      kind: "directory",
+    }));
   }
   return [...new Set(resolved)];
+}
+
+async function resolveAdConfigPathEntry(
+  entryPath,
+  config,
+  {
+    includePathInError,
+    kind,
+  },
+) {
+  const stat = await fs.stat(entryPath);
+  if (kind === "file") {
+    if (!stat.isFile()) {
+      throw new Error(
+        includePathInError
+          ? `adConfigPaths entry is not a file: ${entryPath}`
+          : "adConfigPaths entry is not a file",
+      );
+    }
+    return assertInsideAdRoots(entryPath, config);
+  }
+
+  if (!stat.isDirectory()) {
+    throw new Error(
+      includePathInError
+        ? `adDirectories entry is not a directory: ${entryPath}`
+        : "adDirectories entry is not a directory",
+    );
+  }
+  return assertInsideAdRoots(await resolveAdConfigInDirectory(entryPath), config);
 }
 
 function parseAdPreflightSummary(text, filePath) {
