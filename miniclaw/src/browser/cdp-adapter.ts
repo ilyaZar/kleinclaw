@@ -232,6 +232,17 @@ function cdpValue(result: CdpRemoteObject | undefined): unknown {
   return result.unserializableValue ?? undefined;
 }
 
+function throwCdpException(response: CdpCommandResult, fallback: string): void {
+  if (!response.exceptionDetails) {
+    return;
+  }
+  throw new Error(
+    response.exceptionDetails.exception?.description ??
+      response.exceptionDetails.text ??
+      fallback,
+  );
+}
+
 export class CdpClient {
   private nextId = 1;
   private socket: WebSocket | null = null;
@@ -445,13 +456,7 @@ export class CdpPage implements WebPage {
       awaitPromise: true,
       returnByValue: true,
     });
-    if (response.exceptionDetails) {
-      throw new Error(
-        response.exceptionDetails.exception?.description ??
-          response.exceptionDetails.text ??
-          "Runtime.evaluate failed",
-      );
-    }
+    throwCdpException(response, "Runtime.evaluate failed");
     return cdpValue(response.result);
   }
 
@@ -701,13 +706,7 @@ export class CdpLocator implements WebLocator {
       userGesture: true,
       returnByValue: true,
     });
-    if (response.exceptionDetails) {
-      throw new Error(
-        response.exceptionDetails.exception?.description ??
-          response.exceptionDetails.text ??
-          "Runtime.callFunctionOn failed",
-      );
-    }
+    throwCdpException(response, "Runtime.callFunctionOn failed");
   }
 
   async fill(value: string): Promise<void> {
@@ -854,13 +853,7 @@ export class CdpLocator implements WebLocator {
       returnByValue: true,
       userGesture: true,
     });
-    if (response.exceptionDetails) {
-      throw new Error(
-        response.exceptionDetails.exception?.description ??
-          response.exceptionDetails.text ??
-          "Runtime.callFunctionOn failed",
-      );
-    }
+    throwCdpException(response, "Runtime.callFunctionOn failed");
     return cdpValue(response.result) as T;
   }
 
@@ -950,8 +943,8 @@ export class CdpBrowser {
   private readonly browserClient: CdpClient | null;
 
   constructor(
-    private readonly endpoint: string,
-    private readonly timeoutMs: number,
+    endpoint: string,
+    timeoutMs: number,
     private readonly process: ChildProcess | null = null,
     initialPages: CdpPage[] = [],
   ) {
