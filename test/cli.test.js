@@ -28,7 +28,22 @@ import {
   createNodeCommandRunner,
   withCommandRunner,
   withMockMiniclawScript,
+  writeExecutableMockScript,
 } from "./helpers/command-runner.js";
+
+async function writeScopedAdFixture(
+  tmp,
+  yaml = "active: true\ntitle: Sample Listing\n",
+) {
+  const adRoot = path.join(tmp, "ads");
+  const adDir = path.join(adRoot, "sample-listing");
+  const adPath = path.join(adDir, "ad.yaml");
+  const configPath = path.join(tmp, "config.yaml");
+  await fs.mkdir(adDir, { recursive: true });
+  await fs.writeFile(adPath, yaml, "utf8");
+  await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
+  return { adDir, adPath, adRoot, configPath };
+}
 
 describe("kleinanzeigen CLI argument builder", () => {
   it("builds fixed verify args with redacted config args", () => {
@@ -172,21 +187,18 @@ describe("kleinanzeigen CLI argument builder", () => {
 describe("kleinanzeigen CLI status", () => {
   it("checks executable capabilities without reading config contents", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-status-"));
-    const mockCli = path.join(tmp, "mock-cli.mjs");
-    const mockConfig = path.join(tmp, "config.yaml");
-    await fs.writeFile(mockConfig, "password: should-not-be-read\n", "utf8");
-    await fs.writeFile(
-      mockCli,
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
       [
         "#!/usr/bin/env node",
         "const command = process.argv[2];",
         "if (command === 'version') console.log('1.2.3');",
         "else if (command === 'help') console.log('publish verify delete update download extend');",
         "else process.exit(2);",
-      ].join("\n"),
-      "utf8",
+      ],
     );
-    await fs.chmod(mockCli, 0o700);
+    const mockConfig = path.join(tmp, "config.yaml");
+    await fs.writeFile(mockConfig, "password: should-not-be-read\n", "utf8");
 
     const status = await getKleinanzeigenStatus(withMockMiniclawScript(mockCli, {
       configPath: mockConfig,
@@ -377,11 +389,8 @@ describe("browser config tools", () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-browser-"));
     const mockConfig = path.join(tmp, "config.yaml");
     const mockBrowser = path.join(tmp, "mock-browser");
-    const mockCli = path.join(tmp, "mock-cli.mjs");
-    await fs.writeFile(mockBrowser, "#!/usr/bin/env node\nconsole.log('Mock Browser 1.0')\n", "utf8");
-    await fs.chmod(mockBrowser, 0o700);
-    await fs.writeFile(
-      mockCli,
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
       [
         "#!/usr/bin/env node",
         "if (process.argv.includes('diagnose')) {",
@@ -390,10 +399,10 @@ describe("browser config tools", () => {
         "  process.exit(0);",
         "}",
         "process.exit(2);",
-      ].join("\n"),
-      "utf8",
+      ],
     );
-    await fs.chmod(mockCli, 0o700);
+    await fs.writeFile(mockBrowser, "#!/usr/bin/env node\nconsole.log('Mock Browser 1.0')\n", "utf8");
+    await fs.chmod(mockBrowser, 0o700);
     await fs.writeFile(
       mockConfig,
       [
@@ -648,7 +657,15 @@ describe("scoped ad configs", () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-scope-"));
     const adRoot = path.join(tmp, "ads");
     const adDir = path.join(adRoot, "sample-listing");
-    const mockCli = path.join(tmp, "mock-cli.mjs");
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
+      [
+        "#!/usr/bin/env node",
+        "import fs from 'node:fs';",
+        "const configArg = process.argv.find((arg) => arg.startsWith('--config='));",
+        "console.log(fs.readFileSync(configArg.slice('--config='.length), 'utf8'));",
+      ],
+    );
     const configPath = path.join(tmp, "config.yaml");
     await fs.mkdir(adDir, { recursive: true });
     await fs.writeFile(path.join(adDir, "ad.yaml"), "title: Sample Listing\n", "utf8");
@@ -663,17 +680,6 @@ describe("scoped ad configs", () => {
       ].join("\n"),
       "utf8",
     );
-    await fs.writeFile(
-      mockCli,
-      [
-        "#!/usr/bin/env node",
-        "import fs from 'node:fs';",
-        "const configArg = process.argv.find((arg) => arg.startsWith('--config='));",
-        "console.log(fs.readFileSync(configArg.slice('--config='.length), 'utf8'));",
-      ].join("\n"),
-      "utf8",
-    );
-    await fs.chmod(mockCli, 0o700);
 
     const result = await runKleinanzeigenOperation(
       "verify",
@@ -717,9 +723,17 @@ describe("scoped ad configs", () => {
   it("blocks scoped publish when the selected ad is inactive", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-preflight-"));
     const adDir = path.join(tmp, "ads", "lamp");
-    const mockCli = path.join(tmp, "mock-cli.mjs");
     const configPath = path.join(tmp, "config.yaml");
     const marker = path.join(tmp, "miniclaw-ran");
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
+      [
+        "#!/usr/bin/env node",
+        "import fs from 'node:fs';",
+        `fs.writeFileSync(${JSON.stringify(marker)}, 'ran');`,
+        "console.log('should not run');",
+      ],
+    );
     const adPath = path.join(adDir, "ad.yaml");
     await fs.mkdir(adDir, { recursive: true });
     await fs.writeFile(
@@ -728,17 +742,6 @@ describe("scoped ad configs", () => {
       "utf8",
     );
     await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
-    await fs.writeFile(
-      mockCli,
-      [
-        "#!/usr/bin/env node",
-        "import fs from 'node:fs';",
-        `fs.writeFileSync(${JSON.stringify(marker)}, 'ran');`,
-        "console.log('should not run');",
-      ].join("\n"),
-      "utf8",
-    );
-    await fs.chmod(mockCli, 0o700);
 
     const result = await runKleinanzeigenOperation(
       "publish",
@@ -761,31 +764,23 @@ describe("scoped ad configs", () => {
 
   it("returns publish success evidence even when the process exits noisy", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-outcome-"));
-    const adDir = path.join(tmp, "ads", "sample-listing");
-    const mockCli = path.join(tmp, "mock-cli.mjs");
-    const configPath = path.join(tmp, "config.yaml");
-    const adPath = path.join(adDir, "ad.yaml");
-    await fs.mkdir(adDir, { recursive: true });
-    await fs.writeFile(adPath, "active: true\ntitle: Sample Listing\n", "utf8");
-    await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
-    await fs.writeFile(
-      mockCli,
+    const { adDir, adRoot, configPath } = await writeScopedAdFixture(tmp);
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
       [
         "#!/usr/bin/env node",
         "console.log(' -> SUCCESS: ad published with ID 2923863425');",
         "console.log('DONE: (Re-)published 1 ad');",
         "process.exit(1);",
-      ].join("\n"),
-      "utf8",
+      ],
     );
-    await fs.chmod(mockCli, 0o700);
 
     const result = await runKleinanzeigenOperation(
       "publish",
       { confirm: true, adDirectories: [adDir] },
       withMockMiniclawScript(mockCli, {
         configPath,
-        adRoots: [path.join(tmp, "ads")],
+        adRoots: [adRoot],
       }),
     );
 
@@ -799,32 +794,24 @@ describe("scoped ad configs", () => {
 
   it("uses selected ad config changes as publish success evidence", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-outcome-"));
-    const adDir = path.join(tmp, "ads", "sample-listing");
-    const mockCli = path.join(tmp, "mock-cli.mjs");
-    const configPath = path.join(tmp, "config.yaml");
-    const adPath = path.join(adDir, "ad.yaml");
-    await fs.mkdir(adDir, { recursive: true });
-    await fs.writeFile(adPath, "active: true\ntitle: Sample Listing\n", "utf8");
-    await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
-    await fs.writeFile(
-      mockCli,
+    const { adDir, adPath, adRoot, configPath } = await writeScopedAdFixture(tmp);
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
       [
         "#!/usr/bin/env node",
         "import fs from 'node:fs';",
         `fs.appendFileSync(${JSON.stringify(adPath)}, 'id: 2923863425\\n');`,
         "console.error('browser cleanup failed after publish');",
         "process.exit(1);",
-      ].join("\n"),
-      "utf8",
+      ],
     );
-    await fs.chmod(mockCli, 0o700);
 
     const result = await runKleinanzeigenOperation(
       "publish",
       { confirm: true, adDirectories: [adDir] },
       withMockMiniclawScript(mockCli, {
         configPath,
-        adRoots: [path.join(tmp, "ads")],
+        adRoots: [adRoot],
       }),
     );
 
@@ -843,30 +830,25 @@ describe("scoped ad configs", () => {
 
   it("parses delete completion counts as changed and total ads", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-outcome-"));
-    const adDir = path.join(tmp, "ads", "sample-listing");
-    const mockCli = path.join(tmp, "mock-cli.mjs");
-    const configPath = path.join(tmp, "config.yaml");
-    const adPath = path.join(adDir, "ad.yaml");
-    await fs.mkdir(adDir, { recursive: true });
-    await fs.writeFile(adPath, "title: Sample Listing\nid: 2923863425\n", "utf8");
-    await fs.writeFile(configPath, `ad_files:\n  - ${JSON.stringify(adPath)}\n`, "utf8");
-    await fs.writeFile(
-      mockCli,
+    const { adDir, adRoot, configPath } = await writeScopedAdFixture(
+      tmp,
+      "title: Sample Listing\nid: 2923863425\n",
+    );
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
       [
         "#!/usr/bin/env node",
         "console.log('DONE: Deleted 1 of 1');",
         "process.exit(0);",
-      ].join("\n"),
-      "utf8",
+      ],
     );
-    await fs.chmod(mockCli, 0o700);
 
     const result = await runKleinanzeigenOperation(
       "delete",
       { confirm: true, adIds: ["2923863425"], adDirectories: [adDir] },
       withMockMiniclawScript(mockCli, {
         configPath,
-        adRoots: [path.join(tmp, "ads")],
+        adRoots: [adRoot],
       }),
     );
 
@@ -908,7 +890,15 @@ describe("diagnostics", () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-diag-"));
     const adDir = path.join(tmp, "drafts", "cut-n-run");
     const unrelatedDir = path.join(tmp, "SOLD", "shoes");
-    const mockCli = path.join(tmp, "mock-cli.mjs");
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
+      [
+        "#!/usr/bin/env node",
+        "console.error('[ERROR] 1 validation error for [AdPartial]:');",
+        "console.error('- title: Value error, title length exceeds 65 characters');",
+        "process.exit(1);",
+      ],
+    );
     const configPath = path.join(tmp, "config.yaml");
     await fs.mkdir(adDir, { recursive: true });
     await fs.mkdir(unrelatedDir, { recursive: true });
@@ -927,17 +917,6 @@ describe("diagnostics", () => {
       `ad_files:\n  - ${JSON.stringify(path.join(adDir, "ad.yaml"))}\ncategories: {}\n`,
       "utf8",
     );
-    await fs.writeFile(
-      mockCli,
-      [
-        "#!/usr/bin/env node",
-        "console.error('[ERROR] 1 validation error for [AdPartial]:');",
-        "console.error('- title: Value error, title length exceeds 65 characters');",
-        "process.exit(1);",
-      ].join("\n"),
-      "utf8",
-    );
-    await fs.chmod(mockCli, 0o700);
 
     const result = await runKleinanzeigenOperation(
       "verify",
