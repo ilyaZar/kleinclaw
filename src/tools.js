@@ -224,6 +224,16 @@ const singleAdDirectoriesSchema = {
   maxItems: 1,
 };
 
+const adConfigScopeProperties = {
+  adConfigPaths: adConfigPathsSchema,
+  adDirectories: adDirectoriesSchema,
+};
+
+const adOperationScopeProperties = {
+  adIds: adIdsSchema,
+  ...adConfigScopeProperties,
+};
+
 const confirmSchema = {
   type: "boolean",
   const: true,
@@ -418,306 +428,272 @@ function objectSchema(properties, required = []) {
   };
 }
 
-function operationTool({ name, label, description, operation, parameters }) {
+function handledTool({ operation, handler, needsUserAction, ...tool }) {
   return {
-    name,
-    label,
-    description,
-    parameters,
+    ...tool,
     async execute(_toolCallId, params) {
       try {
-        return textResult(await runKleinanzeigenOperation(operation, params ?? {}, this.config));
+        return textResult(await handler(this.config, params ?? {}));
       } catch (error) {
-        return errorTextResult(error, operation, this.config);
+        return errorTextResult(error, operation, this.config, { needsUserAction });
       }
     },
   };
 }
 
-function listAdsTool(config) {
+function localTool(config, { needsUserAction = false, ...definition }) {
   return bindToolConfig(
+    handledTool({ ...definition, needsUserAction }),
+    config,
+  );
+}
+
+function operationTool({ name, label, description, operation, parameters }) {
+  return handledTool({
+    name,
+    label,
+    description,
+    parameters,
+    operation,
+    handler: (config, params) => runKleinanzeigenOperation(operation, params, config),
+  });
+}
+
+function configuredOperationTool(config, definition) {
+  return bindToolConfig(operationTool(definition), config);
+}
+
+function operationSelectorSchema(values, defaultValue) {
+  return {
+    type: "string",
+    enum: values,
+    description: `Configured ad selector. Defaults to ${defaultValue}.`,
+  };
+}
+
+function adOperationSchema(properties = {}, required = ["confirm"]) {
+  return objectSchema(
     {
-      name: "kleinanzeigen_list_ads",
-      label: "Kleinanzeigen List Ads",
-      description:
-        "List configured local ad folders under trusted adRoots without publishing anything.",
-      parameters: objectSchema({
-        query: {
+      confirm: confirmSchema,
+      ...properties,
+      ...adOperationScopeProperties,
+    },
+    required,
+  );
+}
+
+function statusTool(config) {
+  return localTool(config, {
+    name: "kleinanzeigen_status",
+    label: "Kleinanzeigen Status",
+    description:
+      "Check embedded miniclaw availability and config wiring without reading the config.",
+    parameters: objectSchema({}),
+    operation: "status",
+    handler: (toolConfig) => getKleinanzeigenStatus(toolConfig),
+  });
+}
+
+function listAdsTool(config) {
+  return localTool(config, {
+    name: "kleinanzeigen_list_ads",
+    label: "Kleinanzeigen List Ads",
+    description:
+      "List configured local ad folders under trusted adRoots without publishing anything.",
+    parameters: objectSchema({
+      query: {
+        type: "string",
+        description: "Optional case-insensitive text to match path, title, ID, or category.",
+      },
+      maxResults: {
+        type: "integer",
+        minimum: 1,
+        maximum: 200,
+        description: "Maximum number of matching ad summaries to return.",
+      },
+    }),
+    operation: "list_ads",
+    handler: (toolConfig, params) => listKleinanzeigenAds(toolConfig, params),
+  });
+}
+
+function adSchemaTool(config) {
+  return localTool(config, {
+    name: "kleinanzeigen_ad_schema",
+    label: "Kleinanzeigen Ad Schema",
+    description:
+      "Return a safe ad YAML schema and draft workflow for miniclaw ads.",
+    parameters: objectSchema({}),
+    operation: "ad_schema",
+    handler: () => getKleinanzeigenAdSchema(),
+  });
+}
+
+function readAdTool(config) {
+  return localTool(config, {
+    name: "kleinanzeigen_read_ad",
+    label: "Kleinanzeigen Read Ad",
+    description:
+      "Read one existing ad config under trusted adRoots with contact fields redacted by default.",
+    parameters: objectSchema({
+      adConfigPaths: singleAdConfigPathsSchema,
+      adDirectories: singleAdDirectoriesSchema,
+      includeContact: {
+        type: "boolean",
+        description: "Include contact fields instead of redacting them. Defaults to false.",
+      },
+    }),
+    operation: "read_ad",
+    handler: (toolConfig, params) => readKleinanzeigenAd(params, toolConfig),
+  });
+}
+
+function imagesListTool(config) {
+  return localTool(config, {
+    name: "kleinanzeigen_images_list",
+    label: "Kleinanzeigen Images List",
+    description:
+      "List image files and basic dimensions under one trusted adRoots directory.",
+    parameters: objectSchema(
+      {
+        directory: {
           type: "string",
-          description: "Optional case-insensitive text to match path, title, ID, or category.",
+          description:
+            "Directory to scan. Must be inside configured adRoots; relative paths use the first adRoot.",
+        },
+        maxDepth: {
+          type: "integer",
+          minimum: 0,
+          maximum: 6,
+          description: "Maximum directory recursion depth. Defaults to 2.",
         },
         maxResults: {
           type: "integer",
           minimum: 1,
-          maximum: 200,
-          description: "Maximum number of matching ad summaries to return.",
+          maximum: 500,
+          description: "Maximum images to return. Defaults to 100.",
         },
-      }),
-      async execute(_toolCallId, params) {
-        try {
-          return textResult(await listKleinanzeigenAds(this.config, params ?? {}));
-        } catch (error) {
-          return errorTextResult(error, "list_ads", this.config, {
-            needsUserAction: false,
-          });
-        }
       },
-    },
-    config,
-  );
-}
-
-function adSchemaTool(config) {
-  return bindToolConfig(
-    {
-      name: "kleinanzeigen_ad_schema",
-      label: "Kleinanzeigen Ad Schema",
-      description:
-        "Return a safe ad YAML schema and draft workflow for miniclaw ads.",
-      parameters: objectSchema({}),
-      async execute(_toolCallId) {
-        return textResult(getKleinanzeigenAdSchema());
-      },
-    },
-    config,
-  );
-}
-
-function readAdTool(config) {
-  return bindToolConfig(
-    {
-      name: "kleinanzeigen_read_ad",
-      label: "Kleinanzeigen Read Ad",
-      description:
-        "Read one existing ad config under trusted adRoots with contact fields redacted by default.",
-      parameters: objectSchema({
-        adConfigPaths: singleAdConfigPathsSchema,
-        adDirectories: singleAdDirectoriesSchema,
-        includeContact: {
-          type: "boolean",
-          description: "Include contact fields instead of redacting them. Defaults to false.",
-        },
-      }),
-      async execute(_toolCallId, params) {
-        try {
-          return textResult(await readKleinanzeigenAd(params ?? {}, this.config));
-        } catch (error) {
-          return errorTextResult(error, "read_ad", this.config, {
-            needsUserAction: false,
-          });
-        }
-      },
-    },
-    config,
-  );
-}
-
-function imagesListTool(config) {
-  return bindToolConfig(
-    {
-      name: "kleinanzeigen_images_list",
-      label: "Kleinanzeigen Images List",
-      description:
-        "List image files and basic dimensions under one trusted adRoots directory.",
-      parameters: objectSchema(
-        {
-          directory: {
-            type: "string",
-            description:
-              "Directory to scan. Must be inside configured adRoots; relative paths use the first adRoot.",
-          },
-          maxDepth: {
-            type: "integer",
-            minimum: 0,
-            maximum: 6,
-            description: "Maximum directory recursion depth. Defaults to 2.",
-          },
-          maxResults: {
-            type: "integer",
-            minimum: 1,
-            maximum: 500,
-            description: "Maximum images to return. Defaults to 100.",
-          },
-        },
-        ["directory"],
-      ),
-      async execute(_toolCallId, params) {
-        try {
-          return textResult(await listKleinanzeigenImages(params ?? {}, this.config));
-        } catch (error) {
-          return errorTextResult(error, "images_list", this.config, {
-            needsUserAction: false,
-          });
-        }
-      },
-    },
-    config,
-  );
+      ["directory"],
+    ),
+    operation: "images_list",
+    handler: (toolConfig, params) => listKleinanzeigenImages(params, toolConfig),
+  });
 }
 
 function draftAdTool(config) {
-  return bindToolConfig(
-    {
-      name: "kleinanzeigen_draft_ad",
-      label: "Kleinanzeigen Draft Ad",
-      description:
-        "Create or replace a safe ad.yaml draft under trusted adRoots without publishing.",
-      parameters: objectSchema(
-        draftAdProperties,
-        ["confirm", "directory", "title", "description", "category"],
-      ),
-      async execute(_toolCallId, params) {
-        try {
-          return textResult(await draftKleinanzeigenAd(params ?? {}, this.config));
-        } catch (error) {
-          return errorTextResult(error, "draft_ad", this.config, {
-            needsUserAction: false,
-          });
-        }
-      },
-    },
-    config,
-  );
+  return localTool(config, {
+    name: "kleinanzeigen_draft_ad",
+    label: "Kleinanzeigen Draft Ad",
+    description:
+      "Create or replace a safe ad.yaml draft under trusted adRoots without publishing.",
+    parameters: objectSchema(
+      draftAdProperties,
+      ["confirm", "directory", "title", "description", "category"],
+    ),
+    operation: "draft_ad",
+    handler: (toolConfig, params) => draftKleinanzeigenAd(params, toolConfig),
+  });
 }
 
 function setAdActiveTool(config) {
-  return bindToolConfig(
-    {
-      name: "kleinanzeigen_set_ad_active",
-      label: "Kleinanzeigen Set Ad Active",
-      description:
-        "Set the top-level active flag for one YAML ad config under trusted adRoots.",
-      parameters: objectSchema(
-        {
-          confirm: confirmSchema,
-          adConfigPaths: singleAdConfigPathsSchema,
-          adDirectories: singleAdDirectoriesSchema,
-          active: {
-            type: "boolean",
-            description: "Whether the selected ad is eligible for publish/update.",
-          },
+  return localTool(config, {
+    name: "kleinanzeigen_set_ad_active",
+    label: "Kleinanzeigen Set Ad Active",
+    description:
+      "Set the top-level active flag for one YAML ad config under trusted adRoots.",
+    parameters: objectSchema(
+      {
+        confirm: confirmSchema,
+        adConfigPaths: singleAdConfigPathsSchema,
+        adDirectories: singleAdDirectoriesSchema,
+        active: {
+          type: "boolean",
+          description: "Whether the selected ad is eligible for publish/update.",
         },
-        ["confirm", "active"],
-      ),
-      async execute(_toolCallId, params) {
-        try {
-          return textResult(await setKleinanzeigenAdActive(params ?? {}, this.config));
-        } catch (error) {
-          return errorTextResult(error, "set_ad_active", this.config, {
-            needsUserAction: false,
-          });
-        }
       },
-    },
-    config,
-  );
+      ["confirm", "active"],
+    ),
+    operation: "set_ad_active",
+    handler: (toolConfig, params) => setKleinanzeigenAdActive(params, toolConfig),
+  });
 }
 
 function browserStatusTool(config) {
-  return bindToolConfig(
-    {
-      name: "kleinanzeigen_browser_status",
-      label: "Kleinanzeigen Browser Status",
-      description:
-        "Read the non-secret browser section and detected local browser binaries.",
-      parameters: objectSchema({}),
-      async execute(_toolCallId) {
-        try {
-          return textResult(await getKleinanzeigenBrowserStatus(this.config));
-        } catch (error) {
-          return errorTextResult(error, "browser_status", this.config, {
-            needsUserAction: false,
-          });
-        }
-      },
-    },
-    config,
-  );
+  return localTool(config, {
+    name: "kleinanzeigen_browser_status",
+    label: "Kleinanzeigen Browser Status",
+    description:
+      "Read the non-secret browser section and detected local browser binaries.",
+    parameters: objectSchema({}),
+    operation: "browser_status",
+    handler: (toolConfig) => getKleinanzeigenBrowserStatus(toolConfig),
+  });
 }
 
 function browserConfigureTool(config) {
-  return bindToolConfig(
-    {
-      name: "kleinanzeigen_browser_configure",
-      label: "Kleinanzeigen Browser Configure",
-      description:
-        "Change only the local miniclaw browser config after explicit user confirmation.",
-      parameters: objectSchema(
-        {
-          confirm: confirmSchema,
-          browser: browserSchema,
-          usePrivateWindow: {
-            type: "boolean",
-            description: "Whether miniclaw should launch a private or incognito browser window.",
-          },
-          profileMode: configurableProfileModeSchema,
-          profileName: {
-            type: "string",
-            description:
-              "Optional browser profile directory name for profileMode system-default.",
-          },
+  return localTool(config, {
+    name: "kleinanzeigen_browser_configure",
+    label: "Kleinanzeigen Browser Configure",
+    description:
+      "Change only the local miniclaw browser config after explicit user confirmation.",
+    parameters: objectSchema(
+      {
+        confirm: confirmSchema,
+        browser: browserSchema,
+        usePrivateWindow: {
+          type: "boolean",
+          description: "Whether miniclaw should launch a private or incognito browser window.",
         },
-        ["confirm"],
-      ),
-      async execute(_toolCallId, params) {
-        try {
-          return textResult(await configureKleinanzeigenBrowser(params ?? {}, this.config));
-        } catch (error) {
-          return errorTextResult(error, "browser_configure", this.config, {
-            needsUserAction: false,
-          });
-        }
+        profileMode: configurableProfileModeSchema,
+        profileName: {
+          type: "string",
+          description:
+            "Optional browser profile directory name for profileMode system-default.",
+        },
       },
-    },
-    config,
-  );
+      ["confirm"],
+    ),
+    operation: "browser_configure",
+    handler: (toolConfig, params) => configureKleinanzeigenBrowser(params, toolConfig),
+  });
 }
 
 function browserCheckTool(config) {
-  return bindToolConfig(
-    {
-      name: "kleinanzeigen_browser_check",
-      label: "Kleinanzeigen Browser Check",
-      description:
-        "Run miniclaw browser diagnostics against current or temporary browser settings.",
-      parameters: objectSchema({
-        browser: browserSchema,
-        binaryLocation: {
-          type: "string",
-          description:
-            "Explicit executable path. Use browser for known installed browsers when possible.",
-        },
-        usePrivateWindow: {
-          type: "boolean",
-          description: "Whether the checked config should use a private or incognito window.",
-        },
-        profileMode: profileModeSchema,
-        userDataDir: {
-          type: "string",
-          description: "Browser user data directory. Required when profileMode is custom.",
-        },
-        profileName: {
-          type: "string",
-          description: "Optional browser profile directory name, such as Default or Profile 1.",
-        },
-        allowUnsupportedBrowser: {
-          type: "boolean",
-          description:
-            "Allow binaryLocation to point at a custom browser that miniclaw does not officially support.",
-        },
-      }),
-      async execute(_toolCallId, params) {
-        try {
-          return textResult(await checkKleinanzeigenBrowser(params ?? {}, this.config));
-        } catch (error) {
-          return errorTextResult(error, "browser_check", this.config, {
-            needsUserAction: false,
-          });
-        }
+  return localTool(config, {
+    name: "kleinanzeigen_browser_check",
+    label: "Kleinanzeigen Browser Check",
+    description:
+      "Run miniclaw browser diagnostics against current or temporary browser settings.",
+    parameters: objectSchema({
+      browser: browserSchema,
+      binaryLocation: {
+        type: "string",
+        description:
+          "Explicit executable path. Use browser for known installed browsers when possible.",
       },
-    },
-    config,
-  );
+      usePrivateWindow: {
+        type: "boolean",
+        description: "Whether the checked config should use a private or incognito window.",
+      },
+      profileMode: profileModeSchema,
+      userDataDir: {
+        type: "string",
+        description: "Browser user data directory. Required when profileMode is custom.",
+      },
+      profileName: {
+        type: "string",
+        description: "Optional browser profile directory name, such as Default or Profile 1.",
+      },
+      allowUnsupportedBrowser: {
+        type: "boolean",
+        description:
+          "Allow binaryLocation to point at a custom browser that miniclaw does not officially support.",
+      },
+    }),
+    operation: "browser_check",
+    handler: (toolConfig, params) => checkKleinanzeigenBrowser(params, toolConfig),
+  });
 }
 
 function bindToolConfig(tool, config) {
@@ -732,25 +708,7 @@ function bindToolConfig(tool, config) {
 
 export function createKleinanzeigenTools(config = {}) {
   return [
-    bindToolConfig(
-      {
-        name: "kleinanzeigen_status",
-        label: "Kleinanzeigen Status",
-        description:
-          "Check embedded miniclaw availability and config wiring without reading the config.",
-        parameters: objectSchema({}),
-        async execute(_toolCallId) {
-          try {
-            return textResult(await getKleinanzeigenStatus(this.config));
-          } catch (error) {
-            return errorTextResult(error, "status", this.config, {
-              needsUserAction: false,
-            });
-          }
-        },
-      },
-      config,
-    ),
+    statusTool(config),
     listAdsTool(config),
     adSchemaTool(config),
     readAdTool(config),
@@ -760,149 +718,76 @@ export function createKleinanzeigenTools(config = {}) {
     browserConfigureTool(config),
     draftAdTool(config),
     setAdActiveTool(config),
-    bindToolConfig(
-      operationTool({
-        name: "kleinanzeigen_verify",
-        label: "Kleinanzeigen Verify",
-        description:
-          "Verify the configured local miniclaw setup and return sanitized output.",
-        operation: "verify",
-        parameters: objectSchema({
-          adConfigPaths: adConfigPathsSchema,
-          adDirectories: adDirectoriesSchema,
-        }),
-      }),
-      config,
-    ),
-    bindToolConfig(
-      operationTool({
-        name: "kleinanzeigen_publish",
-        label: "Kleinanzeigen Publish",
-        description:
-          "Publish or republish configured ads via miniclaw after explicit user confirmation.",
-        operation: "publish",
-        parameters: objectSchema(
-          {
-            confirm: confirmSchema,
-            selector: {
-              type: "string",
-              enum: ["due", "new", "changed", "all"],
-              description: "Configured ad selector. Defaults to due.",
-            },
-            selectors: {
-              type: "array",
-              minItems: 1,
-              maxItems: 4,
-              uniqueItems: true,
-              items: {
-                type: "string",
-                enum: ["due", "new", "changed", "all"],
-              },
-              description: "Publish selector list for combinations.",
-            },
-            adIds: adIdsSchema,
-            adConfigPaths: adConfigPathsSchema,
-            adDirectories: adDirectoriesSchema,
-            keepOld: {
-              type: "boolean",
-              description: "Keep old ads during republication.",
-            },
+    configuredOperationTool(config, {
+      name: "kleinanzeigen_verify",
+      label: "Kleinanzeigen Verify",
+      description:
+        "Verify the configured local miniclaw setup and return sanitized output.",
+      operation: "verify",
+      parameters: objectSchema(adConfigScopeProperties),
+    }),
+    configuredOperationTool(config, {
+      name: "kleinanzeigen_publish",
+      label: "Kleinanzeigen Publish",
+      description:
+        "Publish or republish configured ads via miniclaw after explicit user confirmation.",
+      operation: "publish",
+      parameters: adOperationSchema({
+        selector: operationSelectorSchema(["due", "new", "changed", "all"], "due"),
+        selectors: {
+          type: "array",
+          minItems: 1,
+          maxItems: 4,
+          uniqueItems: true,
+          items: {
+            type: "string",
+            enum: ["due", "new", "changed", "all"],
           },
-          ["confirm"],
-        ),
+          description: "Publish selector list for combinations.",
+        },
+        keepOld: {
+          type: "boolean",
+          description: "Keep old ads during republication.",
+        },
       }),
-      config,
-    ),
-    bindToolConfig(
-      operationTool({
-        name: "kleinanzeigen_update",
-        label: "Kleinanzeigen Update",
-        description:
-          "Update configured ads via miniclaw after explicit user confirmation.",
-        operation: "update",
-        parameters: objectSchema(
-          {
-            confirm: confirmSchema,
-            selector: {
-              type: "string",
-              enum: ["changed", "all"],
-              description: "Configured ad selector. Defaults to changed.",
-            },
-            adIds: adIdsSchema,
-            adConfigPaths: adConfigPathsSchema,
-            adDirectories: adDirectoriesSchema,
-          },
-          ["confirm"],
-        ),
+    }),
+    configuredOperationTool(config, {
+      name: "kleinanzeigen_update",
+      label: "Kleinanzeigen Update",
+      description:
+        "Update configured ads via miniclaw after explicit user confirmation.",
+      operation: "update",
+      parameters: adOperationSchema({
+        selector: operationSelectorSchema(["changed", "all"], "changed"),
       }),
-      config,
-    ),
-    bindToolConfig(
-      operationTool({
-        name: "kleinanzeigen_delete",
-        label: "Kleinanzeigen Delete",
-        description:
-          "Delete explicitly selected Kleinanzeigen ads via miniclaw after confirmation.",
-        operation: "delete",
-        parameters: objectSchema(
-          {
-            confirm: confirmSchema,
-            adIds: adIdsSchema,
-            adConfigPaths: adConfigPathsSchema,
-            adDirectories: adDirectoriesSchema,
-          },
-          ["confirm", "adIds"],
-        ),
+    }),
+    configuredOperationTool(config, {
+      name: "kleinanzeigen_delete",
+      label: "Kleinanzeigen Delete",
+      description:
+        "Delete explicitly selected Kleinanzeigen ads via miniclaw after confirmation.",
+      operation: "delete",
+      parameters: adOperationSchema({}, ["confirm", "adIds"]),
+    }),
+    configuredOperationTool(config, {
+      name: "kleinanzeigen_download",
+      label: "Kleinanzeigen Download",
+      description:
+        "Download configured ads via miniclaw after explicit user confirmation.",
+      operation: "download",
+      parameters: adOperationSchema({
+        selector: operationSelectorSchema(["new", "all"], "new"),
       }),
-      config,
-    ),
-    bindToolConfig(
-      operationTool({
-        name: "kleinanzeigen_download",
-        label: "Kleinanzeigen Download",
-        description:
-          "Download configured ads via miniclaw after explicit user confirmation.",
-        operation: "download",
-        parameters: objectSchema(
-          {
-            confirm: confirmSchema,
-            selector: {
-              type: "string",
-              enum: ["new", "all"],
-              description: "Configured ad selector. Defaults to new.",
-            },
-            adIds: adIdsSchema,
-            adConfigPaths: adConfigPathsSchema,
-            adDirectories: adDirectoriesSchema,
-          },
-          ["confirm"],
-        ),
+    }),
+    configuredOperationTool(config, {
+      name: "kleinanzeigen_extend",
+      label: "Kleinanzeigen Extend",
+      description:
+        "Extend eligible configured ads via miniclaw after explicit user confirmation.",
+      operation: "extend",
+      parameters: adOperationSchema({
+        selector: operationSelectorSchema(["all"], "all"),
       }),
-      config,
-    ),
-    bindToolConfig(
-      operationTool({
-        name: "kleinanzeigen_extend",
-        label: "Kleinanzeigen Extend",
-        description:
-          "Extend eligible configured ads via miniclaw after explicit user confirmation.",
-        operation: "extend",
-        parameters: objectSchema(
-          {
-            confirm: confirmSchema,
-            selector: {
-              type: "string",
-              enum: ["all"],
-              description: "Configured ad selector. Defaults to all.",
-            },
-            adIds: adIdsSchema,
-            adConfigPaths: adConfigPathsSchema,
-            adDirectories: adDirectoriesSchema,
-          },
-          ["confirm"],
-        ),
-      }),
-      config,
-    ),
+    }),
   ];
 }
