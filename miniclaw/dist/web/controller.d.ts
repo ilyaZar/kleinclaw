@@ -1,6 +1,12 @@
 import { type TimeoutKey } from "../model/config-model.js";
 import { By, type WebSelector } from "./selector.js";
 import { Is, type WebControllerOptions, type WebElement, type WebLocator, type WebPage, type WebRequestOptions, type WebResponse } from "./types.js";
+type FirstAvailableOptions = {
+    description?: string;
+    key?: TimeoutKey;
+    parent?: WebLocator | null;
+    timeout?: number;
+};
 export declare class WebController {
     readonly page: WebPage;
     readonly defaultTimeout: number;
@@ -19,30 +25,10 @@ export declare class WebController {
         parent?: WebLocator | null;
         timeout?: number;
     }): Promise<WebLocator>;
-    webFindFirstAvailable(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: {
-        description?: string;
-        key?: TimeoutKey;
-        parent?: WebLocator | null;
-        timeout?: number;
-    }): Promise<[WebLocator, number]>;
-    webFindFirstAvailableOnce(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: {
-        description?: string;
-        key?: TimeoutKey;
-        parent?: WebLocator | null;
-        timeout?: number;
-    }): Promise<[WebLocator, number]>;
-    webTextFirstAvailable(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: {
-        description?: string;
-        key?: TimeoutKey;
-        parent?: WebLocator | null;
-        timeout?: number;
-    }): Promise<[string, number]>;
-    webTextFirstAvailableOnce(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: {
-        description?: string;
-        key?: TimeoutKey;
-        parent?: WebLocator | null;
-        timeout?: number;
-    }): Promise<[string, number]>;
+    webFindFirstAvailable(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: FirstAvailableOptions): Promise<[WebLocator, number]>;
+    webFindFirstAvailableOnce(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: FirstAvailableOptions): Promise<[WebLocator, number]>;
+    webTextFirstAvailable(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: FirstAvailableOptions): Promise<[string, number]>;
+    webTextFirstAvailableOnce(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: FirstAvailableOptions): Promise<[string, number]>;
     private webFindFirstAvailableWithinBudget;
     private webFindOnce;
     webProbe(type: By, value: string, { parent, timeout, }?: {
@@ -97,3 +83,4 @@ export declare class WebController {
     private runWithTimeoutRetries;
     private notFoundMessage;
 }
+export {};

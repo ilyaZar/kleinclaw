@@ -39,6 +39,20 @@ import {
 
 const DEFAULT_WEB_REQUEST_TIMEOUT = 60;
 
+type FirstAvailableOptions = {
+  description?: string;
+  key?: TimeoutKey;
+  parent?: WebLocator | null;
+  timeout?: number;
+};
+
+function firstAvailableDescription(
+  selectors: readonly WebSelector[],
+  description?: string,
+): string {
+  return description ?? `web_find_first_available(${selectors.length} selectors)`;
+}
+
 export class WebController {
   readonly page: WebPage;
   readonly defaultTimeout: number;
@@ -204,54 +218,20 @@ export class WebController {
       key = "default",
       parent = null,
       timeout,
-    }: {
-      description?: string;
-      key?: TimeoutKey;
-      parent?: WebLocator | null;
-      timeout?: number;
-    } = {},
+    }: FirstAvailableOptions = {},
   ): Promise<[WebLocator, number]> {
     if (selectors.length === 0) {
       throw new Error("selectors must contain at least one selector");
     }
 
     return this.runWithTimeoutRetries(
-      async (effectiveTimeout) => {
-        const budgets = allocateSelectorGroupBudgets(
-          effectiveTimeout,
-          selectors.length,
-        );
-        const failures: string[] = [];
-        for (const [index, selector] of selectors.entries()) {
-          const [type, value] = selector;
-          try {
-            return [
-              await this.webFindOnce(
-                type,
-                value,
-                budgets[index] ?? 0,
-                parent,
-              ),
-              index,
-            ];
-          } catch (error) {
-            if (!isTimeoutLike(error)) {
-              throw error;
-            }
-            failures.push(errorMessage(error));
-          }
-        }
-
-        const lastError = failures.at(-1) ?? "No selector candidates executed.";
-        throw new TimeoutError(
-          "No HTML element found using selector group after trying " +
-            `${selectors.length} alternatives within ${effectiveTimeout} ` +
-            `seconds. Last error: ${lastError}`,
-        );
-      },
+      (effectiveTimeout) => this.webFindFirstAvailableWithinBudget(
+        selectors,
+        effectiveTimeout,
+        parent,
+      ),
       {
-        description:
-          description ?? `web_find_first_available(${selectors.length} selectors)`,
+        description: firstAvailableDescription(selectors, description),
         key,
         timeout,
       },
@@ -265,19 +245,13 @@ export class WebController {
       key = "default",
       parent = null,
       timeout,
-    }: {
-      description?: string;
-      key?: TimeoutKey;
-      parent?: WebLocator | null;
-      timeout?: number;
-    } = {},
+    }: FirstAvailableOptions = {},
   ): Promise<[WebLocator, number]> {
     if (selectors.length === 0) {
       throw new Error("selectors must contain at least one selector");
     }
 
-    const resolvedDescription =
-      description ?? `web_find_first_available(${selectors.length} selectors)`;
+    const resolvedDescription = firstAvailableDescription(selectors, description);
     const configuredTimeout = this.baseTimeout(key, timeout);
     const effectiveTimeout = this.effectiveTimeout(key, timeout, 0);
     const startedAt = this.timeSource();
@@ -321,12 +295,7 @@ export class WebController {
       key = "default",
       parent = null,
       timeout,
-    }: {
-      description?: string;
-      key?: TimeoutKey;
-      parent?: WebLocator | null;
-      timeout?: number;
-    } = {},
+    }: FirstAvailableOptions = {},
   ): Promise<[string, number]> {
     const [element, index] = await this.webFindFirstAvailable(selectors, {
       description,
@@ -344,12 +313,7 @@ export class WebController {
       key = "default",
       parent = null,
       timeout,
-    }: {
-      description?: string;
-      key?: TimeoutKey;
-      parent?: WebLocator | null;
-      timeout?: number;
-    } = {},
+    }: FirstAvailableOptions = {},
   ): Promise<[string, number]> {
     const [element, index] = await this.webFindFirstAvailableOnce(selectors, {
       description,
