@@ -215,44 +215,61 @@ function dayDelayState(ad: AdLike, now: Date): {
   return { ready: elapsedDays >= delayDays, elapsedDays, reference };
 }
 
-function priceReductionDecision({
-  mode,
-  enabled,
-  onUpdate,
-  basePrice,
-  restoredPrice,
-  resultPrice,
-  appliedCycles,
-  nextCycle,
-  cycleAdvanced,
-  reason,
-  totalReposts,
-  delayReposts,
-  eligibleCycles,
-  delayDays,
-  elapsedDays,
-  reference,
-  delayRepostsIgnored,
-}: PriceReductionDecision): PriceReductionDecision {
+type PriceReductionDecisionContext = Pick<
+  PriceReductionDecision,
+  | "mode"
+  | "onUpdate"
+  | "basePrice"
+  | "restoredPrice"
+  | "appliedCycles"
+  | "totalReposts"
+  | "delayReposts"
+  | "eligibleCycles"
+  | "delayDays"
+  | "elapsedDays"
+  | "reference"
+>;
+
+type PriceReductionDecisionOutcome = Pick<
+  PriceReductionDecision,
+  "enabled" | "reason"
+> &
+  Partial<
+    Pick<
+      PriceReductionDecision,
+      "resultPrice" | "nextCycle" | "cycleAdvanced" | "delayRepostsIgnored"
+    >
+  >;
+
+function priceReductionDecision(
+  context: PriceReductionDecisionContext,
+  outcome: PriceReductionDecisionOutcome,
+): PriceReductionDecision {
   return {
-    mode,
-    enabled,
-    onUpdate,
-    basePrice,
-    restoredPrice,
-    resultPrice,
-    appliedCycles,
-    nextCycle,
-    cycleAdvanced,
-    reason,
-    totalReposts,
-    delayReposts,
-    eligibleCycles,
-    delayDays,
-    elapsedDays,
-    reference,
-    delayRepostsIgnored,
+    ...context,
+    enabled: outcome.enabled,
+    resultPrice: "resultPrice" in outcome
+      ? outcome.resultPrice ?? null
+      : context.restoredPrice,
+    nextCycle: outcome.nextCycle ?? null,
+    cycleAdvanced: outcome.cycleAdvanced ?? false,
+    reason: outcome.reason,
+    delayRepostsIgnored: outcome.delayRepostsIgnored ?? false,
   };
+}
+
+const NON_MUTATING_PRICE_REDUCTION_REASONS = new Set<string>([
+  "min_price_equals_price",
+  "update_disabled",
+  "calculation_failed",
+  "repost_delay_waiting",
+  "repost_delay_applied",
+  "day_delay_waiting",
+  "day_delay_missing_timestamp",
+]);
+
+function isNonMutatingPriceReductionReason(reason: string): boolean {
+  return NON_MUTATING_PRICE_REDUCTION_REASONS.has(reason);
 }
 
 export function evaluateAutoPriceReduction(
@@ -277,48 +294,35 @@ export function evaluateAutoPriceReduction(
   const { ready: dayReady, elapsedDays, reference } = dayDelayState(ad, now);
   const delayDays = cfg?.delayDays ?? 0;
   let restoredPrice = basePrice;
+  const decision = (outcome: PriceReductionDecisionOutcome) =>
+    priceReductionDecision(
+      {
+        mode,
+        onUpdate,
+        basePrice,
+        restoredPrice,
+        appliedCycles,
+        totalReposts,
+        delayReposts,
+        eligibleCycles,
+        delayDays,
+        elapsedDays,
+        reference,
+      },
+      outcome,
+    );
 
   if (!cfg?.enabled) {
-    return priceReductionDecision({
-      mode,
+    return decision({
       enabled: false,
-      onUpdate,
-      basePrice,
-      restoredPrice,
-      resultPrice: restoredPrice,
-      appliedCycles,
-      nextCycle: null,
-      cycleAdvanced: false,
       reason: "not_configured",
-      totalReposts,
-      delayReposts,
-      eligibleCycles,
-      delayDays,
-      elapsedDays,
-      reference,
-      delayRepostsIgnored: false,
     });
   }
 
   if (basePrice === null) {
-    return priceReductionDecision({
-      mode,
+    return decision({
       enabled: true,
-      onUpdate,
-      basePrice: null,
-      restoredPrice: null,
-      resultPrice: null,
-      appliedCycles,
-      nextCycle: null,
-      cycleAdvanced: false,
       reason: "missing_price",
-      totalReposts,
-      delayReposts,
-      eligibleCycles,
-      delayDays,
-      elapsedDays,
-      reference,
-      delayRepostsIgnored: false,
     });
   }
 
@@ -331,46 +335,16 @@ export function evaluateAutoPriceReduction(
   }
 
   if (cfg.minPrice !== null && cfg.minPrice === basePrice && appliedCycles === 0) {
-    return priceReductionDecision({
-      mode,
+    return decision({
       enabled: true,
-      onUpdate,
-      basePrice,
-      restoredPrice,
-      resultPrice: restoredPrice,
-      appliedCycles,
-      nextCycle: null,
-      cycleAdvanced: false,
       reason: "min_price_equals_price",
-      totalReposts,
-      delayReposts,
-      eligibleCycles,
-      delayDays,
-      elapsedDays,
-      reference,
-      delayRepostsIgnored: false,
     });
   }
 
   if (mode === AdUpdateStrategy.Modify && !onUpdate) {
-    return priceReductionDecision({
-      mode,
+    return decision({
       enabled: true,
-      onUpdate: false,
-      basePrice,
-      restoredPrice,
-      resultPrice: restoredPrice,
-      appliedCycles,
-      nextCycle: null,
-      cycleAdvanced: false,
       reason: "update_disabled",
-      totalReposts,
-      delayReposts,
-      eligibleCycles,
-      delayDays,
-      elapsedDays,
-      reference,
-      delayRepostsIgnored: false,
     });
   }
 
@@ -392,23 +366,9 @@ export function evaluateAutoPriceReduction(
   }
 
   if (reason !== "eligible") {
-    return priceReductionDecision({
-      mode,
+    return decision({
       enabled: true,
-      onUpdate,
-      basePrice,
-      restoredPrice,
-      resultPrice: restoredPrice,
-      appliedCycles,
-      nextCycle: null,
-      cycleAdvanced: false,
       reason,
-      totalReposts,
-      delayReposts,
-      eligibleCycles,
-      delayDays,
-      elapsedDays,
-      reference,
       delayRepostsIgnored,
     });
   }
@@ -421,45 +381,21 @@ export function evaluateAutoPriceReduction(
   });
 
   if (resultPrice === null) {
-    return priceReductionDecision({
-      mode,
+    return decision({
       enabled: true,
-      onUpdate,
-      basePrice,
-      restoredPrice,
       resultPrice: null,
-      appliedCycles,
-      nextCycle: null,
-      cycleAdvanced: false,
       reason: "calculation_failed",
-      totalReposts,
-      delayReposts,
-      eligibleCycles,
-      delayDays,
-      elapsedDays,
-      reference,
       delayRepostsIgnored,
     });
   }
 
   const cycleAdvanced = resultPrice !== restoredPrice;
-  return priceReductionDecision({
-    mode,
+  return decision({
     enabled: true,
-    onUpdate,
-    basePrice,
-    restoredPrice,
     resultPrice,
-    appliedCycles,
     nextCycle,
     cycleAdvanced,
     reason: cycleAdvanced ? "eligible" : "no_visible_change",
-    totalReposts,
-    delayReposts,
-    eligibleCycles,
-    delayDays,
-    elapsedDays,
-    reference,
     delayRepostsIgnored,
   });
 }
@@ -478,15 +414,7 @@ export function applyAutoPriceReduction(
   if (decision.restoredPrice !== null) {
     ad.price = decision.restoredPrice;
   }
-  if (
-    decision.reason === "min_price_equals_price" ||
-    decision.reason === "update_disabled" ||
-    decision.reason === "calculation_failed" ||
-    decision.reason === "repost_delay_waiting" ||
-    decision.reason === "repost_delay_applied" ||
-    decision.reason === "day_delay_waiting" ||
-    decision.reason === "day_delay_missing_timestamp"
-  ) {
+  if (isNonMutatingPriceReductionReason(decision.reason)) {
     return decision;
   }
   if (decision.reason === "no_visible_change" && decision.nextCycle !== null) {
