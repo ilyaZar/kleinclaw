@@ -4,8 +4,8 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import { extractAdIdFromAdUrl, publishedAdId, } from "./ad-identity.js";
+import { isNumericIdSelector } from "./ad-selector.js";
 export { extractAdIdFromAdUrl } from "./ad-identity.js";
-const NUMERIC_IDS_RE = /^\d+(,\d+)*$/;
 export function normalizeDownloadSelector(selector) {
     const selectorTokens = new Set(selector.split(",").map((entry) => entry.trim()).filter(Boolean));
     if (selectorTokens.has("all")) {
@@ -128,7 +128,7 @@ export async function runDownloadAdsBatch(options) {
         await runOverviewDownload(selector, result, options);
         return result;
     }
-    if (NUMERIC_IDS_RE.test(selector)) {
+    if (isNumericIdSelector(selector)) {
         await runNumericDownload(selector, result, options);
     }
     return result;

@@ -16,9 +16,8 @@ import {
 } from "./model/ad-model.js";
 import { Config } from "./model/config-model.js";
 import { ValidationError } from "./model/validation-error.js";
+import { isNumericIdSelector } from "./ad-selector.js";
 import { loadDataFile } from "./io.js";
-
-const NUMERIC_IDS_RE = /^\d+(,\d+)*$/;
 
 export interface LoadedAd {
   filePath: string;
@@ -146,7 +145,7 @@ export async function loadSelectedAds({
   const adFiles = await findAdFiles(configPath, config);
   const root = path.dirname(configPath);
   const selectors = selector.split(",").map((entry) => entry.trim());
-  const useSpecificIds = NUMERIC_IDS_RE.test(selector);
+  const useSpecificIds = isNumericIdSelector(selector);
   const ids = new Set(useSpecificIds ? selectors.map((entry) => Number(entry)) : []);
   const ads: LoadedAd[] = [];
 

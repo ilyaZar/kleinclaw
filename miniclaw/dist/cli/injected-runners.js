@@ -2,31 +2,42 @@ import { runDeleteAdsBatch } from "../delete-orchestration.js";
 import { runDownloadAdsBatch } from "../download-orchestration.js";
 import { runExtendAdsBatch } from "../extend-orchestration.js";
 import { saveDataFile } from "../io.js";
+import { isNumericIdSelector } from "../ad-selector.js";
 import { runPublishAdsBatch, runUpdateAdsBatch, } from "../publish-orchestration.js";
 import { ensureDirectory } from "../workspace.js";
 import { deleteDoneMessage, downloadDoneMessage, extendDoneMessage, noAdsMessage, printDoneBlock, sideEffectDoneMessage, } from "./messages.js";
-import { NUMERIC_IDS_RE } from "./parser.js";
 import { loadDownloadCommand, loadSideEffectAds, } from "./loaders.js";
+async function loadInjectedSideEffectContext(parsed, sideEffects, loaded) {
+    const { ads, config } = loaded ?? await loadSideEffectAds(parsed);
+    if (!ads.length) {
+        printDoneBlock(noAdsMessage(parsed.command) ?? "DONE: No ads found.");
+        return null;
+    }
+    const context = { ads, config, parsed };
+    const publishedAds = await sideEffects.fetchPublishedAds(context);
+    return { ads, config, publishedAds };
+}
+function hasSideEffectHandlers(sideEffects, names) {
+    return names.every((name) => !!sideEffects?.[name]);
+}
 export function hasInjectedPublishUpdateHandlers(command, sideEffects) {
-    if (!sideEffects?.fetchPublishedAds) {
+    if (!hasSideEffectHandlers(sideEffects, ["fetchPublishedAds"])) {
         return false;
     }
     if (command === "publish") {
-        return !!sideEffects.publishAd;
+        return !!sideEffects?.publishAd;
     }
     if (command === "update") {
-        return !!sideEffects.updateAd;
+        return !!sideEffects?.updateAd;
     }
     return false;
 }
 export async function runInjectedPublishUpdateCommand(parsed, sideEffects, loaded) {
-    const { ads, config } = loaded ?? await loadSideEffectAds(parsed);
-    if (!ads.length) {
-        printDoneBlock(noAdsMessage(parsed.command) ?? "DONE: No ads found.");
+    const loadedContext = await loadInjectedSideEffectContext(parsed, sideEffects, loaded);
+    if (!loadedContext) {
         return 0;
     }
-    const context = { ads, config, parsed };
-    const publishedAds = await sideEffects.fetchPublishedAds(context);
+    const { ads, config, publishedAds } = loadedContext;
     const commonOptions = {
         captureError: sideEffects.captureError,
         publishedAds,
@@ -51,17 +62,14 @@ export async function runInjectedPublishUpdateCommand(parsed, sideEffects, loade
 }
 export function hasInjectedDeleteHandlers(command, sideEffects) {
     return command === "delete" &&
-        !!sideEffects?.fetchPublishedAds &&
-        !!sideEffects.deleteAd;
+        hasSideEffectHandlers(sideEffects, ["fetchPublishedAds", "deleteAd"]);
 }
 export async function runInjectedDeleteCommand(parsed, sideEffects, loaded) {
-    const { ads, config } = loaded ?? await loadSideEffectAds(parsed);
-    if (!ads.length) {
-        printDoneBlock(noAdsMessage(parsed.command) ?? "DONE: No ads found.");
+    const loadedContext = await loadInjectedSideEffectContext(parsed, sideEffects, loaded);
+    if (!loadedContext) {
         return 0;
     }
-    const context = { ads, config, parsed };
-    const publishedAds = await sideEffects.fetchPublishedAds(context);
+    const { ads, config, publishedAds } = loadedContext;
     const result = await runDeleteAdsBatch(ads, {
         afterDelete: config.deleting.afterDelete,
         deleteAd: sideEffects.deleteAd,
@@ -74,17 +82,14 @@ export async function runInjectedDeleteCommand(parsed, sideEffects, loaded) {
 }
 export function hasInjectedExtendHandlers(command, sideEffects) {
     return command === "extend" &&
-        !!sideEffects?.fetchPublishedAds &&
-        !!sideEffects.extendAd;
+        hasSideEffectHandlers(sideEffects, ["fetchPublishedAds", "extendAd"]);
 }
 export async function runInjectedExtendCommand(parsed, sideEffects, loaded) {
-    const { ads, config } = loaded ?? await loadSideEffectAds(parsed);
-    if (!ads.length) {
-        printDoneBlock(noAdsMessage(parsed.command) ?? "DONE: No ads found.");
+    const loadedContext = await loadInjectedSideEffectContext(parsed, sideEffects, loaded);
+    if (!loadedContext) {
         return 0;
     }
-    const context = { ads, config, parsed };
-    const publishedAds = await sideEffects.fetchPublishedAds(context);
+    const { ads, publishedAds } = loadedContext;
     const result = await runExtendAdsBatch(ads, {
         extendAd: sideEffects.extendAd,
         publishedAds,
@@ -95,15 +100,17 @@ export async function runInjectedExtendCommand(parsed, sideEffects, loaded) {
 }
 export function hasInjectedDownloadHandlers(command, sideEffects) {
     return command === "download" &&
-        !!sideEffects?.downloadAd &&
-        !!sideEffects.extractOwnAdsUrls &&
-        !!sideEffects.fetchPublishedAds &&
-        !!sideEffects.navigateToAdPage;
+        hasSideEffectHandlers(sideEffects, [
+            "downloadAd",
+            "extractOwnAdsUrls",
+            "fetchPublishedAds",
+            "navigateToAdPage",
+        ]);
 }
 export async function runInjectedDownloadCommand(parsed, sideEffects, workspace) {
     const { config, downloadDir, effectiveSelector, savedAds } = await loadDownloadCommand(parsed, workspace);
     await ensureDirectory(downloadDir, "downloaded ads directory");
-    const strictPublishedAds = NUMERIC_IDS_RE.test(effectiveSelector);
+    const strictPublishedAds = isNumericIdSelector(effectiveSelector);
     const context = {
         ads: savedAds,
         config,
