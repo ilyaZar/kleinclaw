@@ -119,7 +119,57 @@ describe("kleinanzeigen plugin tools", () => {
     assert.equal(createCommandRunner({}), undefined);
   });
 
-  it("keeps mutating tools separate while approval gating local CLI tools", () => {
+  it("passes a plugin-scoped sanitized environment to tool commands", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-plugin-env-"));
+    const configPath = path.join(tmp, "config.yaml");
+    const originalPath = process.env.PATH;
+    const originalDisplay = process.env.DISPLAY;
+    const originalToken = process.env.SERVICE_API_TOKEN;
+    const calls = [];
+
+    try {
+      await fs.writeFile(configPath, "ad_files: []\ncategories: {}\n", "utf8");
+      process.env.PATH = "/usr/bin";
+      process.env.DISPLAY = ":99";
+      process.env.SERVICE_API_TOKEN = "do-not-forward";
+
+      const [verify] = createKleinanzeigenTools({
+        configPath,
+        commandRunner: async (argv, options) => {
+          calls.push({ argv, options });
+          return { code: 0, stdout: "ok\n", stderr: "" };
+        },
+      }).filter((tool) => tool.name === "kleinanzeigen_verify");
+
+      const result = await verify.execute("tool-call", {});
+      const payload = JSON.parse(result.content[0].text);
+
+      assert.equal(payload.ok, true);
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].options.env.PATH, "/usr/bin");
+      assert.equal(calls[0].options.env.DISPLAY, ":99");
+      assert.equal(calls[0].options.env.SERVICE_API_TOKEN, undefined);
+    } finally {
+      if (originalPath === undefined) {
+        delete process.env.PATH;
+      } else {
+        process.env.PATH = originalPath;
+      }
+      if (originalDisplay === undefined) {
+        delete process.env.DISPLAY;
+      } else {
+        process.env.DISPLAY = originalDisplay;
+      }
+      if (originalToken === undefined) {
+        delete process.env.SERVICE_API_TOKEN;
+      } else {
+        process.env.SERVICE_API_TOKEN = originalToken;
+      }
+      await fs.rm(tmp, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps side-effect tools separate while approval gating local CLI tools", () => {
     const tools = createKleinanzeigenTools();
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_verify"), false);
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_status"), false);
@@ -162,7 +212,7 @@ describe("kleinanzeigen plugin tools", () => {
     );
     assert.deepEqual(
       [...resolveApprovalToolNames({ approvalMode: "none" })],
-      [...OPTIONAL_TOOL_NAMES],
+      [],
     );
   });
 

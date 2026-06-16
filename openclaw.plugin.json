@@ -81,10 +81,11 @@
         "type": "string",
         "enum": [
           "all",
-          "mutating"
+          "mutating",
+          "none"
         ],
         "default": "all",
-        "description": "Approval mode for tool runs. Use all unless local checks should run without an approval route."
+        "description": "Approval mode for tool runs. Use all for every tool, mutating for side-effect tools only, or none to rely on tool-level confirm gates."
       }
     }
   }
