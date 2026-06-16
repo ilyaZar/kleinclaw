@@ -349,9 +349,9 @@ Use `kleinanzeigen_browser_status` before publishing when browser state matters.
 It reports the configured `browser:` values, the effective browser miniclaw will
 try, and locally detected Chromium, Brave, Chrome, and Edge binaries. The
 supported `browser` choices intentionally match embedded miniclaw support:
-`auto`, `chromium`, `google-chrome`, and `microsoft-edge`.
-Configured browser profile names and profile directories are reported only as
-redacted configured-state markers.
+`auto`, `chromium`, `google-chrome`, and `microsoft-edge`. Configured browser
+profile names and profile directories are reported only as redacted
+configured-state markers.
 
 Useful browser tool fields:
 
@@ -496,6 +496,55 @@ Operation tool fields:
 
 Do not mix selectors with explicit ad IDs.
 
+## Security Architecture
+
+KleinClaw is designed so the OpenClaw agent can ask for listing work without
+receiving your full local Kleinanzeigen setup. The agent and Gateway see tool
+schemas, approval prompts, relative ad handles, and capped redacted results.
+They do not receive Kleinanzeigen passwords, cookies, browser profile paths,
+absolute ad roots, temporary scoped configs, or the full miniclaw config.
+
+The local KleinClaw plugin is the boundary layer. It resolves relative handles
+under configured `adRoots`, creates short-lived scoped configs when needed, and
+runs the bundled `miniclaw` runtime on your machine. `miniclaw` reads local ad
+files and config locally, then drives the browser session for publish,
+republish, update, delete, download, and extend operations. The figure below
+shows that local files and browser/account state stay outside the agent context.
+
+````text
++-----------------------+  tool calls/approvals  +----------------------------+
+| local machine         |<-----------------------| OpenClaw agent + Gateway   |
+|                       |                        |                            |
+| adRoots/              |----------------------->| sees relative handles only |
+|   sample-listing/     |  redacted results      | sees capped redacted output|
+|     ad.yaml           |                        | does not see full config   |
+|     photos/*.jpg      |                        | does not see credentials   |
+|                       |                        +-------------+--------------+
+| miniclaw config.yaml  |                                      |
+| credentials/cookies   |                                      |
+| browser/session state |                                      |
++---------+----------------+                                   |
+          ^                                                    |
+          | list/read/draft/..                                 |
+          | activate/scoped verify                             v
+          |                              +---------------------+-----------+
+          |                              | KleinClaw plugin + miniclaw     |
+          +------------------------------| local runtime boundary          |
+                                         | resolves handles under adRoots  |
+                                         | writes temp scoped configs      |
+                                         | runs browser-backed operations  |
+                                         +--------------+------------------+
+                                                        |
+                                                        | browser automation:
+                                                        | publish/republish/..
+                                                        | update/delete/download/..
+                                                        v
+                                         +--------------+-------------+
+                                         | browser + kleinanzeigen.de |
+                                         | account checks stay local  |
+                                         +----------------------------+
+
+
 ## Troubleshooting
 
 If a routed agent sees the KleinClaw skill but no callable `kleinanzeigen_*`
@@ -505,12 +554,12 @@ hid its tools from that session.
 
 ```json
 {
-  "tools": {
-    "alsoAllow": ["kleinclaw"],
-    "sandbox": { "tools": { "alsoAllow": ["kleinclaw"] } }
-  }
+"tools": {
+  "alsoAllow": ["kleinclaw"],
+  "sandbox": { "tools": { "alsoAllow": ["kleinclaw"] } }
 }
-```
+}
+````
 
 Restart or reload Gateway, then verify with `openclaw sandbox explain --json`
 and a `kleinanzeigen_status` smoke test.
