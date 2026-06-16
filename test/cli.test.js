@@ -111,6 +111,32 @@ describe("kleinanzeigen CLI argument builder", () => {
     ]);
   });
 
+  it("passes scoped ad file overrides without exposing them in command metadata", () => {
+    const args = buildKleinanzeigenArgs(
+      "verify",
+      {},
+      {
+        configPath: "/secret/config.yaml",
+        adFileOverrides: ["/secret/ads/lamp/ad.yaml"],
+      },
+    );
+
+    assert.deepEqual(args, [
+      "--config=/secret/config.yaml",
+      "--logfile=",
+      "--workspace-mode=portable",
+      "--ad-file=/secret/ads/lamp/ad.yaml",
+      "verify",
+    ]);
+    assert.deepEqual(redactArgs(args), [
+      "--config=[redacted]",
+      "--logfile=",
+      "--workspace-mode=portable",
+      "--ad-file=[redacted]",
+      "verify",
+    ]);
+  });
+
   it("requires confirmation and numeric ad IDs for delete", () => {
     assert.throws(
       () => buildKleinanzeigenArgs("delete", { adIds: ["123"] }),
@@ -879,22 +905,24 @@ describe("scoped ad configs", () => {
     );
   });
 
-  it("runs with a temporary config limited to selected ad directories", async () => {
+  it("runs scoped operations by passing selected ad files", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-scope-"));
     const adRoot = path.join(tmp, "ads");
     const adDir = path.join(adRoot, "sample-listing");
+    const marker = path.join(tmp, "argv.json");
     const mockCli = await writeExecutableMockScript(
       path.join(tmp, "mock-cli.mjs"),
       [
         "#!/usr/bin/env node",
         "import fs from 'node:fs';",
-        "const configArg = process.argv.find((arg) => arg.startsWith('--config='));",
-        "console.log(fs.readFileSync(configArg.slice('--config='.length), 'utf8'));",
+        `fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify(process.argv.slice(2)));`,
+        "console.log('scoped run complete');",
       ],
     );
     const configPath = path.join(tmp, "config.yaml");
+    const adPath = path.join(adDir, "ad.yaml");
     await fs.mkdir(adDir, { recursive: true });
-    await fs.writeFile(path.join(adDir, "ad.yaml"), "title: Sample Listing\n", "utf8");
+    await fs.writeFile(adPath, "title: Sample Listing\n", "utf8");
     await fs.writeFile(
       configPath,
       [
@@ -918,11 +946,25 @@ describe("scoped ad configs", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.match(result.stdout, /ad_files:\n  - "\[redacted-path\]\/sample-listing\/ad\.yaml"/);
-    assert.doesNotMatch(result.stdout, /unrelated|should-not-leak/);
+    assert.deepEqual(JSON.parse(await fs.readFile(marker, "utf8")), [
+      `--config=${configPath}`,
+      "--logfile=",
+      "--workspace-mode=portable",
+      `--ad-file=${adPath}`,
+      "verify",
+    ]);
+    assert.deepEqual(result.command.args, [
+      "--config=[redacted]",
+      "--logfile=",
+      "--workspace-mode=portable",
+      "--ad-file=[redacted]",
+      "verify",
+    ]);
+    assert.equal(result.stdout, "scoped run complete");
+    assertJsonOmits(result, [tmp, adRoot, adPath, configPath, "should-not-leak"]);
   });
 
-  it("writes scoped temp configs as 0600 and cleans them on success and failure", async () => {
+  it("does not create scoped temp configs on success or failure", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-temp-config-"));
     const { adDir, adPath, adRoot, configPath } = await writeScopedAdFixture(tmp);
     const profilePath = path.join(tmp, SENTINEL_PROFILE_DIR);
@@ -951,12 +993,8 @@ describe("scoped ad configs", () => {
         [
           "#!/usr/bin/env node",
           "import fs from 'node:fs';",
-          "const configArg = process.argv.find((arg) => arg.startsWith('--config='));",
-          "const configPath = configArg.slice('--config='.length);",
-          "const mode = (fs.statSync(configPath).mode & 0o777).toString(8);",
-          `fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify({ configPath, mode }));`,
-          "console.log(configPath);",
-          "console.log(fs.readFileSync(configPath, 'utf8'));",
+          `fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify(process.argv.slice(2)));`,
+          "console.log('scoped run complete');",
           `process.exit(${exitCode});`,
         ],
       );
@@ -970,10 +1008,18 @@ describe("scoped ad configs", () => {
           maxOutputChars: 4000,
         }),
       );
-      const markerPayload = JSON.parse(await fs.readFile(marker, "utf8"));
+      const argv = JSON.parse(await fs.readFile(marker, "utf8"));
+      const tempConfigNames = (await fs.readdir(tmp))
+        .filter((entry) => entry.startsWith(".kleinclaw-"));
 
-      assert.equal(markerPayload.mode, "600");
-      await assert.rejects(() => fs.stat(markerPayload.configPath), /ENOENT/);
+      assert.deepEqual(argv, [
+        `--config=${configPath}`,
+        "--logfile=",
+        "--workspace-mode=portable",
+        `--ad-file=${adPath}`,
+        "verify",
+      ]);
+      assert.deepEqual(tempConfigNames, []);
       assertJsonOmits(
         result,
         [
@@ -981,7 +1027,6 @@ describe("scoped ad configs", () => {
           adRoot,
           adPath,
           configPath,
-          markerPayload.configPath,
           ...sentinelNeedles({ profilePath }),
         ],
       );
@@ -1235,6 +1280,66 @@ describe("diagnostics", () => {
       "fix invalid ads before unscoped verify or bulk publish",
     ]);
   });
+
+  it("does not attribute scoped title errors to unrelated long-title ads", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-diag-scope-"));
+    const selectedDir = path.join(tmp, "ONGOING", "armani-jeans-01");
+    const unrelatedDir = path.join(tmp, "ONGOING", "cut-n-run");
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
+      [
+        "#!/usr/bin/env node",
+        "console.error('[ERROR] 1 validation error for [AdPartial]:');",
+        "console.error('- title: Value error, title length exceeds 65 characters');",
+        "process.exit(1);",
+      ],
+    );
+    const configPath = path.join(tmp, "config.yaml");
+    await fs.mkdir(selectedDir, { recursive: true });
+    await fs.mkdir(unrelatedDir, { recursive: true });
+    await fs.writeFile(
+      path.join(selectedDir, "ad.yaml"),
+      "title: Neuwertige ARMANI Damen Stretch Jeans Gr. 29 schwarz\n",
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(unrelatedDir, "ad.yaml"),
+      'title: "Cut and Run Ausstellung Banksy Tragetasche / 25 Years Card Labour Streetart"\n',
+      "utf8",
+    );
+    await fs.writeFile(
+      configPath,
+      [
+        "ad_files:",
+        `  - ${JSON.stringify(path.join(selectedDir, "ad.yaml"))}`,
+        `  - ${JSON.stringify(path.join(unrelatedDir, "ad.yaml"))}`,
+        "categories: {}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    try {
+      const result = await runKleinanzeigenOperation(
+        "verify",
+        { adDirectories: ["ONGOING/armani-jeans-01"] },
+        withMockMiniclawScript(mockCli, {
+          configPath,
+          adRoots: [tmp],
+        }),
+      );
+
+      assert.equal(result.ok, false);
+      assert.equal(result.diagnostics[0].field, "title");
+      assert.equal(result.diagnostics[0].adPath, undefined);
+      assert.equal(result.diagnostics[0].candidates, undefined);
+      assert.deepEqual(result.nextActions, [
+        "fix the selected ad config and rerun scoped kleinanzeigen_verify",
+      ]);
+    } finally {
+      await fs.rm(tmp, { force: true, recursive: true });
+    }
+  });
 });
 
 describe("redacted output handling", () => {
@@ -1293,7 +1398,9 @@ describe("redacted output handling", () => {
       path.join(tmp, "mock-cli.mjs"),
       [
         "#!/usr/bin/env node",
-        "console.log('DONE: No configuration errors found.');",
+        "console.error(process.argv.join(' '));",
+        `console.error('password: ${SENTINEL_PASSWORD}');`,
+        "process.exit(2);",
       ],
     );
     await fs.mkdir(adDir, { recursive: true });

@@ -253,6 +253,11 @@ export function buildKleinanzeigenArgs(operation, params = {}, config = {}) {
   args.push(`--config=${configPath}`);
   args.push("--logfile=");
   args.push(`--workspace-mode=${workspaceMode}`);
+  for (const adFileOverride of normalizeStringArray(config.adFileOverrides, "adFileOverrides", {
+    maxItems: 50,
+  })) {
+    args.push(`--ad-file=${adFileOverride}`);
+  }
   if (lang) {
     if (!["en", "de"].includes(lang)) {
       throw new Error("lang must be en or de");
@@ -335,6 +340,11 @@ export function buildRedactions(config = {}) {
       add(arg);
     }
   }
+  for (const adFileOverride of normalizeStringArray(config.adFileOverrides, "adFileOverrides", {
+    maxItems: 50,
+  })) {
+    add(adFileOverride);
+  }
   for (const root of normalizeStringArray(config.adRoots, "adRoots", { maxItems: 50 })) {
     add(root);
   }
@@ -385,6 +395,9 @@ export function redactArgs(args = []) {
     }
     if (arg.startsWith("--logfile=")) {
       return "--logfile=[redacted]";
+    }
+    if (arg.startsWith("--ad-file=")) {
+      return "--ad-file=[redacted]";
     }
     return arg;
   });
@@ -1697,7 +1710,12 @@ async function readConfiguredAdFiles(configPath) {
 
 async function findTitleLengthCandidates(config = {}, { limit = 65, maxResults = 10 } = {}) {
   const roots = normalizeStringArray(config.adRoots, "adRoots", { maxItems: 50 });
-  const configuredAdFiles = await readConfiguredAdFiles(config.configPath);
+  const scopedAdFiles = Array.isArray(config.adFileOverrides)
+    ? config.adFileOverrides.map((entry) => String(entry).trim()).filter(Boolean)
+    : [];
+  const configuredAdFiles = scopedAdFiles.length
+    ? scopedAdFiles
+    : await readConfiguredAdFiles(config.configPath);
   const configuredExisting = [];
   for (const adConfigPath of configuredAdFiles) {
     try {
@@ -2451,43 +2469,6 @@ function buildInactivePublishPreflightResult({ operation, inactiveAds, cliConfig
   };
 }
 
-function replaceYamlAdFiles(content, adConfigPaths) {
-  const replacement = [
-    "ad_files:",
-    ...adConfigPaths.map((adConfigPath) => `  - ${JSON.stringify(adConfigPath)}`),
-  ];
-  const lines = String(content ?? "").replace(/\r\n/g, "\n").split("\n");
-  const start = lines.findIndex((line) => /^ad_files\s*:/.test(line));
-  if (start === -1) {
-    return [...replacement, "", ...lines].join("\n");
-  }
-
-  let end = start + 1;
-  while (end < lines.length) {
-    const line = lines[end];
-    if (/^\S/.test(line) && !line.startsWith("#")) {
-      break;
-    }
-    end += 1;
-  }
-
-  return [...lines.slice(0, start), ...replacement, ...lines.slice(end)].join("\n");
-}
-
-async function createScopedConfig(cliConfig, adConfigPaths) {
-  if (!adConfigPaths.length) {
-    return { config: cliConfig, cleanup: async () => {} };
-  }
-
-  const original = await fs.readFile(cliConfig.configPath, "utf8");
-  const ext = path.extname(cliConfig.configPath).toLowerCase();
-  const scoped =
-    ext === ".json"
-      ? JSON.stringify({ ...JSON.parse(original), ad_files: adConfigPaths }, null, 2)
-      : replaceYamlAdFiles(original, adConfigPaths);
-  return createTemporaryConfig(cliConfig, scoped, ext);
-}
-
 async function createTemporaryConfig(cliConfig, content, ext = path.extname(cliConfig.configPath).toLowerCase()) {
   const configDir = path.dirname(cliConfig.configPath);
   const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -2819,11 +2800,12 @@ export async function runKleinanzeigenOperation(operation, params = {}, config =
   if (operation === "publish" && scopedAdConfigPaths.length > 0) {
     const inactiveAds = await inactiveScopedPublishAds(scopedAdConfigPaths, config);
     if (inactiveAds.length) {
-      const args = buildKleinanzeigenArgs(operation, params, baseCliConfig);
+      const preflightCliConfig = { ...baseCliConfig, adFileOverrides: scopedAdConfigPaths };
+      const args = buildKleinanzeigenArgs(operation, params, preflightCliConfig);
       return buildInactivePublishPreflightResult({
         operation,
         inactiveAds,
-        cliConfig: baseCliConfig,
+        cliConfig: preflightCliConfig,
         args,
       });
     }
@@ -2833,23 +2815,20 @@ export async function runKleinanzeigenOperation(operation, params = {}, config =
       ? scopedAdConfigPaths
       : await readConfiguredAdFiles(baseCliConfig.configPath);
   const beforeSnapshots = await readAdOperationSnapshots(snapshotPaths, config);
-  const scopedConfig = await createScopedConfig(baseCliConfig, scopedAdConfigPaths);
-  const cliConfig = scopedConfig.config;
+  const cliConfig = scopedAdConfigPaths.length > 0
+    ? { ...baseCliConfig, adFileOverrides: scopedAdConfigPaths }
+    : baseCliConfig;
   await assertConfiguredFiles(cliConfig);
   let args;
   let result;
-  try {
-    args = buildKleinanzeigenArgs(operation, params, cliConfig);
-    result = await runRuntimeProcess(cliConfig.runtime, args, {
-      cwd: cliConfig.cwd,
-      timeoutMs: cliConfig.timeoutMs,
-      maxBufferChars: cliConfig.maxOutputChars,
-      env: buildChildEnv(),
-      commandRunner: cliConfig.commandRunner,
-    });
-  } finally {
-    await scopedConfig.cleanup();
-  }
+  args = buildKleinanzeigenArgs(operation, params, cliConfig);
+  result = await runRuntimeProcess(cliConfig.runtime, args, {
+    cwd: cliConfig.cwd,
+    timeoutMs: cliConfig.timeoutMs,
+    maxBufferChars: cliConfig.maxOutputChars,
+    env: buildChildEnv(),
+    commandRunner: cliConfig.commandRunner,
+  });
   const afterSnapshots = await readAdOperationSnapshots(snapshotPaths, config);
   const redactions = buildRedactions({ ...config, ...cliConfig });
   const rawText = [result.stdout, result.stderr, result.error?.message].filter(Boolean).join("\n");
@@ -2863,7 +2842,9 @@ export async function runKleinanzeigenOperation(operation, params = {}, config =
   );
   const diagnostics = await extractKleinanzeigenDiagnostics(
     rawText,
-    config,
+    scopedAdConfigPaths.length > 0
+      ? { ...config, adFileOverrides: scopedAdConfigPaths }
+      : config,
   );
   const nextActions = buildNextActions(diagnostics, scopedAdConfigPaths.length > 0);
   const outcome = buildOperationOutcome({
