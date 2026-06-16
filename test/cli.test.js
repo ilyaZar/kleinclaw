@@ -378,7 +378,83 @@ describe("browser config tools", () => {
     assert.match(updated, /use_private_window: false/);
     assert.match(updated, /user_data_dir: ""/);
     assert.match(updated, /profile_name: ""/);
-    assert.doesNotMatch(JSON.stringify(result), /should-not-leak|hidden@example|\/secret\/profile/);
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /should-not-leak|hidden@example|\/secret\/profile|Profile 1/,
+    );
+  });
+
+  it("omits config secrets and browser profile details from browser helper JSON", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-browser-"));
+    const mockConfig = path.join(tmp, "config.yaml");
+    const profilePath = path.join(tmp, SENTINEL_PROFILE_DIR);
+    const mockBrowser = path.join(tmp, "mock-browser");
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
+      [
+        "#!/usr/bin/env node",
+        "if (process.argv.includes('diagnose')) {",
+        "  console.log('(ok) Browser binary is executable');",
+        "  process.exit(0);",
+        "}",
+        "process.exit(2);",
+      ],
+    );
+    await fs.writeFile(mockBrowser, "#!/usr/bin/env node\n", "utf8");
+    await fs.chmod(mockBrowser, 0o700);
+    await fs.writeFile(
+      mockConfig,
+      [
+        "login:",
+        `  username: ${SENTINEL_USER}`,
+        `  password: ${SENTINEL_PASSWORD}`,
+        `cookie: ${SENTINEL_COOKIE}`,
+        `token: ${SENTINEL_TOKEN}`,
+        "browser:",
+        "  arguments:",
+        `    - --user-data-dir=${JSON.stringify(profilePath)}`,
+        "  binary_location: \"\"",
+        "  extensions: []",
+        "  use_private_window: true",
+        `  user_data_dir: ${JSON.stringify(profilePath)}`,
+        `  profile_name: ${JSON.stringify(SENTINEL_PROFILE_NAME)}`,
+      ].join("\n"),
+      "utf8",
+    );
+
+    const config = withMockMiniclawScript(mockCli, {
+      configPath: mockConfig,
+      workingDirectory: tmp,
+    });
+    const status = await getKleinanzeigenBrowserStatus(config);
+    const configured = await configureKleinanzeigenBrowser(
+      {
+        confirm: true,
+        browser: "auto",
+        usePrivateWindow: false,
+        profileMode: "workspace",
+      },
+      config,
+    );
+    const checked = await checkKleinanzeigenBrowser(
+      {
+        binaryLocation: mockBrowser,
+        allowUnsupportedBrowser: true,
+        profileMode: "custom",
+        userDataDir: profilePath,
+        profileName: SENTINEL_PROFILE_NAME,
+      },
+      config,
+    );
+
+    assert.equal(status.browser.configured.userDataDir, "[configured-profile-dir]");
+    assert.equal(status.browser.configured.profileName, "[configured-profile]");
+    assert.equal(checked.browser.configured.userDataDir, "[configured-profile-dir]");
+    assert.equal(checked.browser.configured.profileName, "[configured-profile]");
+    assertJsonOmits(
+      [status, configured, checked],
+      sentinelNeedles({ profilePath }),
+    );
   });
 
   it("rejects custom browser settings for persistent config changes", async () => {

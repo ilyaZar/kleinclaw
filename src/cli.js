@@ -1012,7 +1012,7 @@ function effectiveMiniclawAutoBrowser(detectedBrowsers) {
   return null;
 }
 
-function displayBrowserPath(filePath, baseDir) {
+function displayWorkspaceBrowserPath(filePath, baseDir) {
   if (!filePath) {
     return "";
   }
@@ -1024,12 +1024,32 @@ function displayBrowserPath(filePath, baseDir) {
   return `[redacted-path]/${path.basename(resolved)}`;
 }
 
+function displayBrowserProfilePath(filePath, baseDir, { allowWorkspaceProfile = false } = {}) {
+  if (!filePath) {
+    return "";
+  }
+  if (allowWorkspaceProfile) {
+    const workspaceProfile = path.join(baseDir, ".temp", "browser-profile");
+    if (path.resolve(baseDir, filePath) === workspaceProfile) {
+      return displayWorkspaceBrowserPath(filePath, baseDir);
+    }
+  }
+  return "[configured-profile-dir]";
+}
+
 function redactBrowserArgument(argument, baseDir) {
   const match = /^--user-data-dir=(.*)$/.exec(argument);
   if (!match) {
     return argument;
   }
-  return `--user-data-dir=${displayBrowserPath(match[1].replace(/^["']|["']$/g, ""), baseDir)}`;
+  return `--user-data-dir=${displayBrowserProfilePath(
+    match[1].replace(/^["']|["']$/g, ""),
+    baseDir,
+  )}`;
+}
+
+function displayProfileName(profileName) {
+  return profileName ? "[configured-profile]" : "";
 }
 
 function profileDirForBrowser(browser) {
@@ -1071,8 +1091,10 @@ function buildBrowserStatusPayload({ cliConfig, browserConfig, detectedBrowsers 
         browser: configuredBrowser,
         binaryLocation: configuredBinaryLocation,
         usePrivateWindow: browserConfig.use_private_window,
-        userDataDir: displayBrowserPath(browserConfig.user_data_dir, cliConfig.cwd),
-        profileName: browserConfig.profile_name,
+        userDataDir: displayBrowserProfilePath(browserConfig.user_data_dir, cliConfig.cwd),
+        userDataDirConfigured: Boolean(browserConfig.user_data_dir),
+        profileName: displayProfileName(browserConfig.profile_name),
+        profileNameConfigured: Boolean(browserConfig.profile_name),
         arguments: browserConfig.arguments.map((entry) =>
           redactBrowserArgument(entry, cliConfig.cwd),
         ),
@@ -1081,11 +1103,14 @@ function buildBrowserStatusPayload({ cliConfig, browserConfig, detectedBrowsers 
         browser: effectiveBrowser?.id ?? null,
         binaryLocation: configuredBinaryLocation || autoBrowser?.executable || "",
         usePrivateWindow: browserConfig.use_private_window,
-        userDataDir: displayBrowserPath(
+        userDataDir: displayBrowserProfilePath(
           browserConfig.user_data_dir || expectedWorkspaceProfileDir,
           cliConfig.cwd,
+          { allowWorkspaceProfile: !browserConfig.user_data_dir },
         ),
-        profileName: browserConfig.profile_name || "Default",
+        userDataDirConfigured: Boolean(browserConfig.user_data_dir),
+        profileName: displayProfileName(browserConfig.profile_name) || "Default",
+        profileNameConfigured: Boolean(browserConfig.profile_name),
       },
       notes: configuredBinaryLocation
         ? []
