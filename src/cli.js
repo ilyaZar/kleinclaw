@@ -397,6 +397,17 @@ export function detectUserActionRequest(text) {
   };
 }
 
+function localSuccessProcessFields() {
+  return {
+    exitCode: 0,
+    signal: null,
+    timedOut: false,
+    needsUserAction: false,
+    stdout: "",
+    stderr: "",
+  };
+}
+
 export function resolveCliConfig(config = {}) {
   const configuredConfigPath = normalizeOptionalString(config.configPath);
   const configuredCwd = normalizeOptionalString(config.workingDirectory);
@@ -1120,12 +1131,7 @@ function buildBrowserStatusPayload({ cliConfig, browserConfig, detectedBrowsers 
           ],
     },
     detectedBrowsers,
-    exitCode: 0,
-    signal: null,
-    timedOut: false,
-    needsUserAction: false,
-    stdout: "",
-    stderr: "",
+    ...localSuccessProcessFields(),
   };
 }
 
@@ -1868,12 +1874,7 @@ export function getKleinanzeigenAdSchema() {
         "publish scoped to that directory only after a final scoped verify",
       ],
     },
-    exitCode: 0,
-    signal: null,
-    timedOut: false,
-    needsUserAction: false,
-    stdout: "",
-    stderr: "",
+    ...localSuccessProcessFields(),
   };
 }
 
@@ -1911,12 +1912,7 @@ export async function readKleinanzeigenAd(params = {}, config = {}) {
     summary: parseAdSummary(text),
     yaml: sanitizeAdYaml(text, { includeContact }),
     contactRedacted: !includeContact,
-    exitCode: 0,
-    signal: null,
-    timedOut: false,
-    needsUserAction: false,
-    stdout: "",
-    stderr: "",
+    ...localSuccessProcessFields(),
   };
 }
 
@@ -1959,12 +1955,7 @@ export async function setKleinanzeigenAdActive(params = {}, config = {}) {
           "publish scoped to this ad only after verify succeeds",
         ]
       : ["the ad is no longer eligible for publish/update"],
-    exitCode: 0,
-    signal: null,
-    timedOut: false,
-    needsUserAction: false,
-    stdout: "",
-    stderr: "",
+    ...localSuccessProcessFields(),
   };
 }
 
@@ -2080,12 +2071,7 @@ export async function listKleinanzeigenImages(params = {}, config = {}) {
     directory: displayPathForAd(resolvedDirectory, root),
     count: images.length,
     images,
-    exitCode: 0,
-    signal: null,
-    timedOut: false,
-    needsUserAction: false,
-    stdout: "",
-    stderr: "",
+    ...localSuccessProcessFields(),
   };
 }
 
@@ -2190,12 +2176,7 @@ export async function draftKleinanzeigenAd(params = {}, config = {}) {
       "run scoped kleinanzeigen_verify on this directory",
       "set active true only when ready to publish",
     ],
-    exitCode: 0,
-    signal: null,
-    timedOut: false,
-    needsUserAction: false,
-    stdout: "",
-    stderr: "",
+    ...localSuccessProcessFields(),
   };
 }
 
