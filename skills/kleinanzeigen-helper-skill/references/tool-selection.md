@@ -2,9 +2,8 @@
 
 - `kleinanzeigen_status`: check runtime availability, config wiring, workspace
   mode, version, and supported commands without reading the config contents.
-- `kleinanzeigen_list_ads`: discover configured local ad folders and resolve
-  titles, IDs, active state, config paths, and directories before scoped
-  operations.
+- `kleinanzeigen_list_ads`: discover configured local ad folders and return
+  titles, IDs, active state, and relative handles for scoped operations.
 - `kleinanzeigen_ad_schema`: inspect the safe ad config schema and draft
   workflow exposed by KleinClaw.
 - `kleinanzeigen_read_ad`: read one existing ad config under configured
