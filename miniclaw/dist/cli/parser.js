@@ -1,6 +1,5 @@
 import path from "node:path";
 import { isNumericIdSelector } from "../ad-selector.js";
-export { NUMERIC_IDS_RE, isNumericIdSelector } from "../ad-selector.js";
 function resolvePath(value) {
     return path.resolve(value);
 }
