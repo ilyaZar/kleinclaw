@@ -573,13 +573,24 @@ export class CdpLocator {
         throwCdpException(response, "Runtime.callFunctionOn failed");
     }
     async fill(value) {
-        await this.evaluate(`
-      function (element) {
-        element.value = ${JSON.stringify(value)};
+        const objectId = await this.resolveObjectId();
+        if (!objectId) {
+            throw timeoutError("HTML element not found");
+        }
+        const response = await this.page.client.send("Runtime.callFunctionOn", {
+            objectId,
+            functionDeclaration: `
+      function (element, value) {
+        element.value = String(value);
         element.dispatchEvent(new Event("input", { bubbles: true }));
         element.dispatchEvent(new Event("change", { bubbles: true }));
       }
-    `);
+    `,
+            arguments: [{ objectId }, { value }],
+            returnByValue: true,
+            userGesture: true,
+        });
+        throwCdpException(response, "Runtime.callFunctionOn failed");
     }
     async press(key) {
         await this.evaluate("(element) => element.focus()");
