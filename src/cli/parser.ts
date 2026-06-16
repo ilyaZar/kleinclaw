@@ -3,8 +3,6 @@ import path from "node:path";
 import { isNumericIdSelector } from "../ad-selector.js";
 import { type CommandPreparation, type ParsedArgs } from "./types.js";
 
-export { NUMERIC_IDS_RE, isNumericIdSelector } from "../ad-selector.js";
-
 function resolvePath(value: string): string {
   return path.resolve(value);
 }
