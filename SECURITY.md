@@ -21,10 +21,17 @@ remain on the local machine and should be treated as sensitive. If an account
 step needs hands-on work, handle that outside OpenClaw and then run the plugin
 again.
 
+Ad handles returned by discovery tools are relative to configured `adRoots`.
+Scoped tools resolve those handles locally and do not return absolute ad roots,
+ad directories, miniclaw config paths, or temporary config paths. Browser status
+does not return configured profile names or profile directories.
+
 Publish-error diagnostics intentionally avoid storing full ad configs, listing
 titles, page URLs, screenshots, or page HTML. If local log-copy diagnostics are
 enabled, copied logs can still contain sensitive runtime context and should stay
-local.
+local. Login diagnostics are disabled by default; when explicitly enabled they
+can write local screenshots, HTML, and log copies, and those artifacts should
+stay local.
 
 OpenClaw approvals and `confirm: true` parameters are human review gates, not
 sandbox boundaries. Keep `adRoots` limited to listing workspaces you intend the

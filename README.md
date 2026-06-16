@@ -350,6 +350,8 @@ It reports the configured `browser:` values, the effective browser miniclaw will
 try, and locally detected Chromium, Brave, Chrome, and Edge binaries. The
 supported `browser` choices intentionally match embedded miniclaw support:
 `auto`, `chromium`, `google-chrome`, and `microsoft-edge`.
+Configured browser profile names and profile directories are reported only as
+redacted configured-state markers.
 
 Useful browser tool fields:
 
@@ -453,21 +455,23 @@ process cleanup.
 When the miniclaw config contains many ads, one invalid unrelated ad can make
 the runtime reject the whole run before it applies `--ads` filtering. To operate
 on one known source folder, configure `adRoots`, use `kleinanzeigen_list_ads` to
-find the folder, then pass `adDirectories` or `adConfigPaths` to
-`kleinanzeigen_verify`, `kleinanzeigen_publish`, or the other operation tools:
+find the folder, then pass its relative `adDirectory` or `adPath` handle to
+`adDirectories` or `adConfigPaths` on `kleinanzeigen_verify`,
+`kleinanzeigen_publish`, or the other operation tools:
 
 Tool call JSON for a scoped operation; the agent sends this to an operation
 tool:
 
 ```json
 {
-  "adDirectories": ["/home/me/kleinanzeigen-ads/examples/sample-listing"]
+  "adDirectories": ["examples/sample-listing"]
 }
 ```
 
 For publishing that one folder only, combine the scoped directory with
 `selector: "all"` or an explicit `adIds` list plus `confirm: true`. The scoped
-paths must be inside `adRoots`; KleinClaw writes a temporary miniclaw config
+handles resolve under configured `adRoots`; absolute paths are accepted only
+after the same containment check. KleinClaw writes a temporary miniclaw config
 with only those ad files and deletes it after the run.
 
 When miniclaw reports validation failures, KleinClaw returns structured
