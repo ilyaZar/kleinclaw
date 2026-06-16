@@ -508,41 +508,46 @@ The local KleinClaw plugin is the boundary layer. It resolves relative handles
 under configured `adRoots`, creates short-lived scoped configs when needed, and
 runs the bundled `miniclaw` runtime on your machine. `miniclaw` reads local ad
 files and config locally, then drives the browser session for publish,
-republish, update, delete, download, and extend operations. The figure below
-shows that local files and browser/account state stay outside the agent context.
+republish, update, delete, download, and extend operations.
+
+The figure below shows that local files and browser/account state stay outside
+the agent context. The mental model can be expressed in four layers, as given by
+I. - IV., with the arrows showing the interaction between the programmatic
+layers.
 
 ```text
-+-----------------------+  tool calls/approvals  +----------------------------+
-| local machine         |<-----------------------| OpenClaw agent + Gateway   |
-|                       |                        |                            |
-| adRoots/              |----------------------->| sees relative handles only |
-|   sample-listing/     |  redacted results      | sees capped redacted output|
-|     ad.yaml           |                        | does not see full config   |
-|     photos/*.jpg      |                        | does not see credentials   |
-|                       |                        +-------------+--------------+
++-----------------------+                        +-----------------------------+
+|   I. Local machine    |                        | II. OpenClaw agent + Gateway|
++-----------------------+                        +-----------------------------+
+| adRoots/              |  tool calls/approvals  | sees relative handles only  |
+|   sample-listing/     |<-----------------------| sees capped redacted output |
+|     ad.yaml           |  redacted results      | does not see full config    |
+|     photos/*.jpg      |----------------------->| does not see credentials    |
+|                       |                        +-------------+---------------+
 | miniclaw config.yaml  |                                      |
 | credentials/cookies   |                                      |
 | browser/session state |                                      |
-+---------+----------------+                                   |
-          ^                                                    |
-          | list/read/draft/..                                 |
-          | activate/scoped verify                             v
-          |                              +---------------------+-----------+
-          |                              | KleinClaw plugin + miniclaw     |
-          +------------------------------| local runtime boundary          |
-                                         | resolves handles under adRoots  |
-                                         | writes temp scoped configs      |
-                                         | runs browser-backed operations  |
-                                         +--------------+------------------+
++---------+-------------+                                      |
+          ^                                                    v
+          | list, read, draft, ..        +----------------------------------+
+          | ..activate, scoped, verify   | III. KleinClaw plugin + miniclaw |
+          |                              +----------------------------------+
+          |                              | local runtime boundary           |
+          |                              | resolves handles under adRoots   |
+          +------------------------------| writes temp scoped configs       |
+                                         | runs browser-backed operations   |
+                                         +----------------------------------+
                                                         |
                                                         | browser automation:
-                                                        | publish/republish/..
-                                                        | update/delete/download/..
+                                                        | publish, re-publish,..
+                                                        | ..update, delete ads..
                                                         v
-                                         +--------------+-------------+
-                                         | browser + kleinanzeigen.de |
-                                         | account checks stay local  |
-                                         +----------------------------+
+                                         +--------------+-----------------+
+                                         | IV. browser @ kleinanzeigen.de |
+                                         +--------------+-----------------+
+                                         |                                |
+                                         | account checks stay local      |
+                                         +--------------------------------+
 ```
 
 ## Troubleshooting
