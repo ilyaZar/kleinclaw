@@ -922,6 +922,79 @@ describe("scoped ad configs", () => {
     assert.doesNotMatch(result.stdout, /unrelated|should-not-leak/);
   });
 
+  it("writes scoped temp configs as 0600 and cleans them on success and failure", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-temp-config-"));
+    const { adDir, adPath, adRoot, configPath } = await writeScopedAdFixture(tmp);
+    const profilePath = path.join(tmp, SENTINEL_PROFILE_DIR);
+    await fs.writeFile(
+      configPath,
+      [
+        "ad_files:",
+        "  - /unrelated/broken/ad.yaml",
+        "login:",
+        `  username: ${SENTINEL_USER}`,
+        `  password: ${SENTINEL_PASSWORD}`,
+        `cookie: ${SENTINEL_COOKIE}`,
+        `token: ${SENTINEL_TOKEN}`,
+        "browser:",
+        `  user_data_dir: ${JSON.stringify(profilePath)}`,
+        `  profile_name: ${JSON.stringify(SENTINEL_PROFILE_NAME)}`,
+        "categories: {}",
+      ].join("\n"),
+      "utf8",
+    );
+
+    async function runScenario(name, exitCode) {
+      const marker = path.join(tmp, `${name}-marker.json`);
+      const mockCli = await writeExecutableMockScript(
+        path.join(tmp, `${name}-mock-cli.mjs`),
+        [
+          "#!/usr/bin/env node",
+          "import fs from 'node:fs';",
+          "const configArg = process.argv.find((arg) => arg.startsWith('--config='));",
+          "const configPath = configArg.slice('--config='.length);",
+          "const mode = (fs.statSync(configPath).mode & 0o777).toString(8);",
+          `fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify({ configPath, mode }));`,
+          "console.log(configPath);",
+          "console.log(fs.readFileSync(configPath, 'utf8'));",
+          `process.exit(${exitCode});`,
+        ],
+      );
+
+      const result = await runKleinanzeigenOperation(
+        "verify",
+        { adDirectories: [path.basename(adDir)] },
+        withMockMiniclawScript(mockCli, {
+          configPath,
+          adRoots: [adRoot],
+          maxOutputChars: 4000,
+        }),
+      );
+      const markerPayload = JSON.parse(await fs.readFile(marker, "utf8"));
+
+      assert.equal(markerPayload.mode, "600");
+      await assert.rejects(() => fs.stat(markerPayload.configPath), /ENOENT/);
+      assertJsonOmits(
+        result,
+        [
+          tmp,
+          adRoot,
+          adPath,
+          configPath,
+          markerPayload.configPath,
+          ...sentinelNeedles({ profilePath }),
+        ],
+      );
+      return result;
+    }
+
+    const success = await runScenario("success", 0);
+    const failure = await runScenario("failure", 1);
+
+    assert.equal(success.ok, true);
+    assert.equal(failure.ok, false);
+  });
+
   it("rejects scoped ad paths outside configured ad roots", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-scope-"));
     const adRoot = path.join(tmp, "ads");
