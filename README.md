@@ -545,9 +545,6 @@ shows that local files and browser/account state stay outside the agent context.
                                          +----------------------------+
 ```
 
-````
-
-
 ## Troubleshooting
 
 If a routed agent sees the KleinClaw skill but no callable `kleinanzeigen_*`
@@ -557,12 +554,12 @@ hid its tools from that session.
 
 ```json
 {
-"tools": {
-  "alsoAllow": ["kleinclaw"],
-  "sandbox": { "tools": { "alsoAllow": ["kleinclaw"] } }
+  "tools": {
+    "alsoAllow": ["kleinclaw"],
+    "sandbox": { "tools": { "alsoAllow": ["kleinclaw"] } }
+  }
 }
-}
-````
+```
 
 Restart or reload Gateway, then verify with `openclaw sandbox explain --json`
 and a `kleinanzeigen_status` smoke test.
