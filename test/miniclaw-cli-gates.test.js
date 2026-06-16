@@ -26,6 +26,7 @@ function parsedArgs(overrides = {}) {
     command: "publish",
     adsSelector: "all",
     adsSelectorExplicit: true,
+    adFileOverrides: [],
     configPath: path.resolve("config.yaml"),
     configArg: null,
     logfilePath: path.resolve("miniclaw.log"),
@@ -187,6 +188,47 @@ describe("miniclaw CLI planning", () => {
         relativePath: "ads/listing/ad.yaml",
         title: "cli gate listing",
       }]);
+    } finally {
+      await fs.rm(tmp, { force: true, recursive: true });
+    }
+  });
+
+  it("plans against explicit ad file overrides", async () => {
+    const { configPath, tmp } = await createListingWorkspace();
+    const scopedDir = path.join(tmp, "scoped");
+    const scopedAdPath = path.join(scopedDir, "ad.yaml");
+    try {
+      await fs.mkdir(scopedDir, { recursive: true });
+      await fs.writeFile(
+        scopedAdPath,
+        [
+          "active: true",
+          "title: explicit scoped listing",
+          "description: only selected through the CLI ad file override",
+          "category: Audio_und_Hifi",
+          "price_type: NEGOTIABLE",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const parsed = parseArgs([
+        "node",
+        "miniclaw",
+        "--config",
+        configPath,
+        "--ad-file",
+        scopedAdPath,
+        "verify",
+      ]);
+      const plan = await planCommand(parsed);
+
+      assert.deepEqual(parsed.adFileOverrides, [scopedAdPath]);
+      assert.equal(plan.command, "verify");
+      assert.equal(plan.selectedCount, 1);
+      assert.deepEqual(plan.selectedAds.map((ad) => ad.title), [
+        "explicit scoped listing",
+      ]);
     } finally {
       await fs.rm(tmp, { force: true, recursive: true });
     }

@@ -32,6 +32,7 @@ export async function verifyConfig(parsed) {
         configPath: parsed.configPath,
         config,
         selector: "all",
+        adFileOverrides: parsed.adFileOverrides,
         excludeAdsWithId: false,
     });
     for (const { ad, filePath } of ads) {
@@ -65,6 +66,7 @@ export async function updateContentHashes(parsed) {
         configPath: parsed.configPath,
         config,
         selector: "all",
+        adFileOverrides: parsed.adFileOverrides,
         excludeAdsWithId: false,
     });
     if (!ads.length) {

@@ -27,6 +27,7 @@ export async function loadSideEffectAds(
     configPath: parsed.configPath,
     config,
     selector: parsed.adsSelector,
+    adFileOverrides: parsed.adFileOverrides,
     excludeAdsWithId: true,
   });
   return { ads, config };
@@ -55,6 +56,7 @@ export async function loadDownloadCommand(
       configPath: parsed.configPath,
       config,
       selector: "all",
+      adFileOverrides: parsed.adFileOverrides,
       ignoreInactive: false,
       excludeAdsWithId: false,
     })

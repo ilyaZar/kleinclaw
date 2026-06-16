@@ -10,6 +10,7 @@ export interface LoadAdsOptions {
     configPath: string;
     config: Config;
     selector: string;
+    adFileOverrides?: string[];
     ignoreInactive?: boolean;
     excludeAdsWithId?: boolean;
     now?: Date;
@@ -17,4 +18,4 @@ export interface LoadAdsOptions {
 export declare function findAdFiles(configPath: string, config: Config): Promise<string[]>;
 export declare function isDueForRepublication(ad: Ad, now?: Date): boolean;
 export declare function isChangedAd(raw: AdInput, ad: Ad): boolean;
-export declare function loadSelectedAds({ configPath, config, selector, ignoreInactive, excludeAdsWithId, now, }: LoadAdsOptions): Promise<LoadedAd[]>;
+export declare function loadSelectedAds({ configPath, config, selector, adFileOverrides, ignoreInactive, excludeAdsWithId, now, }: LoadAdsOptions): Promise<LoadedAd[]>;

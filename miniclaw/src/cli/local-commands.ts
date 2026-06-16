@@ -46,6 +46,7 @@ export async function verifyConfig(parsed: ParsedArgs): Promise<number> {
     configPath: parsed.configPath,
     config,
     selector: "all",
+    adFileOverrides: parsed.adFileOverrides,
     excludeAdsWithId: false,
   });
 
@@ -82,6 +83,7 @@ export async function updateContentHashes(parsed: ParsedArgs): Promise<number> {
     configPath: parsed.configPath,
     config,
     selector: "all",
+    adFileOverrides: parsed.adFileOverrides,
     excludeAdsWithId: false,
   });
   if (!ads.length) {
