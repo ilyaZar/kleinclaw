@@ -511,7 +511,7 @@ files and config locally, then drives the browser session for publish,
 republish, update, delete, download, and extend operations. The figure below
 shows that local files and browser/account state stay outside the agent context.
 
-````text
+```text
 +-----------------------+  tool calls/approvals  +----------------------------+
 | local machine         |<-----------------------| OpenClaw agent + Gateway   |
 |                       |                        |                            |
@@ -543,6 +543,9 @@ shows that local files and browser/account state stay outside the agent context.
                                          | browser + kleinanzeigen.de |
                                          | account checks stay local  |
                                          +----------------------------+
+```
+
+````
 
 
 ## Troubleshooting
