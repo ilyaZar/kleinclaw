@@ -543,7 +543,7 @@ async function resolveAdConfigInDirectory(directory) {
       }
     }
   }
-  throw new Error(`ad directory has no ad.yaml, ad.yml, or ad.json: ${directory}`);
+  throw new Error("ad directory has no ad.yaml, ad.yml, or ad.json");
 }
 
 function stripYamlScalar(value) {
@@ -1761,10 +1761,9 @@ export async function listKleinanzeigenAds(config = {}, params = {}) {
         continue;
       }
       ads.push({
-        root,
-        directory,
+        adDirectory: displayPathForAd(directory, root),
+        adPath: displayPathForAd(adConfigPath, root),
         relativeDirectory: relDir,
-        adConfigPath,
         ...summary,
       });
       if (ads.length >= maxResults) {
@@ -1865,12 +1864,10 @@ async function resolveSingleAdConfig(params = {}, config = {}) {
   }
   if (adConfigPaths.length) {
     return resolveAdConfigPathEntry(adConfigPaths[0], config, {
-      includePathInError: false,
       kind: "file",
     });
   }
   return resolveAdConfigPathEntry(adDirectories[0], config, {
-    includePathInError: false,
     kind: "directory",
   });
 }
@@ -2252,47 +2249,118 @@ async function resolveScopedAdConfigPaths(params = {}, config = {}) {
   const resolved = [];
   for (const adConfigPath of adConfigPaths) {
     resolved.push(await resolveAdConfigPathEntry(adConfigPath, config, {
-      includePathInError: true,
       kind: "file",
     }));
   }
   for (const directory of adDirectories) {
     resolved.push(await resolveAdConfigPathEntry(directory, config, {
-      includePathInError: true,
       kind: "directory",
     }));
   }
   return [...new Set(resolved)];
 }
 
-async function resolveAdConfigPathEntry(
-  entryPath,
-  config,
-  {
-    includePathInError,
-    kind,
-  },
-) {
-  const stat = await fs.stat(entryPath);
+async function resolveAdConfigPathEntry(entryPath, config, { kind }) {
+  const raw = normalizeOptionalString(entryPath);
+  if (!raw) {
+    throw new Error(`${adPathScopeName(kind)} entry must not be empty`);
+  }
+  if (!path.isAbsolute(raw)) {
+    return resolveRelativeAdConfigPathEntry(raw, config, { kind });
+  }
+  return resolveAbsoluteAdConfigPathEntry(raw, config, { kind });
+}
+
+function adPathScopeName(kind) {
+  return kind === "file" ? "adConfigPaths" : "adDirectories";
+}
+
+function adPathNotFoundMessage(kind) {
+  return `${adPathScopeName(kind)} entry was not found`;
+}
+
+function adPathUnreadableMessage(kind) {
+  return `${adPathScopeName(kind)} entry cannot be read`;
+}
+
+function adPathWrongTypeMessage(kind) {
+  if (kind === "file") {
+    return "adConfigPaths entry is not a file";
+  }
+  return "adDirectories entry is not a directory";
+}
+
+function pathReadErrorMessage(error, kind) {
+  if (["ENOENT", "ENOTDIR"].includes(error?.code)) {
+    return adPathNotFoundMessage(kind);
+  }
+  return adPathUnreadableMessage(kind);
+}
+
+async function statAdPathEntry(candidate, kind) {
+  try {
+    return await fs.stat(candidate);
+  } catch (error) {
+    throw new Error(pathReadErrorMessage(error, kind));
+  }
+}
+
+async function resolveAdConfigPathCandidate(candidate, config, { kind }) {
+  const stat = await statAdPathEntry(candidate, kind);
   if (kind === "file") {
     if (!stat.isFile()) {
-      throw new Error(
-        includePathInError
-          ? `adConfigPaths entry is not a file: ${entryPath}`
-          : "adConfigPaths entry is not a file",
-      );
+      throw new Error(adPathWrongTypeMessage(kind));
     }
-    return assertInsideAdRoots(entryPath, config);
+    return assertInsideAdRoots(candidate, config);
   }
 
   if (!stat.isDirectory()) {
-    throw new Error(
-      includePathInError
-        ? `adDirectories entry is not a directory: ${entryPath}`
-        : "adDirectories entry is not a directory",
-    );
+    throw new Error(adPathWrongTypeMessage(kind));
   }
-  return assertInsideAdRoots(await resolveAdConfigInDirectory(entryPath), config);
+  return assertInsideAdRoots(await resolveAdConfigInDirectory(candidate), config);
+}
+
+async function resolveAbsoluteAdConfigPathEntry(entryPath, config, { kind }) {
+  return resolveAdConfigPathCandidate(path.resolve(entryPath), config, { kind });
+}
+
+async function resolveRelativeAdConfigPathEntry(entryPath, config, { kind }) {
+  const roots = await configuredAdRoots(config);
+  const matches = [];
+  const softErrors = [];
+  let escapedAllRoots = true;
+
+  for (const root of roots) {
+    const candidate = path.resolve(root, entryPath);
+    if (!pathIsInside(candidate, root)) {
+      continue;
+    }
+    escapedAllRoots = false;
+
+    try {
+      matches.push(await resolveAdConfigPathCandidate(candidate, config, { kind }));
+    } catch (error) {
+      if (error?.message === adPathNotFoundMessage(kind)) {
+        continue;
+      }
+      softErrors.push(error);
+    }
+  }
+
+  const uniqueMatches = [...new Set(matches)];
+  if (uniqueMatches.length === 1) {
+    return uniqueMatches[0];
+  }
+  if (uniqueMatches.length > 1) {
+    throw new Error("relative ad handle matches multiple adRoots");
+  }
+  if (escapedAllRoots) {
+    throw new Error("relative ad handle is outside configured adRoots");
+  }
+  if (softErrors.length) {
+    throw softErrors[0];
+  }
+  throw new Error(adPathNotFoundMessage(kind));
 }
 
 function parseAdPreflightSummary(text, filePath) {
