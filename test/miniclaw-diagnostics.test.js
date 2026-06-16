@@ -6,10 +6,71 @@ import path from "node:path";
 
 import { Config } from "../miniclaw/dist/model/config-model.js";
 import {
+  createLoginDiagnosticsCapture,
   createPublishDiagnosticsCapture,
 } from "../miniclaw/dist/publish-side-effects/factory-support.js";
 
 describe("miniclaw diagnostics", () => {
+  it("keeps login diagnostics disabled by default", () => {
+    const capture = createLoginDiagnosticsCapture(
+      new Config({}),
+      {
+        controller: {
+          page: {
+            url: "https://login.kleinanzeigen.de/u/login",
+          },
+        },
+        now: () => new Date("2026-06-13T12:00:00Z"),
+      },
+    );
+
+    assert.equal(capture, undefined);
+  });
+
+  it("captures enabled login diagnostics as sensitive local artifacts", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "miniclaw-diagnostics-"));
+    const outputDir = path.join(tmp, "diagnostics");
+    const logFilePath = path.join(tmp, "runtime.log");
+    await fs.mkdir(outputDir);
+    await fs.writeFile(logFilePath, "login page local runtime context\n", "utf8");
+    let screenshotPath = "";
+    const capture = createLoginDiagnosticsCapture(
+      new Config({
+        diagnostics: {
+          captureOn: { loginDetection: true },
+          captureLogCopy: true,
+          outputDir,
+        },
+      }),
+      {
+        controller: {
+          page: {
+            url: "https://login.kleinanzeigen.de/u/login/password",
+            async content() {
+              return "<html>account state</html>";
+            },
+            async screenshot(options) {
+              screenshotPath = options.path;
+              await fs.writeFile(options.path, "png", "utf8");
+            },
+          },
+        },
+        logFilePath,
+        now: () => new Date("2026-06-13T12:00:00Z"),
+      },
+    );
+
+    assert.equal(typeof capture, "function");
+    await capture({ basePrefix: "login_detection_password" });
+
+    const files = await fs.readdir(outputDir);
+    assert.equal(path.dirname(screenshotPath), outputDir);
+    assert.equal(files.filter((file) => file.endsWith(".png")).length, 1);
+    assert.equal(files.filter((file) => file.endsWith(".html")).length, 1);
+    assert.equal(files.filter((file) => file.endsWith(".log")).length, 1);
+    assert.equal(files.filter((file) => file.endsWith(".json")).length, 0);
+  });
+
   it("keeps publish error diagnostics sparse", async () => {
     const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "miniclaw-diagnostics-"));
     const error = new Error("publish failed with local state");
