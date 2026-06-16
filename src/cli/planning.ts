@@ -67,6 +67,7 @@ export async function planCommand(
     configPath: parsed.configPath,
     config,
     selector: prepared.adsSelector,
+    adFileOverrides: parsed.adFileOverrides,
     excludeAdsWithId,
     now,
   });

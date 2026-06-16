@@ -93,8 +93,10 @@ function resolveCategoryAlias(ad, categories) {
     }
     return resolvedCategory ? { ...ad, category: resolvedCategory } : ad;
 }
-export async function loadSelectedAds({ configPath, config, selector, ignoreInactive = true, excludeAdsWithId = true, now = new Date(), }) {
-    const adFiles = await findAdFiles(configPath, config);
+export async function loadSelectedAds({ configPath, config, selector, adFileOverrides = [], ignoreInactive = true, excludeAdsWithId = true, now = new Date(), }) {
+    const adFiles = adFileOverrides.length
+        ? [...new Set(adFileOverrides.map((entry) => path.resolve(entry)))].sort()
+        : await findAdFiles(configPath, config);
     const root = path.dirname(configPath);
     const selectors = selector.split(",").map((entry) => entry.trim());
     const useSpecificIds = isNumericIdSelector(selector);

@@ -29,6 +29,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     command: "help",
     adsSelector: "due",
     adsSelectorExplicit: false,
+    adFileOverrides: [],
     configPath: resolvePath("config.yaml"),
     configArg: null,
     logfilePath: resolvePath("miniclaw.log"),
@@ -69,6 +70,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
       const option = readOptionValue(argv, index, "--ads");
       parsed.adsSelector = option.value.trim().toLowerCase();
       parsed.adsSelectorExplicit = true;
+      index = option.nextIndex;
+      continue;
+    }
+    if (arg === "--ad-file" || arg.startsWith("--ad-file=")) {
+      const option = readOptionValue(argv, index, "--ad-file");
+      parsed.adFileOverrides.push(resolvePath(option.value));
       index = option.nextIndex;
       continue;
     }

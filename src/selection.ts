@@ -30,6 +30,7 @@ export interface LoadAdsOptions {
   configPath: string;
   config: Config;
   selector: string;
+  adFileOverrides?: string[];
   ignoreInactive?: boolean;
   excludeAdsWithId?: boolean;
   now?: Date;
@@ -138,11 +139,14 @@ export async function loadSelectedAds({
   configPath,
   config,
   selector,
+  adFileOverrides = [],
   ignoreInactive = true,
   excludeAdsWithId = true,
   now = new Date(),
 }: LoadAdsOptions): Promise<LoadedAd[]> {
-  const adFiles = await findAdFiles(configPath, config);
+  const adFiles = adFileOverrides.length
+    ? [...new Set(adFileOverrides.map((entry) => path.resolve(entry)))].sort()
+    : await findAdFiles(configPath, config);
   const root = path.dirname(configPath);
   const selectors = selector.split(",").map((entry) => entry.trim());
   const useSpecificIds = isNumericIdSelector(selector);

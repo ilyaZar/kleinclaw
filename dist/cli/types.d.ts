@@ -8,6 +8,7 @@ export interface ParsedArgs {
     command: Command | string;
     adsSelector: string;
     adsSelectorExplicit: boolean;
+    adFileOverrides: string[];
     configPath: string;
     configArg: string | null;
     logfilePath: string | null;
