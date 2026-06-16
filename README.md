@@ -62,14 +62,14 @@ for agent-led setup and preflight, but the bundled helper skill should choose
 those details during normal use, meaning: your agent does the heavy lifting
 while you provide images and loose descriptions of your Inserate/ads.
 
-The tools are optional because they run a local command. By default all tools
-require OpenClaw approval before they run. OpenClaw approvals and
-`confirm: true` parameters are human review gates, not sandbox boundaries. Keep
-`adRoots` limited to listing workspaces you intend the plugin to read or write.
-Set `approvalMode` to `mutating` only for local checks where status and verify
-should run without an approval route. Account-changing tools still require
-`confirm: true`. Tool output is capped and redacted for configured paths, email
-addresses, and credential-like lines.
+The tools are optional because they run a local command. By default all shipped
+KleinClaw tools route through OpenClaw approval before they run. OpenClaw
+approvals and `confirm: true` parameters are human review gates, not sandbox
+boundaries. Keep `adRoots` limited to listing workspaces you intend the plugin
+to read or write. Set `approvalMode` to `mutating` only when local checks should
+run without approval, or to `none` only for trusted local operator workflows.
+Account-changing tools still require `confirm: true`. Tool output is capped and
+redacted for configured paths, email addresses, and credential-like lines.
 
 The package also ships a `kleinanzeigen-helper-skill` under `skills/`. OpenClaw
 loads plugin skills when the plugin is enabled, so agents get the longer
@@ -172,10 +172,10 @@ Plugin config fields:
   milliseconds.
 - `maxOutputChars`: maximum sanitized stdout or stderr characters returned to
   the agent, from `0` to `20000`.
-- `approvalMode`: `all` or `mutating`. `all` is the default and routes every
-  KleinClaw tool through OpenClaw approval. `mutating` lets local checks such as
-  status and verify run without approval, while account-changing tools still
-  need approval and `confirm: true`.
+- `approvalMode`: `all`, `mutating`, or `none`. `all` is the default and routes
+  every KleinClaw tool through OpenClaw approval. `mutating` routes side-effect
+  tools through OpenClaw approval. `none` relies on tool-level `confirm: true`
+  gates. Account-changing tools still need `confirm: true`.
 
 Also expose the optional tools through OpenClaw tool policy. This is still the
 same active OpenClaw config file, but now the block is top-level `tools`, next
@@ -471,8 +471,9 @@ tool:
 For publishing that one folder only, combine the scoped directory with
 `selector: "all"` or an explicit `adIds` list plus `confirm: true`. The scoped
 handles resolve under configured `adRoots`; absolute paths are accepted only
-after the same containment check. KleinClaw writes a temporary miniclaw config
-with only those ad files and deletes it after the run.
+after the same containment check. KleinClaw passes those selected ad files as a
+scoped runtime override, without writing a scoped copy of the full miniclaw
+config.
 
 When miniclaw reports validation failures, KleinClaw returns structured
 `diagnostics` and `nextActions` alongside the sanitized stdout/stderr. For
@@ -499,48 +500,48 @@ Do not mix selectors with explicit ad IDs.
 ## Security Architecture
 
 KleinClaw is designed so the OpenClaw agent can ask for listing work without
-receiving your full local Kleinanzeigen setup. The agent and Gateway see tool
-schemas, approval prompts, relative ad handles, and capped redacted results.
-They do not receive Kleinanzeigen passwords, cookies, browser profile paths,
-absolute ad roots, temporary scoped configs, or the full miniclaw config.
+receiving your full local Kleinanzeigen setup. The agent-facing OpenClaw context
+sees tool schemas, approval prompts when enabled, relative ad handles, and
+capped redacted results. It does not receive Kleinanzeigen passwords, cookies,
+browser profile paths, absolute ad roots, scoped runtime override paths, or the
+full miniclaw config.
 
 The local KleinClaw plugin is the boundary layer. It resolves relative handles
-under configured `adRoots`, creates short-lived scoped configs when needed, and
-runs the bundled `miniclaw` runtime on your machine. `miniclaw` reads local ad
-files and config locally, then drives the browser session for publish,
-republish, update, delete, download, and extend operations.
+under configured `adRoots`, passes scoped ad-file overrides when needed, and runs
+the bundled `miniclaw` runtime on your machine. `miniclaw` reads local ad files
+and config locally, then drives the browser session for publish, republish,
+update, delete, download, and extend operations.
 
 The figure below shows that local files and browser/account state stay outside
 the agent context. The mental model can be expressed in four layers, as given by
-I. - IV., with the arrows showing the interaction between the programmatic
-layers.
+I-IV, with the arrows showing the interaction between the runtime layers.
 
 ```text
-+-----------------------+                        +-----------------------------+
-|   I. Local machine    |                        | II. OpenClaw agent + Gateway|
-+-----------------------+                        +-----------------------------+
-| adRoots/              |  tool calls/approvals  | sees relative handles only  |
-|   sample-listing/     |<-----------------------| sees capped redacted output |
-|     ad.yaml           |  redacted results      | does not see full config    |
-|     photos/*.jpg      |----------------------->| does not see credentials    |
-|                       |                        +-------------+---------------+
-| miniclaw config.yaml  |                                      |
-| credentials/cookies   |                                      |
-| browser/session state |                                      |
-+---------+-------------+                                      |
-          ^                                                    v
-          | list, read, draft, ..        +----------------------------------+
-          | ..activate, scoped, verify   | III. KleinClaw plugin + miniclaw |
++-----------------------+                      +-------------------------------+
+|   I. Local machine    |                      | II. agent-facing context     |
++-----------------------+                      +-------------------------------+
+| adRoots/              |                      | sees relative handles only   |
+|   sample-listing/     |                      | sees capped redacted output  |
+|     ad.yaml           |                      | does not see full config     |
+|     photos/*.jpg      |                      | does not see credentials     |
+|                       |                      +--------+-------+--------------+
+| miniclaw config.yaml  |                               |       ^
+| credentials/cookies   |                               |       |
+| browser/session state |                   tool calls/ |       | processed/
++---------+-------------+                   approvals   |       | redacted info
+          ^                                             v       |
+          | list / read / draft          +----------------------+-----------+
+          | activate / scoped verify     | III. KleinClaw plugin & miniclaw |
           |                              +----------------------------------+
           |                              | local runtime boundary           |
           |                              | resolves handles under adRoots   |
-          +------------------------------| writes temp scoped configs       |
+          +------------------------------| passes scoped ad-file overrides  |
                                          | runs browser-backed operations   |
                                          +----------------------------------+
                                                         |
                                                         | browser automation:
-                                                        | publish, re-publish,..
-                                                        | ..update, delete ads..
+                                                        | publish / republish
+                                                        | update / delete / download
                                                         v
                                          +--------------+-----------------+
                                          | IV. browser @ kleinanzeigen.de |
@@ -568,6 +569,28 @@ hid its tools from that session.
 
 Restart or reload Gateway, then verify with `openclaw sandbox explain --json`
 and a `kleinanzeigen_status` smoke test.
+
+If repeated approval prompts are too noisy for a trusted local operator setup,
+change only the plugin entry in your own OpenClaw config:
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "kleinclaw": {
+        "config": {
+          "approvalMode": "none"
+        }
+      }
+    }
+  }
+}
+```
+
+The shipped default remains `all`, so every KleinClaw tool asks for OpenClaw
+approval. `none` disables that approval route for KleinClaw tools; `mutating`
+keeps approval prompts only for side-effect tools. Account-changing tools still
+require `confirm: true`.
 
 ## Notes
 

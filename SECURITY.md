@@ -23,8 +23,8 @@ again.
 
 Ad handles returned by discovery tools are relative to configured `adRoots`.
 Scoped tools resolve those handles locally and do not return absolute ad roots,
-ad directories, miniclaw config paths, or temporary config paths. Browser status
-does not return configured profile names or profile directories.
+ad directories, miniclaw config paths, or scoped runtime override paths. Browser
+status does not return configured profile names or profile directories.
 
 Publish-error diagnostics intentionally avoid storing full ad configs, listing
 titles, page URLs, screenshots, or page HTML. If local log-copy diagnostics are
@@ -35,8 +35,9 @@ stay local.
 
 OpenClaw approvals and `confirm: true` parameters are human review gates, not
 sandbox boundaries. Keep `adRoots` limited to listing workspaces you intend the
-plugin to read or write. Keep `approvalMode` at `all` unless local read-only
-checks should run without an approval route.
+plugin to read or write. The shipped `approvalMode` default is `all`, which
+routes every KleinClaw tool through OpenClaw approval. Set it to `mutating` or
+`none` only for trusted local operator workflows.
 
 Package install scripts are not used for this plugin. Installing the plugin
 does not run setup commands.
