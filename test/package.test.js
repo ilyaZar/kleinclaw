@@ -489,6 +489,21 @@ describe("package install boundary", () => {
       () => remoteDebuggingPortFromArguments(["--remote-debugging-port=abc"]),
       /Invalid --remote-debugging-port value: abc/,
     );
+    assert.throws(
+      () => buildBrowserSessionPlan(
+        new Config({
+          browser: {
+            arguments: [
+              "--remote-debugging-host=0.0.0.0",
+              "--remote-debugging-port=9333",
+            ],
+            binary_location: fakeBrowser,
+          },
+        }),
+        { cwd: tmp, defaultUserDataDir: workspaceProfile },
+      ),
+      /Invalid --remote-debugging-host value: 0\.0\.0\.0/,
+    );
     assert.equal(
       remoteDebuggingPortFromArguments(["--remote-debugging-port=0"]),
       null,

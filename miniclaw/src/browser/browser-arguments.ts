@@ -7,7 +7,13 @@
 export function remoteDebuggingHostFromArguments(args: string[]): string {
   for (const arg of args) {
     if (arg.startsWith("--remote-debugging-host=")) {
-      return arg.split("=", 2)[1] ?? "127.0.0.1";
+      const host = arg.split("=", 2)[1]?.trim() ?? "127.0.0.1";
+      if (!["127.0.0.1", "localhost", "::1", "[::1]"].includes(host)) {
+        throw new Error(
+          `Invalid --remote-debugging-host value: ${host}. Use localhost only.`,
+        );
+      }
+      return host;
     }
   }
   return "127.0.0.1";
