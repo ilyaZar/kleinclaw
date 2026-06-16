@@ -14,6 +14,7 @@ export const OPERATIONS = Object.freeze({
   extend: { command: "extend", sideEffect: true, defaultSelector: "all" },
 });
 
+const LOCAL_AD_ID_SCOPE_OPERATIONS = new Set(["publish", "update", "delete", "extend"]);
 const ALLOWED_ENV_KEYS = new Set([
   "DBUS_SESSION_BUS_ADDRESS",
   "DISPLAY",
@@ -1708,6 +1709,71 @@ async function readConfiguredAdFiles(configPath) {
   return [...new Set(adFiles)];
 }
 
+async function collectAdIdScopeCandidatePaths(config = {}) {
+  const candidates = new Set();
+  for (const adConfigPath of await readConfiguredAdFiles(config.configPath)) {
+    try {
+      const stat = await fs.stat(adConfigPath);
+      if (stat.isFile()) {
+        candidates.add(await realPath(adConfigPath));
+      }
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+
+  const roots = normalizeStringArray(config.adRoots, "adRoots", { maxItems: 50 });
+  for (const root of roots) {
+    const resolvedRoot = await realPath(root);
+    const stat = await fs.stat(resolvedRoot);
+    if (!stat.isDirectory()) {
+      continue;
+    }
+    for (const adConfigPath of await findAdFiles(resolvedRoot, { maxFiles: 400 })) {
+      candidates.add(await realPath(adConfigPath));
+    }
+  }
+
+  return [...candidates].sort();
+}
+
+async function resolveAdIdScopedAdConfigPaths(operation, params = {}, config = {}) {
+  if (!LOCAL_AD_ID_SCOPE_OPERATIONS.has(operation)) {
+    return [];
+  }
+
+  const adIds = normalizeAdIds(params.adIds);
+  if (!adIds) {
+    return [];
+  }
+
+  const requestedIds = [...new Set(adIds)];
+  const matchesById = new Map(requestedIds.map((id) => [id, []]));
+  for (const adConfigPath of await collectAdIdScopeCandidatePaths(config)) {
+    let text;
+    try {
+      text = await fs.readFile(adConfigPath, "utf8");
+    } catch (error) {
+      if (error?.code === "ENOENT") {
+        continue;
+      }
+      throw error;
+    }
+
+    const id = parseAdOperationState(text, adConfigPath).id;
+    if (matchesById.has(id)) {
+      matchesById.get(id).push(adConfigPath);
+    }
+  }
+
+  if (requestedIds.some((id) => matchesById.get(id).length === 0)) {
+    return [];
+  }
+  return [...new Set(requestedIds.flatMap((id) => matchesById.get(id)))];
+}
+
 async function findTitleLengthCandidates(config = {}, { limit = 65, maxResults = 10 } = {}) {
   const roots = normalizeStringArray(config.adRoots, "adRoots", { maxItems: 50 });
   const scopedAdFiles = Array.isArray(config.adFileOverrides)
@@ -2796,7 +2862,17 @@ export async function runKleinanzeigenOperation(operation, params = {}, config =
   const baseCliConfig = resolveCliConfig(config);
   await assertConfiguredFiles(baseCliConfig);
   requireConfirmed(operation, params);
-  const scopedAdConfigPaths = await resolveScopedAdConfigPaths(params, config);
+  const requestedScopedAdConfigPaths = await resolveScopedAdConfigPaths(params, config);
+  const adIdScopedAdConfigPaths = requestedScopedAdConfigPaths.length
+    ? []
+    : await resolveAdIdScopedAdConfigPaths(
+        operation,
+        params,
+        { ...config, configPath: baseCliConfig.configPath },
+      );
+  const scopedAdConfigPaths = requestedScopedAdConfigPaths.length
+    ? requestedScopedAdConfigPaths
+    : adIdScopedAdConfigPaths;
   if (operation === "publish" && scopedAdConfigPaths.length > 0) {
     const inactiveAds = await inactiveScopedPublishAds(scopedAdConfigPaths, config);
     if (inactiveAds.length) {

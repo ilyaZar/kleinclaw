@@ -964,6 +964,165 @@ describe("scoped ad configs", () => {
     assertJsonOmits(result, [tmp, adRoot, adPath, configPath, "should-not-leak"]);
   });
 
+  it("scopes numeric local ad ID operations to matching ad files", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-id-scope-"));
+    const adRoot = path.join(tmp, "ads");
+    const selectedDir = path.join(adRoot, "ONGOING", "armani-jeans-01");
+    const unrelatedDir = path.join(adRoot, "ONGOING", "cut-n-run");
+    const selectedPath = path.join(selectedDir, "ad.yaml");
+    const unrelatedPath = path.join(unrelatedDir, "ad.yaml");
+    const configPath = path.join(tmp, "config.yaml");
+    const marker = path.join(tmp, "argv.json");
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
+      [
+        "#!/usr/bin/env node",
+        "import fs from 'node:fs';",
+        `fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify(process.argv.slice(2)));`,
+        "console.log('DONE: (Re-)published 1 ad');",
+      ],
+    );
+    await fs.mkdir(selectedDir, { recursive: true });
+    await fs.mkdir(unrelatedDir, { recursive: true });
+    await fs.writeFile(
+      selectedPath,
+      [
+        "active: true",
+        "id: 2923858274",
+        "title: Neuwertige ARMANI Damen Stretch Jeans Gr. 29 schwarz",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.writeFile(
+      unrelatedPath,
+      [
+        "active: true",
+        "id: 9999999999",
+        "title: Cut and Run Ausstellung Banksy Tragetasche / 25 Years Card Labour Streetart",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.writeFile(
+      configPath,
+      [
+        "ad_files:",
+        '  - "**/ad.yaml"',
+        "categories: {}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await runKleinanzeigenOperation(
+      "publish",
+      { confirm: true, adIds: ["2923858274"] },
+      withMockMiniclawScript(mockCli, {
+        configPath,
+        adRoots: [adRoot],
+      }),
+    );
+    const argv = JSON.parse(await fs.readFile(marker, "utf8"));
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(argv, [
+      `--config=${configPath}`,
+      "--logfile=",
+      "--workspace-mode=portable",
+      `--ad-file=${selectedPath}`,
+      "--allow-live-browser",
+      "publish",
+      "--ads=2923858274",
+    ]);
+    assert.equal(argv.includes(`--ad-file=${unrelatedPath}`), false);
+    assert.deepEqual(result.command.args, [
+      "--config=[redacted]",
+      "--logfile=",
+      "--workspace-mode=portable",
+      "--ad-file=[redacted]",
+      "--allow-live-browser",
+      "publish",
+      "--ads=2923858274",
+    ]);
+  });
+
+  it("does not scope numeric downloads through local ad files", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-id-download-"));
+    const { adPath, adRoot, configPath } = await writeScopedAdFixture(
+      tmp,
+      "active: true\nid: 2923858274\ntitle: Sample Listing\n",
+    );
+    const marker = path.join(tmp, "argv.json");
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
+      [
+        "#!/usr/bin/env node",
+        "import fs from 'node:fs';",
+        `fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify(process.argv.slice(2)));`,
+        "console.log('DONE: Downloaded 1 of 1 ads');",
+      ],
+    );
+
+    const result = await runKleinanzeigenOperation(
+      "download",
+      { confirm: true, adIds: ["2923858274"] },
+      withMockMiniclawScript(mockCli, {
+        configPath,
+        adRoots: [adRoot],
+      }),
+    );
+    const argv = JSON.parse(await fs.readFile(marker, "utf8"));
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(argv, [
+      `--config=${configPath}`,
+      "--logfile=",
+      "--workspace-mode=portable",
+      "--allow-live-browser",
+      "download",
+      "--ads=2923858274",
+    ]);
+    assert.equal(argv.includes(`--ad-file=${adPath}`), false);
+  });
+
+  it("keeps multi-ID operations unscoped unless every ID is local", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-id-partial-"));
+    const { adPath, adRoot, configPath } = await writeScopedAdFixture(
+      tmp,
+      "active: true\nid: 2923858274\ntitle: Sample Listing\n",
+    );
+    const marker = path.join(tmp, "argv.json");
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
+      [
+        "#!/usr/bin/env node",
+        "import fs from 'node:fs';",
+        `fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify(process.argv.slice(2)));`,
+        "console.log('DONE: updated 0 ads');",
+      ],
+    );
+
+    const result = await runKleinanzeigenOperation(
+      "update",
+      { confirm: true, adIds: ["2923858274", "1111111111"] },
+      withMockMiniclawScript(mockCli, {
+        configPath,
+        adRoots: [adRoot],
+      }),
+    );
+    const argv = JSON.parse(await fs.readFile(marker, "utf8"));
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(argv, [
+      `--config=${configPath}`,
+      "--logfile=",
+      "--workspace-mode=portable",
+      "--allow-live-browser",
+      "update",
+      "--ads=2923858274,1111111111",
+    ]);
+    assert.equal(argv.includes(`--ad-file=${adPath}`), false);
+  });
+
   it("does not create scoped temp configs on success or failure", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-temp-config-"));
     const { adDir, adPath, adRoot, configPath } = await writeScopedAdFixture(tmp);
