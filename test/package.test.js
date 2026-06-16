@@ -412,6 +412,21 @@ describe("package install boundary", () => {
     const binB = path.join(tmp, "bin-b");
     const detectedChromium = path.join(binB, "chromium");
     const detectedChrome = path.join(binA, "google-chrome");
+    const createCdpTestPage = (id, send, { on = () => () => {} } = {}) => {
+      const page = new CdpPage("http://127.0.0.1:1", {
+        id,
+        type: "page",
+        url: "about:blank",
+        webSocketDebuggerUrl: `ws://127.0.0.1:1/devtools/page/${id}`,
+      }, 1);
+      page.client = {
+        close: () => {},
+        connect: async () => {},
+        on,
+        send,
+      };
+      return page;
+    };
 
     await fs.writeFile(fakeBrowser, "#!/bin/sh\nexit 0\n", "utf8");
     await fs.chmod(fakeBrowser, 0o700);
@@ -540,22 +555,11 @@ describe("package install boundary", () => {
     assert.deepEqual(disposedInitialPages, ["existing"]);
     assert.deepEqual(closedInitialPages, []);
 
-    const trackedPage = new CdpPage("http://127.0.0.1:1", {
-      id: "page-1",
-      type: "page",
-      url: "about:blank",
-      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-1",
-    }, 1);
     const handlers = new Map();
     let currentHref = "https://www.kleinanzeigen.de/s-home.html";
-    trackedPage.client = {
-      close: () => {},
-      connect: async () => {},
-      on: (method, handler) => {
-        handlers.set(method, handler);
-        return () => handlers.delete(method);
-      },
-      send: async (method, params = {}) => {
+    const trackedPage = createCdpTestPage(
+      "page-1",
+      async (method, params = {}) => {
         if (method === "Runtime.evaluate") {
           const expression = String(params.expression ?? "");
           if (expression === "document.readyState") {
@@ -567,7 +571,13 @@ describe("package install boundary", () => {
         }
         return {};
       },
-    };
+      {
+        on: (method, handler) => {
+          handlers.set(method, handler);
+          return () => handlers.delete(method);
+        },
+      },
+    );
 
     await trackedPage.init();
     assert.equal(trackedPage.url, "https://www.kleinanzeigen.de/s-home.html");
@@ -590,22 +600,11 @@ describe("package install boundary", () => {
     await trackedPage.waitForLoadState("load");
     assert.equal(trackedPage.url, "https://www.kleinanzeigen.de/m-meine-anzeigen.html");
 
-    const navPage = new CdpPage("http://127.0.0.1:1", {
-      id: "page-nav",
-      type: "page",
-      url: "about:blank",
-      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-nav",
-    }, 1);
     const navHandlers = new Map();
     const navCalls = [];
-    navPage.client = {
-      close: () => {},
-      connect: async () => {},
-      on: (method, handler) => {
-        navHandlers.set(method, handler);
-        return () => navHandlers.delete(method);
-      },
-      send: async (method, params = {}) => {
+    const navPage = createCdpTestPage(
+      "page-nav",
+      async (method, params = {}) => {
         navCalls.push([method, params]);
         if (method === "Runtime.evaluate") {
           return {
@@ -616,7 +615,13 @@ describe("package install boundary", () => {
         }
         return {};
       },
-    };
+      {
+        on: (method, handler) => {
+          navHandlers.set(method, handler);
+          return () => navHandlers.delete(method);
+        },
+      },
+    );
 
     const navPromise = navPage.goto(
       "https://www.kleinanzeigen.de/p-anzeige-aufgeben-schritt2.html",
@@ -653,19 +658,11 @@ describe("package install boundary", () => {
       ],
     );
 
-    const typedPage = new CdpPage("http://127.0.0.1:1", {
-      id: "page-2",
-      type: "page",
-      url: "about:blank",
-      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-2",
-    }, 1);
     const dispatchedKeys = [];
     const typedFunctions = [];
-    typedPage.client = {
-      close: () => {},
-      connect: async () => {},
-      on: () => () => {},
-      send: async (method, params = {}) => {
+    const typedPage = createCdpTestPage(
+      "page-2",
+      async (method, params = {}) => {
         if (method === "Runtime.evaluate") {
           return { result: { objectId: "element-1" } };
         }
@@ -681,7 +678,7 @@ describe("package install boundary", () => {
         }
         return {};
       },
-    };
+    );
     const typedLocator = new CdpLocator(typedPage, [
       { kind: "css", value: "#title", index: 0 },
     ]);
@@ -707,12 +704,33 @@ describe("package install boundary", () => {
       ],
     );
 
-    const textPage = new CdpPage("http://127.0.0.1:1", {
-      id: "page-text",
-      type: "page",
-      url: "about:blank",
-      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-text",
-    }, 1);
+    const filledFunctions = [];
+    typedPage.client.send = async (method, params = {}) => {
+      if (method === "Runtime.evaluate") {
+        return { result: { objectId: "element-1" } };
+      }
+      if (method === "DOM.describeNode") {
+        return { node: { backendNodeId: 123 } };
+      }
+      if (method === "Runtime.callFunctionOn") {
+        filledFunctions.push(params);
+        return { result: { value: undefined } };
+      }
+      return {};
+    };
+
+    await typedLocator.fill("secret-password");
+    assert.equal(filledFunctions.length, 1);
+    assert.equal(filledFunctions[0].objectId, "element-1");
+    assert.doesNotMatch(
+      filledFunctions[0].functionDeclaration,
+      /secret-password/,
+    );
+    assert.deepEqual(filledFunctions[0].arguments, [
+      { objectId: "element-1" },
+      { value: "secret-password" },
+    ]);
+
     let fakeDocument;
     const button = {
       id: "button",
@@ -756,11 +774,9 @@ describe("package install boundary", () => {
       }
     };
     const textLocatorObjects = [];
-    textPage.client = {
-      close: () => {},
-      connect: async () => {},
-      on: () => () => {},
-      send: async (method, params = {}) => {
+    const textPage = createCdpTestPage(
+      "page-text",
+      async (method, params = {}) => {
         if (method === "Runtime.evaluate") {
           const value = evaluateWithFakeDocument(String(params.expression));
           if (value && typeof value === "object") {
@@ -778,25 +794,17 @@ describe("package install boundary", () => {
         }
         return {};
       },
-    };
+    );
     const textLocator = textPage.getByText("Submit");
 
     assert.equal(await textLocator.count(), 3);
     await textLocator.first().click();
     assert.deepEqual(textLocatorObjects, ["button"]);
 
-    const clickedPage = new CdpPage("http://127.0.0.1:1", {
-      id: "page-3",
-      type: "page",
-      url: "about:blank",
-      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-3",
-    }, 1);
     const clickedFunctions = [];
-    clickedPage.client = {
-      close: () => {},
-      connect: async () => {},
-      on: () => () => {},
-      send: async (method, params = {}) => {
+    const clickedPage = createCdpTestPage(
+      "page-3",
+      async (method, params = {}) => {
         if (method === "Runtime.evaluate") {
           return { result: { objectId: "button-1" } };
         }
@@ -809,7 +817,7 @@ describe("package install boundary", () => {
         }
         return {};
       },
-    };
+    );
     const clickedLocator = new CdpLocator(clickedPage, [
       { kind: "css", value: "#submit", index: 0 },
     ]);
@@ -821,18 +829,10 @@ describe("package install boundary", () => {
     assert.deepEqual(clickedFunctions[0].arguments, [{ objectId: "button-1" }]);
     assert.equal(clickedFunctions[0].userGesture, true);
 
-    const uploadPage = new CdpPage("http://127.0.0.1:1", {
-      id: "page-upload",
-      type: "page",
-      url: "about:blank",
-      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-upload",
-    }, 1);
     const uploadedFiles = [];
-    uploadPage.client = {
-      close: () => {},
-      connect: async () => {},
-      on: () => () => {},
-      send: async (method, params = {}) => {
+    const uploadPage = createCdpTestPage(
+      "page-upload",
+      async (method, params = {}) => {
         if (method === "Runtime.evaluate") {
           return { result: { objectId: "file-input-1" } };
         }
@@ -845,7 +845,7 @@ describe("package install boundary", () => {
         }
         return {};
       },
-    };
+    );
     const uploadLocator = new CdpLocator(uploadPage, [
       { kind: "css", value: "input[type=file]", index: 0 },
     ]);
@@ -858,25 +858,17 @@ describe("package install boundary", () => {
       objectId: "file-input-1",
     }]);
 
-    const evaluatedPage = new CdpPage("http://127.0.0.1:1", {
-      id: "page-evaluate",
-      type: "page",
-      url: "about:blank",
-      webSocketDebuggerUrl: "ws://127.0.0.1:1/devtools/page/page-evaluate",
-    }, 1);
     const evaluatedExpressions = [];
-    evaluatedPage.client = {
-      close: () => {},
-      connect: async () => {},
-      on: () => () => {},
-      send: async (method, params = {}) => {
+    const evaluatedPage = createCdpTestPage(
+      "page-evaluate",
+      async (method, params = {}) => {
         if (method === "Runtime.evaluate") {
           evaluatedExpressions.push(params);
           return { result: { value: { ok: true } } };
         }
         return {};
       },
-    };
+    );
 
     const evaluated = await evaluatedPage.evaluate(
       ({ requestUrl }) => requestUrl,
