@@ -1281,6 +1281,117 @@ describe("redacted output handling", () => {
     );
   });
 
+  it("keeps agent-facing failure payloads free of local paths and secrets", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-errors-"));
+    const adRoot = path.join(tmp, "ads");
+    const adDir = path.join(adRoot, "sample-listing");
+    const outsideDir = path.join(tmp, "outside");
+    const configPath = path.join(tmp, "config.yaml");
+    const unreadableConfigPath = path.join(tmp, "unreadable-config.yaml");
+    const invalidJsonConfigPath = path.join(tmp, "invalid-config.json");
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
+      [
+        "#!/usr/bin/env node",
+        "console.log('DONE: No configuration errors found.');",
+      ],
+    );
+    await fs.mkdir(adDir, { recursive: true });
+    await fs.mkdir(outsideDir, { recursive: true });
+    await fs.writeFile(path.join(adDir, "ad.yaml"), "title: Sample Listing\n", "utf8");
+    await fs.writeFile(path.join(outsideDir, "ad.yaml"), "title: Outside Listing\n", "utf8");
+    await fs.writeFile(configPath, "ad_files: []\ncategories: {}\n", "utf8");
+    await fs.writeFile(
+      unreadableConfigPath,
+      `password: ${SENTINEL_PASSWORD}\n`,
+      { encoding: "utf8", mode: 0o000 },
+    );
+    await fs.writeFile(
+      invalidJsonConfigPath,
+      `{"password":${JSON.stringify(SENTINEL_PASSWORD)},`,
+      "utf8",
+    );
+
+    try {
+      const baseConfig = {
+        configPath,
+        adRoots: [adRoot],
+      };
+      const payloads = [];
+      payloads.push(
+        await executeKleinanzeigenTool(
+          baseConfig,
+          "kleinanzeigen_read_ad",
+          { adDirectories: [path.join(adRoot, "missing-listing")] },
+        ),
+      );
+      payloads.push(
+        await executeKleinanzeigenTool(
+          baseConfig,
+          "kleinanzeigen_read_ad",
+          { adDirectories: [outsideDir] },
+        ),
+      );
+      payloads.push(
+        await executeKleinanzeigenTool(
+          { ...baseConfig, configPath: unreadableConfigPath },
+          "kleinanzeigen_browser_status",
+        ),
+      );
+      payloads.push(
+        await executeKleinanzeigenTool(
+          withMockMiniclawScript(mockCli, {
+            configPath: invalidJsonConfigPath,
+            adRoots: [adRoot],
+          }),
+          "kleinanzeigen_verify",
+          { adDirectories: ["sample-listing"] },
+        ),
+      );
+      payloads.push(
+        await executeKleinanzeigenTool(
+          baseConfig,
+          "kleinanzeigen_browser_check",
+          {
+            binaryLocation: path.join(tmp, "missing-browser"),
+            allowUnsupportedBrowser: true,
+          },
+        ),
+      );
+      payloads.push(
+        await executeKleinanzeigenTool(
+          {
+            ...baseConfig,
+            commandRunner: async () => {
+              throw new Error(`${tmp}/runner failed with ${SENTINEL_PASSWORD}`);
+            },
+          },
+          "kleinanzeigen_verify",
+        ),
+      );
+
+      for (const payload of payloads) {
+        assert.equal(payload.ok, false);
+      }
+      assertJsonOmits(
+        payloads,
+        [
+          tmp,
+          adRoot,
+          outsideDir,
+          configPath,
+          unreadableConfigPath,
+          invalidJsonConfigPath,
+          "missing-listing",
+          "missing-browser",
+          SENTINEL_PASSWORD,
+        ],
+      );
+    } finally {
+      await fs.chmod(unreadableConfigPath, 0o600).catch(() => {});
+    }
+  });
+
   it("can suppress sanitized output entirely", () => {
     assert.equal(sanitizeText("password: sample-value", [], 0), "");
   });
