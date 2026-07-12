@@ -70,10 +70,10 @@ OpenClaw approval before they run. Choosing **Always allow** once stores
 `approvalMode: "none"` in the plugin config, including across restarts, until an
 operator changes the mode. **Allow once** does not change it. OpenClaw approval
 is a human review gate; `confirm: true` is a separate tool-level intent guard,
-not another authenticated approval or a sandbox boundary. Keep `adRoots`
-limited to listing workspaces you intend the plugin to read or write.
-Mutating tools still require `confirm: true`. Tool output is capped and
-redacted for configured paths, email addresses, and credential-like lines.
+not another authenticated approval or a sandbox boundary. Keep `adRoots` limited
+to listing workspaces you intend the plugin to read or write. Mutating tools
+still require `confirm: true`. Tool output is capped and redacted for configured
+paths, email addresses, and credential-like lines.
 
 The package also ships a `kleinanzeigen-helper-skill` under `skills/`. OpenClaw
 loads plugin skills when the plugin is enabled, so agents get the longer
@@ -85,12 +85,37 @@ description.
 
 KleinClaw requires OpenClaw 2026.6.5 or newer.
 
+### Managed installs
+
 ```bash
 openclaw plugins install clawhub:kleinclaw
 ```
 
 Managed installs enable KleinClaw automatically. Restart or reload the Gateway
 after installing plugin code.
+
+### Linked source checkout
+
+In a directory of your choice, run
+
+```bash
+git clone https://github.com/ilyaZar/kleinclaw
+```
+
+Then link and enable the checkout:
+
+```bash
+openclaw plugins install -l path/to/your/directory-choice/kleinclaw
+openclaw plugins enable kleinclaw
+openclaw gateway restart
+```
+
+For both install methods, tool exposure depends on the active profile and
+sandbox policy, not the install source. See [Configure](#configure) for the
+conditional grants. Those steps use `openclaw config file`, so they also work
+on the remaining inferior platforms :) .
+
+### Built-in skill
 
 The plugin ships a built-in `kleinanzeigen-helper-skill`, so agents get workflow
 guidance when the plugin is enabled. The same guidance is also published as the
@@ -106,14 +131,6 @@ KleinClaw plugin.
 The package includes the TypeScript `miniclaw` runtime engine for publishing.
 Listing config, ad roots, and workspace mode are configured under the plugin
 config below.
-
-For local development:
-
-```bash
-openclaw plugins install -l /path/to/kleinclaw
-```
-
-Restart or reload the Gateway after installing plugin code.
 
 ## Configure
 
@@ -180,10 +197,10 @@ Plugin config fields:
   milliseconds.
 - `maxOutputChars`: maximum sanitized stdout or stderr characters returned to
   the agent, from `0` to `20000`.
-- `approvalMode`: `all`, `mutating`, or `none`. `all` is the default;
-  `mutating` asks only for side-effect tools. Choosing **Always allow** stores
-  `none`, which disables KleinClaw's OpenClaw prompt while preserving
-  tool-level `confirm: true` gates.
+- `approvalMode`: `all`, `mutating`, or `none`. `all` is the default; `mutating`
+  asks only for side-effect tools. Choosing **Always allow** stores `none`,
+  which disables KleinClaw's OpenClaw prompt while preserving tool-level
+  `confirm: true` gates.
 
 The `full` tool profile exposes KleinClaw after installation without a separate
 tool grant. The `coding` profile filters arbitrary native plugin tools, so add
