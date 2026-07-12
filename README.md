@@ -80,6 +80,8 @@ description.
 
 ## Install
 
+KleinClaw requires OpenClaw 2026.6.5 or newer.
+
 ```bash
 openclaw plugins install clawhub:kleinclaw
 ```

@@ -1,5 +1,6 @@
 ## Prerequisites / Install
 
+- Use OpenClaw 2026.6.5 or newer.
 - Install [KleinClaw](https://clawhub.ai/plugins/kleinclaw). Managed installs
   enable it automatically:
 

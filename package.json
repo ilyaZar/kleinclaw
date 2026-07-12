@@ -46,7 +46,7 @@
     "yaml": "^2.9.0"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.5.3-beta.3"
+    "openclaw": ">=2026.6.5"
   },
   "peerDependenciesMeta": {
     "openclaw": {
@@ -54,16 +54,19 @@
     }
   },
   "openclaw": {
+    "install": {
+      "minHostVersion": ">=2026.6.5"
+    },
     "extensions": [
       "./index.js"
     ],
     "compat": {
       "pluginApi": ">=2026.5.3-beta.3",
-      "minGatewayVersion": "2026.5.3-beta.3"
+      "minGatewayVersion": "2026.6.5"
     },
     "build": {
-      "openclawVersion": "2026.5.3-beta.3",
-      "pluginSdkVersion": "2026.5.3-beta.3"
+      "openclawVersion": "2026.6.5",
+      "pluginSdkVersion": "2026.6.5"
     }
   },
   "devDependencies": {
