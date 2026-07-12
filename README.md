@@ -63,14 +63,17 @@ those details during normal use, meaning: your agent does the heavy lifting
 while you provide images and loose descriptions of your Inserate/ads.
 
 The tools are part of KleinClaw's normal public plugin surface and run the
-bundled local command. By default all shipped KleinClaw tools route through
-OpenClaw approval before they run. OpenClaw approvals and `confirm: true`
-parameters are human review gates, not sandbox boundaries. Keep `adRoots`
-limited to listing workspaces you intend the plugin to read or write. Set
-`approvalMode` to `mutating` only when local checks should run without approval,
-or to `none` only for trusted local operator workflows. Account-changing tools
-still require `confirm: true`. Tool output is capped and redacted for configured
-paths, email addresses, and credential-like lines.
+bundled local command. Current OpenClaw runtimes may discover them through tool
+search instead of sending every schema up front; that does not make them
+optional or disabled. By default all shipped KleinClaw tools route through
+OpenClaw approval before they run. Choosing **Always allow** once stores
+`approvalMode: "none"` in the plugin config, including across restarts, until an
+operator changes the mode. **Allow once** does not change it. OpenClaw approval
+is a human review gate; `confirm: true` is a separate tool-level intent guard,
+not another authenticated approval or a sandbox boundary. Keep `adRoots`
+limited to listing workspaces you intend the plugin to read or write.
+Mutating tools still require `confirm: true`. Tool output is capped and
+redacted for configured paths, email addresses, and credential-like lines.
 
 The package also ships a `kleinanzeigen-helper-skill` under `skills/`. OpenClaw
 loads plugin skills when the plugin is enabled, so agents get the longer
@@ -177,10 +180,10 @@ Plugin config fields:
   milliseconds.
 - `maxOutputChars`: maximum sanitized stdout or stderr characters returned to
   the agent, from `0` to `20000`.
-- `approvalMode`: `all`, `mutating`, or `none`. `all` is the default and routes
-  every KleinClaw tool through OpenClaw approval. `mutating` routes side-effect
-  tools through OpenClaw approval. `none` relies on tool-level `confirm: true`
-  gates. Account-changing tools still need `confirm: true`.
+- `approvalMode`: `all`, `mutating`, or `none`. `all` is the default;
+  `mutating` asks only for side-effect tools. Choosing **Always allow** stores
+  `none`, which disables KleinClaw's OpenClaw prompt while preserving
+  tool-level `confirm: true` gates.
 
 The `full` tool profile exposes KleinClaw after installation without a separate
 tool grant. The `coding` profile filters arbitrary native plugin tools, so add
@@ -215,9 +218,9 @@ Do not set `allow` and `alsoAllow` in the same policy scope. If that scope
 already uses `allow`, add `kleinclaw` there instead. The sandbox grant controls
 tool exposure; native KleinClaw code still runs host-side in the Gateway.
 
-OpenClaw approval requests include the operation, selector, explicit ad IDs, and
-ad paths relative to configured `adRoots`. Check those details before approving
-mutating tools.
+OpenClaw approval requests explain the scope of **Always allow** and include the
+operation, selector, explicit ad IDs, and ad paths relative to configured
+`adRoots`. Check those details before approving mutating tools.
 
 ### Ad authoring
 
@@ -582,27 +585,22 @@ plugin ID once. If sandboxing is active, add the same sandbox-layer grant:
 Restart or reload the Gateway, start a new session, then verify with
 `openclaw sandbox explain --json` and a `kleinanzeigen_status` smoke test.
 
-If repeated approval prompts are too noisy for a trusted local operator setup,
-change only the plugin entry in your own OpenClaw config:
+At the first prompt, choose **Allow once** to keep the current mode. Choose
+**Always allow** to trust all KleinClaw tools. **Always allow** stores `none`
+and survives Gateway restarts. It does not broaden `adRoots` or remove
+`confirm: true` from mutating tools. Operators can change the saved mode at any
+time:
 
-```json
-{
-  "plugins": {
-    "entries": {
-      "kleinclaw": {
-        "config": {
-          "approvalMode": "none"
-        }
-      }
-    }
-  }
-}
+```bash
+openclaw config set plugins.entries.kleinclaw.config.approvalMode all
+openclaw config set plugins.entries.kleinclaw.config.approvalMode mutating
+openclaw config set plugins.entries.kleinclaw.config.approvalMode none
 ```
 
-The shipped default remains `all`, so every KleinClaw tool asks for OpenClaw
-approval. `none` disables that approval route for KleinClaw tools; `mutating`
-keeps approval prompts only for side-effect tools. Account-changing tools still
-require `confirm: true`.
+See OpenClaw's plugin permission request guide for approval routing and decision
+behavior:
+
+<https://docs.openclaw.ai/plugins/plugin-permission-requests>
 
 ## Notes
 

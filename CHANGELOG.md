@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- persist an explicit **Always allow** choice in the existing `approvalMode`
+- keep approval descriptions within the supported OpenClaw request limit
+
 ## 0.2.2
 
 - make the readme easier to follow for first-time KleinClaw users

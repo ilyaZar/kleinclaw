@@ -8,8 +8,9 @@
   data, or credential-bearing config files.
 - Do not ask the user to paste `config.yaml`, browser settings, cookies, logs,
   or credential-like snippets.
-- Keep `adRoots` narrow. Do not broaden `adRoots` or change `approvalMode` for
-  convenience.
+- Keep `adRoots` narrow. Do not broaden `adRoots` or change `approvalMode` on
+  the user's behalf. Only an operator config change or the user's OpenClaw
+  **Always allow** choice may change the mode.
 - KleinClaw tool approval depends on local OpenClaw configuration. Mutating
   tools always require explicit user confirmation through their `confirm`
   parameter.

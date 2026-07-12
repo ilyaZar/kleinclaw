@@ -33,11 +33,13 @@ local. Login diagnostics are disabled by default; when explicitly enabled they
 can write local screenshots, HTML, and log copies, and those artifacts should
 stay local.
 
-OpenClaw approvals and `confirm: true` parameters are human review gates, not
-sandbox boundaries. Keep `adRoots` limited to listing workspaces you intend the
-plugin to read or write. The shipped `approvalMode` default is `all`, which
-routes every KleinClaw tool through OpenClaw approval. Set it to `mutating` or
-`none` only for trusted local operator workflows.
+OpenClaw approvals are human review gates. A `confirm: true` parameter is a
+tool-level explicit-intent guard that the agent supplies after user
+authorization; it is not a separate authenticated approval. Neither mechanism
+is a sandbox boundary. Keep `adRoots` limited to listing workspaces you intend
+the plugin to read or write. The shipped `approvalMode` default is `all`.
+Choosing **Always allow** persists `none` until an operator changes the mode.
+Use `mutating` or `none` only for trusted local operator workflows.
 
 Package install scripts are not used for this plugin. Installing the plugin
 does not run setup commands.
