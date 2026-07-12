@@ -21,7 +21,8 @@
   `adRoots` only after explicit confirmation.
 - `kleinanzeigen_set_ad_active`: set the top-level `active` flag for one YAML
   ad config before scoped verify/publish.
-- `kleinanzeigen_verify`: validate the already configured miniclaw workspace.
+- `kleinanzeigen_verify`: validate the full configured miniclaw workspace or
+  selected relative ad handles.
 - `kleinanzeigen_publish`: publish or republish due, new, changed, all, combined
   selectors, or explicitly selected ads. This can create or replace live
   Kleinanzeigen listings.
