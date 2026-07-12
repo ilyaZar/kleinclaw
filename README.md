@@ -112,8 +112,8 @@ openclaw gateway restart
 
 For both install methods, tool exposure depends on the active profile and
 sandbox policy, not the install source. See [Configure](#configure) for the
-conditional grants. Those steps use `openclaw config file`, so they also work
-on the remaining inferior platforms :) .
+conditional grants. Those steps use `openclaw config file`, so they also work on
+the remaining inferior platforms :)
 
 ### Built-in skill
 
@@ -129,150 +129,86 @@ KleinClaw plugin.
 [helper-github]: https://github.com/ilyaZar/kleinanzeigen-helper
 
 The package includes the TypeScript `miniclaw` runtime engine for publishing.
-Listing config, ad roots, and workspace mode are configured under the plugin
-config below.
+Start with the local ad files below. OpenClaw's JSON configuration and the JSON
+payloads exchanged with tools are documented later under
+[OpenClaw and tool-call JSON](#openclaw-and-tool-call-json).
 
-## Configure
+## Ad folders and on-disk YAML
 
-OpenClaw keeps its settings in one active JSON config file. For normal local
-installs that file is usually `~/.openclaw/openclaw.json`, but wrappers,
-profiles, or services can point OpenClaw at a different file with
-`OPENCLAW_CONFIG_PATH`. Check the exact file first:
+KleinClaw normally stores one Inserat per directory. Each configured `adRoots`
+entry is a parent directory that KleinClaw may inspect; it is not an ad file and
+does not replace miniclaw's YAML:
 
-```bash
-openclaw config file
+```text
+kleinanzeigen-ads/                  <- one configured adRoot
+  gebrauchte-kompaktlautsprecher/   <- one ad directory
+    ad.yaml                         <- the on-disk ad
+    images/
+      front.jpg
+      back.jpg
 ```
 
-KleinClaw uses the usual OpenClaw plugin shape in that file. Plugin entries live
-under `plugins.entries`, the entry name is the plugin id (`kleinclaw`), and the
-plugin's own settings live under `plugins.entries.kleinclaw.config`.
+Three different formats have separate jobs:
 
-There are two configs involved:
+- `ad.yaml` or `ad.yml` describes one local ad. This is the normal on-disk ad
+  format and uses YAML keys such as `price_type` and `shipping_type`.
+- miniclaw's separate `config.yaml` holds runtime-wide Kleinanzeigen settings
+  and selects ad files. KleinClaw locates it through `configPath` or
+  `workingDirectory`.
+- OpenClaw configuration and tool calls use JSON internally. Their camel-case
+  fields, such as `priceType`, are tool arguments; they are not files to save
+  inside an ad directory.
 
-- The OpenClaw JSON config enables KleinClaw, exposes its tools, and tells the
-  plugin where your local miniclaw workspace is.
-- The miniclaw `config.yaml` stays separate. It contains the Kleinanzeigen-side
-  settings that miniclaw reads locally when it verifies, publishes, updates, or
-  downloads Inserate.
+The normal YAML shape looks like this:
 
-If your active OpenClaw config already contains `plugins` or `tools`, merge the
-examples below into the existing JSON instead of replacing the whole file.
-
-In your active OpenClaw config file, add or update this plugin block:
-
-```json
-{
-  "plugins": {
-    "entries": {
-      "kleinclaw": {
-        "enabled": true,
-        "config": {
-          "configPath": "/home/me/kleinanzeigen/config.yaml",
-          "adRoots": ["/home/me/kleinanzeigen-ads"],
-          "workspaceMode": "portable",
-          "lang": "de",
-          "timeoutMs": 120000,
-          "maxOutputChars": 6000,
-          "approvalMode": "all"
-        }
-      }
-    }
-  }
-}
+```yaml
+active: false
+type: OFFER
+title: "Gebrauchte Kompaktlautsprecher"
+description: |
+  Guter Zustand. Abholung bevorzugt.
+category: Audio_und_Hifi
+price: 25
+price_type: NEGOTIABLE
+shipping_type: PICKUP
+sell_directly: false
+images:
+  - "images/*.{jpg,jpeg,png}"
 ```
 
-Plugin config fields:
+The package ships a fuller copyable example at
+`examples/sample-listing/ad.yaml`. It is inactive and is not used
+automatically. Copy its directory under an `adRoots` entry, adjust the content
+and image globs, then verify it before activation.
 
-- `enabled`: `true` loads the installed plugin.
-- `configPath`: path to the local miniclaw `config.yaml`.
-- `workingDirectory`: alternative to `configPath`; KleinClaw reads `config.yaml`
-  from that directory. Use either `configPath` or `workingDirectory`.
-- `adRoots`: directories where KleinClaw may discover, read, draft, or scope
-  local ad folders. Keep this narrow.
-- `workspaceMode`: `portable` or `xdg`. `portable` is the default and keeps
-  miniclaw workspace files beside `config.yaml`; `xdg` uses user config/cache
-  directories.
-- `lang`: `de` or `en` for miniclaw display language.
-- `timeoutMs`: maximum runtime for one miniclaw command, from `1000` to `600000`
-  milliseconds.
-- `maxOutputChars`: maximum sanitized stdout or stderr characters returned to
-  the agent, from `0` to `20000`.
-- `approvalMode`: `all`, `mutating`, or `none`. `all` is the default; `mutating`
-  asks only for side-effect tools. Choosing **Always allow** stores `none`,
-  which disables KleinClaw's OpenClaw prompt while preserving tool-level
-  `confirm: true` gates.
+### YAML fields and validation
 
-The `full` tool profile exposes KleinClaw after installation without a separate
-tool grant. The `coding` profile filters arbitrary native plugin tools, so add
-one plugin-level grant when using it. If the agent runs in a sandbox, add the
-same grant at the sandbox layer:
+Use `kleinanzeigen_ad_schema` to obtain the current supported YAML shape,
+limits, enum values, image rules, and safe draft workflow without changing a
+file. The main rules include:
 
-```json
-{
-  "tools": {
-    "profile": "coding",
-    "alsoAllow": ["kleinclaw"],
-    "sandbox": {
-      "tools": {
-        "alsoAllow": ["kleinclaw"]
-      }
-    }
-  }
-}
-```
+- `title`, `description`, and `category` are required.
+- `title` must contain 10 to 65 characters; `description` may contain at most
+  4000 characters.
+- `active: false` keeps the file local-only; `active: true` makes it eligible
+  for publish and update operations.
+- `type` is `OFFER` or `WANTED`.
+- `price_type` is `FIXED`, `NEGOTIABLE`, `GIVE_AWAY`, or `NOT_APPLICABLE`.
+  `FIXED` requires `price`; `GIVE_AWAY` must not set `price`.
+- `shipping_type` is `PICKUP`, `SHIPPING`, or `NOT_APPLICABLE`.
+- `images` contains glob patterns relative to the ad directory.
 
-Tool policy fields:
-
-- `profile`: OpenClaw's built-in tool profile. Built-in values are `minimal`,
-  `coding`, `messaging`, and `full`; `coding` is shown here with its required
-  additive plugin grant.
-- `alsoAllow`: extra tool groups or tool names to expose in normal agent
-  sessions. `kleinclaw` means the tools from this plugin.
-- `sandbox.tools.alsoAllow`: the same extra tool exposure for sandboxed
-  sessions. Include this if your agents run through the sandbox tool gate.
-
-Do not set `allow` and `alsoAllow` in the same policy scope. If that scope
-already uses `allow`, add `kleinclaw` there instead. The sandbox grant controls
-tool exposure; native KleinClaw code still runs host-side in the Gateway.
-
-OpenClaw approval requests explain the scope of **Always allow** and include the
-operation, selector, explicit ad IDs, and ad paths relative to configured
-`adRoots`. Check those details before approving mutating tools.
+`kleinanzeigen_draft_ad` validates its tool arguments and writes `ad.yaml` or
+`ad.yml` for you. If you write YAML manually, run a scoped
+`kleinanzeigen_verify` before activation or publication. Miniclaw loads the
+file and validates required values, limits, enum relationships, category and
+image handling. Treat the schema returned by `kleinanzeigen_ad_schema` as the
+field contract rather than relying on unspecified extra keys.
 
 ### Ad authoring
 
-KleinClaw can help an agent draft new local ads without giving it broad access
-to your home directory. The authoring tools are scoped to configured `adRoots`:
-
-In your active OpenClaw config file, `adRoots` lives under
-`plugins.entries.kleinclaw.config`:
-
-```json
-{
-  "plugins": {
-    "entries": {
-      "kleinclaw": {
-        "config": {
-          "adRoots": ["/home/me/kleinanzeigen-ads"]
-        }
-      }
-    }
-  }
-}
-```
-
-This smaller snippet shows only where `adRoots` belongs. Keep the rest of your
-plugin config from the full block above.
-
-Use `kleinanzeigen_ad_schema` before drafting. It returns the supported YAML
-shape, title and description limits, enum values, image-glob rules, and a safe
-draft workflow. The key miniclaw constraints are:
-
-- `title`: 10 to 65 characters.
-- `description`: at most 4000 characters.
-- `category`: built-in category name, custom mapped name, or category ID.
-- `images`: glob patterns relative to the ad config file.
-- `priceType: "FIXED"` requires `price`; `GIVE_AWAY` must not set `price`.
+KleinClaw can help an agent draft local ads without giving it broad access to
+your home directory. The authoring tools are scoped to configured `adRoots`.
 
 Useful authoring tool fields:
 
@@ -293,68 +229,13 @@ Useful authoring tool fields:
 - `shippingType`: `PICKUP`, `SHIPPING`, or `NOT_APPLICABLE`.
 - `images`: image glob patterns relative to the ad folder.
 
-The package also ships a copyable inactive example at
-`examples/sample-listing/ad.yaml`. It is not used automatically. Copy it into a
-directory under your configured `adRoots`, adjust the text, category, price, and
-image globs, then run scoped `kleinanzeigen_verify` before activating it.
-
-Use `kleinanzeigen_images_list` on a selected folder to discover candidate image
-filenames and dimensions:
-
-Tool call JSON for `kleinanzeigen_images_list`; the agent sends this to the
-tool, you do not paste it into `openclaw.json`:
-
-```json
-{
-  "directory": "/home/me/kleinanzeigen-ads/examples/sample-listing",
-  "maxDepth": 1
-}
-```
-
-Use `kleinanzeigen_read_ad` only for explicit examples you want the agent to
-see. It reads one selected ad file under `adRoots` and redacts `contact:` fields
-unless `includeContact` is set to `true`:
-
-Tool call JSON for `kleinanzeigen_read_ad`:
-
-```json
-{
-  "adDirectories": ["/home/me/kleinanzeigen-ads/examples/sample-listing"]
-}
-```
-
-Use `kleinanzeigen_draft_ad` to create a draft. Drafts default to
-`active: false`, so they are not eligible for publishing until you deliberately
-activate them:
-
-Tool call JSON for `kleinanzeigen_draft_ad`:
-
-```json
-{
-  "confirm": true,
-  "directory": "/home/me/kleinanzeigen-ads/examples/sample-listing",
-  "title": "Gebrauchte Kompaktlautsprecher",
-  "description": "Guter Zustand. Abholung bevorzugt.",
-  "category": "Elektronik > Audio",
-  "price": 25,
-  "priceType": "NEGOTIABLE",
-  "shippingType": "PICKUP",
-  "images": ["listing_*.{jpg,png}"]
-}
-```
-
-Use `kleinanzeigen_set_ad_active` to activate exactly one selected YAML ad
-config before publishing. The tool only changes the top-level `active:` value:
-
-Tool call JSON for `kleinanzeigen_set_ad_active`:
-
-```json
-{
-  "confirm": true,
-  "adDirectories": ["/home/me/kleinanzeigen-ads/examples/sample-listing"],
-  "active": true
-}
-```
+Use `kleinanzeigen_images_list` to discover candidate image filenames and
+dimensions. Use `kleinanzeigen_read_ad` only for explicit ads you want the
+agent to see; contact fields remain redacted unless `includeContact` is true.
+Use `kleinanzeigen_draft_ad` to write an inactive draft, then use
+`kleinanzeigen_set_ad_active` to change only its top-level `active:` value.
+Copyable JSON payloads for these tools are grouped under
+[Authoring tool-call JSON](#authoring-tool-call-json).
 
 Recommended loop:
 
@@ -400,36 +281,11 @@ Useful browser tool fields:
   real miniclaw `browser:` config. Browser checks use a temporary config and do
   not require it.
 
-Tool call JSON for `kleinanzeigen_browser_configure`; this edits the local
-miniclaw `config.yaml`, not `openclaw.json`:
-
-```json
-{
-  "browser": "chromium",
-  "usePrivateWindow": true,
-  "profileMode": "workspace",
-  "confirm": true
-}
-```
-
 `profileMode: "workspace"` clears `browser.user_data_dir` and `profile_name`, so
 the runtime uses its dedicated workspace browser profile. The `system-default`
 mode points the config at the chosen browser's normal local profile root. That
 can reuse local login state, but it can also fail if the same browser profile is
-already open or locked. It can also set `profileName`:
-
-Tool call JSON for `kleinanzeigen_browser_configure` using the browser's normal
-local profile:
-
-```json
-{
-  "browser": "google-chrome",
-  "usePrivateWindow": false,
-  "profileMode": "system-default",
-  "profileName": "Default",
-  "confirm": true
-}
-```
+already open or locked. It can also set `profileName`.
 
 Use `browser: "auto"` to clear `browser.binary_location` and let miniclaw choose
 its default Chromium, Chrome, or Edge executable.
@@ -443,33 +299,13 @@ is not documented or auto-detected by miniclaw. KleinClaw reports it from
 `kleinanzeigen_browser_status` when installed, but does not expose it as a
 supported `browser` choice. To test it without changing the real config, use
 `kleinanzeigen_browser_check` with an explicit `binaryLocation` and
-`allowUnsupportedBrowser: true`:
-
-Tool call JSON for `kleinanzeigen_browser_check`; this writes only a temporary
-test config:
-
-```json
-{
-  "binaryLocation": "/usr/bin/brave",
-  "allowUnsupportedBrowser": true,
-  "usePrivateWindow": true,
-  "profileMode": "workspace"
-}
-```
+`allowUnsupportedBrowser: true`.
 
 Use `kleinanzeigen_browser_check` before changing the real config when you want
 to test whether miniclaw diagnostics accept a proposed browser setup. The check
-writes a temporary config and leaves the real miniclaw config unchanged:
-
-Tool call JSON for another `kleinanzeigen_browser_check`:
-
-```json
-{
-  "browser": "chromium",
-  "usePrivateWindow": false,
-  "profileMode": "workspace"
-}
-```
+writes a temporary config and leaves the real miniclaw config unchanged. The
+corresponding JSON payloads are grouped under
+[Browser tool-call JSON](#browser-tool-call-json).
 
 ### Scoped operations
 
@@ -484,16 +320,8 @@ the runtime reject the whole run before it applies `--ads` filtering. To operate
 on one known source folder, configure `adRoots`, use `kleinanzeigen_list_ads` to
 find the folder, then pass its relative `adDirectory` or `adPath` handle to
 `adDirectories` or `adConfigPaths` on `kleinanzeigen_verify`,
-`kleinanzeigen_publish`, or the other operation tools:
-
-Tool call JSON for a scoped operation; the agent sends this to an operation
-tool:
-
-```json
-{
-  "adDirectories": ["examples/sample-listing"]
-}
-```
+`kleinanzeigen_publish`, or the other operation tools. A copyable payload is
+under [Scoped-operation tool-call JSON](#scoped-operation-tool-call-json).
 
 For publishing that one folder only, combine the scoped directory with
 `selector: "all"` or an explicit `adIds` list plus `confirm: true`. The scoped
@@ -523,6 +351,213 @@ Operation tool fields:
 - `keepOld`: publish-only `true`/`false`; keeps old ads during republication.
 
 Do not mix selectors with explicit ad IDs.
+
+## OpenClaw and tool-call JSON
+
+The JSON in this section configures OpenClaw or represents arguments exchanged
+between an agent and a tool. It is not the on-disk ad format. Do not save these
+payloads as `ad.yaml`; use the YAML shape documented above for local ads.
+
+### OpenClaw JSON configuration
+
+OpenClaw keeps its settings in one active JSON config file. For normal local
+installs that file is usually `~/.openclaw/openclaw.json`, but wrappers,
+profiles, or services can point OpenClaw at a different file with
+`OPENCLAW_CONFIG_PATH`. Check the exact file first:
+
+```bash
+openclaw config file
+```
+
+Plugin entries live under `plugins.entries`, and KleinClaw's settings live
+under `plugins.entries.kleinclaw.config`. Merge this block into an existing
+config instead of replacing the whole file:
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "kleinclaw": {
+        "enabled": true,
+        "config": {
+          "configPath": "/home/me/kleinanzeigen/config.yaml",
+          "adRoots": ["/home/me/kleinanzeigen-ads"],
+          "workspaceMode": "portable",
+          "lang": "de",
+          "timeoutMs": 120000,
+          "maxOutputChars": 6000,
+          "approvalMode": "all"
+        }
+      }
+    }
+  }
+}
+```
+
+Plugin config fields:
+
+- `enabled`: `true` loads the installed plugin.
+- `configPath`: path to the separate miniclaw `config.yaml`.
+- `workingDirectory`: alternative to `configPath`; KleinClaw reads
+  `config.yaml` from that directory. Use one or the other.
+- `adRoots`: parent directories containing the individual ad directories and
+  their `ad.yaml` or `ad.yml` files. Keep this list narrow.
+- `workspaceMode`: `portable` or `xdg`. `portable` is the default and keeps
+  miniclaw workspace files beside `config.yaml`; `xdg` uses user config/cache
+  directories.
+- `lang`: `de` or `en` for miniclaw display language.
+- `timeoutMs`: maximum runtime for one miniclaw command, from `1000` to
+  `600000` milliseconds.
+- `maxOutputChars`: maximum sanitized stdout or stderr characters returned to
+  the agent, from `0` to `20000`.
+- `approvalMode`: `all`, `mutating`, or `none`. `all` is the default;
+  `mutating` asks only for side-effect tools. Choosing **Always allow** stores
+  `none` while preserving tool-level `confirm: true` gates.
+
+The `full` tool profile exposes KleinClaw without a separate tool grant. The
+`coding` profile needs an additive plugin grant. Sandboxed agents need the same
+grant at the sandbox layer:
+
+```json
+{
+  "tools": {
+    "profile": "coding",
+    "alsoAllow": ["kleinclaw"],
+    "sandbox": {
+      "tools": {
+        "alsoAllow": ["kleinclaw"]
+      }
+    }
+  }
+}
+```
+
+Tool policy fields:
+
+- `profile`: OpenClaw's built-in tool profile. Built-in values are `minimal`,
+  `coding`, `messaging`, and `full`; `coding` is shown here with its required
+  additive plugin grant.
+- `alsoAllow`: extra tool groups or tool names to expose in normal agent
+  sessions. `kleinclaw` means the tools from this plugin.
+- `sandbox.tools.alsoAllow`: the same extra tool exposure for sandboxed
+  sessions. Include this if your agents run through the sandbox tool gate.
+
+Do not set `allow` and `alsoAllow` in the same policy scope. If a scope already
+uses `allow`, add `kleinclaw` there instead. The sandbox grant controls tool
+exposure; native KleinClaw code still runs host-side in the Gateway.
+
+OpenClaw approval requests show the operation, selector, explicit ad IDs, and
+ad paths relative to configured `adRoots`. Check those details before approving
+mutating tools.
+
+### Authoring tool-call JSON
+
+These payloads are generated by an agent and passed to KleinClaw tools. They
+use JSON and camel-case tool fields; KleinClaw translates validated draft
+arguments into on-disk YAML.
+
+List image candidates:
+
+```json
+{
+  "directory": "/home/me/kleinanzeigen-ads/examples/sample-listing",
+  "maxDepth": 1
+}
+```
+
+Read one ad with contact fields redacted:
+
+```json
+{
+  "adDirectories": ["/home/me/kleinanzeigen-ads/examples/sample-listing"]
+}
+```
+
+Create an inactive `ad.yaml` with `kleinanzeigen_draft_ad`:
+
+```json
+{
+  "confirm": true,
+  "directory": "/home/me/kleinanzeigen-ads/examples/sample-listing",
+  "title": "Gebrauchte Kompaktlautsprecher",
+  "description": "Guter Zustand. Abholung bevorzugt.",
+  "category": "Elektronik > Audio",
+  "price": 25,
+  "priceType": "NEGOTIABLE",
+  "shippingType": "PICKUP",
+  "images": ["listing_*.{jpg,png}"]
+}
+```
+
+Change only the top-level YAML `active:` value with
+`kleinanzeigen_set_ad_active`:
+
+```json
+{
+  "confirm": true,
+  "adDirectories": ["/home/me/kleinanzeigen-ads/examples/sample-listing"],
+  "active": true
+}
+```
+
+### Browser tool-call JSON
+
+`kleinanzeigen_browser_configure` edits selected keys in miniclaw's real
+`config.yaml` after confirmation:
+
+```json
+{
+  "browser": "chromium",
+  "usePrivateWindow": true,
+  "profileMode": "workspace",
+  "confirm": true
+}
+```
+
+To use the browser's normal local profile:
+
+```json
+{
+  "browser": "google-chrome",
+  "usePrivateWindow": false,
+  "profileMode": "system-default",
+  "profileName": "Default",
+  "confirm": true
+}
+```
+
+`kleinanzeigen_browser_check` writes only a temporary test config. For an
+unsupported custom executable:
+
+```json
+{
+  "binaryLocation": "/usr/bin/brave",
+  "allowUnsupportedBrowser": true,
+  "usePrivateWindow": true,
+  "profileMode": "workspace"
+}
+```
+
+To check a supported browser without changing the real config:
+
+```json
+{
+  "browser": "chromium",
+  "usePrivateWindow": false,
+  "profileMode": "workspace"
+}
+```
+
+### Scoped-operation tool-call JSON
+
+The agent can pass a relative ad-directory handle to verify, publish, or other
+operation tools without creating a second config file:
+
+```json
+{
+  "adDirectories": ["examples/sample-listing"]
+}
+```
 
 ## Security Architecture
 
