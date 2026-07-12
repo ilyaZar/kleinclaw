@@ -100,15 +100,24 @@ In a directory of your choice, run
 
 ```bash
 git clone https://github.com/ilyaZar/kleinclaw
+cd kleinclaw
+npm ci --ignore-scripts
 ```
 
-Then link and enable the checkout:
+OpenClaw does not install dependencies for linked local paths. After installing
+the checkout's locked dependencies, link and enable it:
 
 ```bash
-openclaw plugins install -l path/to/your/directory-choice/kleinclaw
+openclaw plugins install -l "$PWD"
 openclaw plugins enable kleinclaw
 openclaw gateway restart
 ```
+
+### First browser login
+
+Log in to `kleinanzeigen.de` once through the browser profile used by miniclaw
+on the machine running the plugin. This creates the local session state that
+later browser runs reuse; see [Browser settings](#browser-settings).
 
 For both install methods, tool exposure depends on the active profile and
 sandbox policy, not the install source. See [Configure](#configure) for the
@@ -136,8 +145,9 @@ payloads exchanged with tools are documented later under
 ## Ad folders and on-disk YAML
 
 KleinClaw normally stores one Inserat per directory. Each configured `adRoots`
-entry is a parent directory that KleinClaw may inspect; it is not an ad file and
-does not replace miniclaw's YAML:
+entry is a parent directory that KleinClaw may inspect, with ads living
+somewhere as a subdirectory. This means, the following can be a useful setup for
+structuring your ads
 
 ```text
 kleinanzeigen-ads/                  <- one configured adRoot
@@ -148,16 +158,51 @@ kleinanzeigen-ads/                  <- one configured adRoot
       back.jpg
 ```
 
-Three different formats have separate jobs:
+**NOTE**:
+
+- `adRoots` defines where KleinClaw may discover and access ads. It does not
+  replace miniclaw's separate `config.yaml` or the `ad_files` selection in that
+  file.
+- an alternative structure is possible, whereby you could have
+
+```text
+    kleinanzeigen-ads/                  <- one configured adRoot
+      ongoing/                          <- some subdirectory
+        gebrauchte-kompaktlautsprecher/ <- one ad directory
+          ad.yaml                       <- the on-disk ad
+          images/
+            front.jpg
+            back.jpg
+        gebrauchter-fernseher/          <- another ad directory
+          ad.yml                        <- the on-disk ad
+          front.jpg
+          back.jpg
+      stale/                          <- some subdirectory
+        gebrauchtwagen/
+          ...
+```
+
+This means nesting is possible, and the `images/` directory is not strictly
+required.
+
+**The internal `miniclaw` also needs one separate runtime configuration file.**
+Put that `config.yaml` at a location of your choice, outside the individual ad
+directories. In OpenClaw, set `plugins.entries.kleinclaw.config.configPath` to
+its full path. Alternatively, set
+`plugins.entries.kleinclaw.config.workingDirectory` to the directory that
+contains `config.yaml`. The complete OpenClaw JSON configuration is shown later
+under [OpenClaw JSON configuration](#openclaw-json-configuration).
+
+The two kinds of YAML have separate jobs:
 
 - `ad.yaml` or `ad.yml` describes one local ad. This is the normal on-disk ad
   format and uses YAML keys such as `price_type` and `shipping_type`.
-- miniclaw's separate `config.yaml` holds runtime-wide Kleinanzeigen settings
-  and selects ad files. KleinClaw locates it through `configPath` or
-  `workingDirectory`.
-- OpenClaw configuration and tool calls use JSON internally. Their camel-case
-  fields, such as `priceType`, are tool arguments; they are not files to save
-  inside an ad directory.
+- `config.yaml` holds runtime-wide Kleinanzeigen settings and selects ad files
+  through `ad_files`.
+
+OpenClaw configuration and tool calls use JSON internally. Their camel-case
+fields, such as `priceType`, are tool arguments; they are not files to save
+inside an ad directory. The JSON details are given further below.
 
 The normal YAML shape looks like this:
 
@@ -177,9 +222,9 @@ images:
 ```
 
 The package ships a fuller copyable example at
-`examples/sample-listing/ad.yaml`. It is inactive and is not used
-automatically. Copy its directory under an `adRoots` entry, adjust the content
-and image globs, then verify it before activation.
+`examples/sample-listing/ad.yaml`. It is inactive and is not used automatically.
+Copy its directory under an `adRoots` entry, adjust the content and image globs,
+then verify it before activation.
 
 ### YAML fields and validation
 
@@ -200,10 +245,10 @@ file. The main rules include:
 
 `kleinanzeigen_draft_ad` validates its tool arguments and writes `ad.yaml` or
 `ad.yml` for you. If you write YAML manually, run a scoped
-`kleinanzeigen_verify` before activation or publication. Miniclaw loads the
-file and validates required values, limits, enum relationships, category and
-image handling. Treat the schema returned by `kleinanzeigen_ad_schema` as the
-field contract rather than relying on unspecified extra keys.
+`kleinanzeigen_verify` before activation or publication. Miniclaw loads the file
+and validates required values, limits, enum relationships, category and image
+handling. Treat the schema returned by `kleinanzeigen_ad_schema` as the field
+contract rather than relying on unspecified extra keys.
 
 ### Ad authoring
 
@@ -230,9 +275,9 @@ Useful authoring tool fields:
 - `images`: image glob patterns relative to the ad folder.
 
 Use `kleinanzeigen_images_list` to discover candidate image filenames and
-dimensions. Use `kleinanzeigen_read_ad` only for explicit ads you want the
-agent to see; contact fields remain redacted unless `includeContact` is true.
-Use `kleinanzeigen_draft_ad` to write an inactive draft, then use
+dimensions. Use `kleinanzeigen_read_ad` only for explicit ads you want the agent
+to see; contact fields remain redacted unless `includeContact` is true. Use
+`kleinanzeigen_draft_ad` to write an inactive draft, then use
 `kleinanzeigen_set_ad_active` to change only its top-level `active:` value.
 Copyable JSON payloads for these tools are grouped under
 [Authoring tool-call JSON](#authoring-tool-call-json).
@@ -369,9 +414,9 @@ profiles, or services can point OpenClaw at a different file with
 openclaw config file
 ```
 
-Plugin entries live under `plugins.entries`, and KleinClaw's settings live
-under `plugins.entries.kleinclaw.config`. Merge this block into an existing
-config instead of replacing the whole file:
+Plugin entries live under `plugins.entries`, and KleinClaw's settings live under
+`plugins.entries.kleinclaw.config`. Merge this block into an existing config
+instead of replacing the whole file:
 
 ```json
 {
@@ -398,21 +443,21 @@ Plugin config fields:
 
 - `enabled`: `true` loads the installed plugin.
 - `configPath`: path to the separate miniclaw `config.yaml`.
-- `workingDirectory`: alternative to `configPath`; KleinClaw reads
-  `config.yaml` from that directory. Use one or the other.
+- `workingDirectory`: alternative to `configPath`; KleinClaw reads `config.yaml`
+  from that directory. Use one or the other.
 - `adRoots`: parent directories containing the individual ad directories and
   their `ad.yaml` or `ad.yml` files. Keep this list narrow.
 - `workspaceMode`: `portable` or `xdg`. `portable` is the default and keeps
   miniclaw workspace files beside `config.yaml`; `xdg` uses user config/cache
   directories.
 - `lang`: `de` or `en` for miniclaw display language.
-- `timeoutMs`: maximum runtime for one miniclaw command, from `1000` to
-  `600000` milliseconds.
+- `timeoutMs`: maximum runtime for one miniclaw command, from `1000` to `600000`
+  milliseconds.
 - `maxOutputChars`: maximum sanitized stdout or stderr characters returned to
   the agent, from `0` to `20000`.
-- `approvalMode`: `all`, `mutating`, or `none`. `all` is the default;
-  `mutating` asks only for side-effect tools. Choosing **Always allow** stores
-  `none` while preserving tool-level `confirm: true` gates.
+- `approvalMode`: `all`, `mutating`, or `none`. `all` is the default; `mutating`
+  asks only for side-effect tools. Choosing **Always allow** stores `none` while
+  preserving tool-level `confirm: true` gates.
 
 The `full` tool profile exposes KleinClaw without a separate tool grant. The
 `coding` profile needs an additive plugin grant. Sandboxed agents need the same
@@ -446,15 +491,15 @@ Do not set `allow` and `alsoAllow` in the same policy scope. If a scope already
 uses `allow`, add `kleinclaw` there instead. The sandbox grant controls tool
 exposure; native KleinClaw code still runs host-side in the Gateway.
 
-OpenClaw approval requests show the operation, selector, explicit ad IDs, and
-ad paths relative to configured `adRoots`. Check those details before approving
+OpenClaw approval requests show the operation, selector, explicit ad IDs, and ad
+paths relative to configured `adRoots`. Check those details before approving
 mutating tools.
 
 ### Authoring tool-call JSON
 
-These payloads are generated by an agent and passed to KleinClaw tools. They
-use JSON and camel-case tool fields; KleinClaw translates validated draft
-arguments into on-disk YAML.
+These payloads are generated by an agent and passed to KleinClaw tools. They use
+JSON and camel-case tool fields; KleinClaw translates validated draft arguments
+into on-disk YAML.
 
 List image candidates:
 
