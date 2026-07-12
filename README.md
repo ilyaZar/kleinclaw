@@ -507,10 +507,10 @@ browser profile paths, absolute ad roots, scoped runtime override paths, or the
 full miniclaw config.
 
 The local KleinClaw plugin is the boundary layer. It resolves relative handles
-under configured `adRoots`, passes scoped ad-file overrides when needed, and runs
-the bundled `miniclaw` runtime on your machine. `miniclaw` reads local ad files
-and config locally, then drives the browser session for publish, republish,
-update, delete, download, and extend operations.
+under configured `adRoots`, passes scoped ad-file overrides when needed, and
+runs the bundled `miniclaw` runtime on your machine. `miniclaw` reads local ad
+files and config locally, then drives the browser session for publish,
+republish, update, delete, download, and extend operations.
 
 The figure below shows that local files and browser/account state stay outside
 the agent context. The mental model can be expressed in four layers, as given by
@@ -621,4 +621,7 @@ npx clawhub package publish . --dry-run --json \
 
 ## Disclaimer
 
-Unofficial helper; not affiliated with Kleinanzeigen.
+Unofficial helper; not affiliated with Kleinanzeigen. The user is responsible
+for checking the terms of service of kleinanzeigen.de applicable at the time of
+use. The developers assume no liability for any damages or legal consequences.
+Use is at your own risk. Any unlawful use is strictly prohibited.

@@ -1042,6 +1042,7 @@ describe("package install boundary", () => {
   it("keeps OpenClaw package metadata consistent with published files", async () => {
     const pkg = JSON.parse(await fs.readFile("package.json", "utf8"));
     const manifest = JSON.parse(await fs.readFile("openclaw.plugin.json", "utf8"));
+    const readme = await fs.readFile("README.md", "utf8");
     const files = await npmPackDryRunFiles();
 
     assert.equal(pkg.license, "AGPL-3.0-or-later");
@@ -1058,6 +1059,12 @@ describe("package install boundary", () => {
     assert.deepEqual(manifest.skills, ["./skills"]);
     assert.equal(Object.hasOwn(manifest.configSchema.properties, "cliPath"), false);
     assert.equal(files.has("skills/kleinanzeigen-helper-skill/SKILL.md"), true);
+    for (const name of [
+      ...manifest.contracts.tools,
+      ...Object.keys(manifest.configSchema.properties),
+    ]) {
+      assert.equal(readme.includes(`\`${name}\``), true, `README should document ${name}`);
+    }
   });
 
   it("keeps manifest tool contracts aligned with registered tools", async () => {
