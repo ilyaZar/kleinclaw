@@ -341,12 +341,12 @@ export function buildRedactions(config = {}) {
       add(arg);
     }
   }
-  for (const adFileOverride of normalizeStringArray(config.adFileOverrides, "adFileOverrides", {
-    maxItems: 50,
-  })) {
+  for (const adFileOverride of Array.isArray(config.adFileOverrides)
+    ? config.adFileOverrides
+    : []) {
     add(adFileOverride);
   }
-  for (const root of normalizeStringArray(config.adRoots, "adRoots", { maxItems: 50 })) {
+  for (const root of Array.isArray(config.adRoots) ? config.adRoots : []) {
     add(root);
   }
   if (typeof config.configPath === "string" && config.configPath.trim()) {

@@ -159,6 +159,19 @@ describe("kleinanzeigen plugin tools", () => {
     }
   });
 
+  it("reports an empty adRoots gate without hiding the listing tool", async () => {
+    const listAds = createKleinanzeigenTools({ adRoots: [] }).find(
+      (tool) => tool.name === "kleinanzeigen_list_ads",
+    );
+
+    const result = await listAds.execute("list-ads-disabled", {});
+    const payload = JSON.parse(result.content[0].text);
+
+    assert.equal(payload.ok, false);
+    assert.equal(payload.operation, "list_ads");
+    assert.match(payload.stderr, /adRoots must not be empty/);
+  });
+
   it("keeps side-effect tools separate while approval gating local CLI tools", () => {
     const tools = createKleinanzeigenTools();
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_verify"), false);
