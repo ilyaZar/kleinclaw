@@ -8,7 +8,6 @@ import {
   createKleinClawPluginEntry,
 } from "../src/plugin-entry.js";
 import {
-  APPROVAL_TOOL_NAMES,
   buildKleinanzeigenApprovalDescription,
   createKleinanzeigenTools,
   resolveApprovalToolNames,
@@ -19,16 +18,27 @@ import {
 } from "./helpers/command-runner.js";
 
 describe("kleinanzeigen plugin tools", () => {
-  it("registers the OpenClaw plugin entry without live side effects", () => {
+  it("registers tools and persists an always-allow choice", async () => {
     const entry = createKleinClawPluginEntry();
     const registeredTools = [];
     const registeredHooks = [];
+    const config = {
+      plugins: {
+        load: { paths: ["/plugin"] },
+      },
+    };
     const api = {
       pluginConfig: {
         adRoots: ["/ads"],
         approvalMode: "mutating",
       },
-      runtime: {},
+      runtime: {
+        config: {
+          async mutateConfigFile({ mutate }) {
+            await mutate(config);
+          },
+        },
+      },
       on(eventName, handler, options) {
         registeredHooks.push({ eventName, handler, options });
       },
@@ -53,16 +63,21 @@ describe("kleinanzeigen plugin tools", () => {
     assert.equal(registeredHooks[0].eventName, "before_tool_call");
     assert.deepEqual(registeredHooks[0].options, { priority: 80, timeoutMs: 5000 });
 
-    const statusApproval = registeredHooks[0].handler({
+    const beforeToolCall = registeredHooks[0].handler;
+    const statusApproval = beforeToolCall({
       params: {},
       toolName: "kleinanzeigen_status",
     });
     assert.equal(statusApproval, undefined);
 
-    const publishApproval = registeredHooks[0].handler({
+    const publishApproval = beforeToolCall({
       params: {
-        adDirectories: ["/ads/drafts/sample-listing"],
+        adDirectories: Array.from(
+          { length: 20 },
+          (_, index) => `/ads/drafts/item-${index}`,
+        ),
         confirm: true,
+        keepOld: true,
         selector: "all",
       },
       toolName: "kleinanzeigen_publish",
@@ -73,9 +88,25 @@ describe("kleinanzeigen plugin tools", () => {
     );
     assert.match(
       publishApproval.requireApproval.description,
-      /Ad directories: drafts\/sample-listing/,
+      /Ad paths \(20\): drafts\/item-0/,
     );
+    assert.match(publishApproval.requireApproval.description, /Keep old ads: true/);
+    assert.match(publishApproval.requireApproval.description, /Selector: all/);
+    assert.ok(publishApproval.requireApproval.description.length <= 256);
     assert.equal(publishApproval.requireApproval.severity, "warning");
+    await publishApproval.requireApproval.onResolution("allow-once");
+    assert.equal(config.plugins.entries, undefined);
+
+    await publishApproval.requireApproval.onResolution("allow-always");
+    assert.equal(config.plugins.entries.kleinclaw.config.approvalMode, "none");
+    assert.deepEqual(config.plugins.load.paths, ["/plugin"]);
+    assert.equal(
+      beforeToolCall({
+        params: { confirm: true, selector: "all" },
+        toolName: "kleinanzeigen_publish",
+      }),
+      undefined,
+    );
   });
 
   it("wraps the OpenClaw runtime command runner for tools", async () => {
@@ -184,8 +215,6 @@ describe("kleinanzeigen plugin tools", () => {
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_browser_configure"), true);
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_draft_ad"), true);
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_set_ad_active"), true);
-    assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_verify"), true);
-    assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_status"), true);
     assert.equal(tools.length, 16);
     assert.deepEqual(
       tools.filter((tool) => SIDE_EFFECT_TOOL_NAMES.has(tool.name)).map((tool) => tool.name),
@@ -200,28 +229,22 @@ describe("kleinanzeigen plugin tools", () => {
         "kleinanzeigen_extend",
       ],
     );
+    assert.deepEqual(resolveApprovalToolNames(tools), new Set(tools.map((tool) => tool.name)));
     assert.deepEqual(
-      APPROVAL_TOOL_NAMES,
-      new Set(tools.map((tool) => tool.name)),
-    );
-    assert.deepEqual(resolveApprovalToolNames(), APPROVAL_TOOL_NAMES);
-    assert.deepEqual(
-      [...resolveApprovalToolNames({ approvalMode: "mutating" })],
+      [...resolveApprovalToolNames(tools, { approvalMode: "mutating" })],
       [...SIDE_EFFECT_TOOL_NAMES],
     );
     assert.deepEqual(
-      [...resolveApprovalToolNames({ approvalMode: "none" })],
+      [...resolveApprovalToolNames(tools, { approvalMode: "none" })],
       [],
     );
   });
 
   it("summarizes approval requests without leaking absolute ad roots", () => {
     const description = buildKleinanzeigenApprovalDescription({
-      toolName: "kleinanzeigen_publish",
+      toolName: "kleinanzeigen_read_ad",
       params: {
-        confirm: true,
-        selector: "all",
-        adDirectories: ["/ads/drafts/sample-listing"],
+        includeContact: true,
         adConfigPaths: ["/outside/private/ad.yaml"],
       },
       config: {
@@ -229,32 +252,50 @@ describe("kleinanzeigen plugin tools", () => {
       },
     });
 
-    assert.match(description, /Operation: publish/);
-    assert.match(description, /Selector: all/);
-    assert.match(description, /Ad directories: drafts\/sample-listing/);
-    assert.match(description, /Ad config files: \[redacted-path\]\/ad.yaml/);
-    assert.match(description, /Confirm: true/);
+    assert.match(description, /Always allow/);
+    assert.match(description, /Operation: read_ad/);
+    assert.match(description, /Include contact: true/);
+    assert.match(description, /Ad paths \(1\): \[redacted-path\]\/ad.yaml/);
     assert.doesNotMatch(description, /\/ads|\/outside\/private/);
+
+    const imagesDescription = buildKleinanzeigenApprovalDescription({
+      toolName: "kleinanzeigen_images_list",
+      params: { directory: "/ads/drafts/sample-listing" },
+      config: { adRoots: ["/ads"] },
+    });
+    assert.match(imagesDescription, /Directory: drafts\/sample-listing/);
+
+    const defaultDescription = buildKleinanzeigenApprovalDescription({
+      toolName: "kleinanzeigen_update",
+      params: { selector: "changed" },
+    });
+    assert.match(defaultDescription, /Scope: miniclaw config default selection/);
   });
 
-  it("summarizes browser config changes without leaking profile paths", () => {
+  it("summarizes browser checks without leaking profile paths", () => {
     const description = buildKleinanzeigenApprovalDescription({
-      toolName: "kleinanzeigen_browser_configure",
+      toolName: "kleinanzeigen_browser_check",
       params: {
-        confirm: true,
         browser: "chromium",
+        binaryLocation: "/private/browser/chromium",
         usePrivateWindow: false,
         profileMode: "system-default",
+        userDataDir: "/private/browser/profile",
         profileName: "Default",
+        allowUnsupportedBrowser: true,
       },
       config: {},
     });
 
-    assert.match(description, /Operation: browser_configure/);
-    assert.match(description, /Browser: chromium/);
-    assert.match(description, /Private window: false/);
-    assert.match(description, /Profile mode: system-default/);
-    assert.match(description, /Profile name: Default/);
+    assert.ok(description.length <= 256);
+    assert.match(description, /Operation: browser_check/);
+    assert.match(description, /Browser: browser=chromium/);
+    assert.match(description, /private=false/);
+    assert.match(description, /mode=system-default/);
+    assert.match(description, /unsupported=true/);
+    assert.match(description, /profile=Default/);
+    assert.match(description, /Binary: \[redacted-path\]/);
+    assert.match(description, /Data dir: \[redacted-path\]/);
     assert.doesNotMatch(description, /\/private/);
   });
 
@@ -275,8 +316,9 @@ describe("kleinanzeigen plugin tools", () => {
       },
     });
 
+    assert.ok(description.length <= 256);
     assert.match(description, /Operation: draft_ad/);
-    assert.match(description, /Draft directory: drafts\/sample-listing/);
+    assert.match(description, /Directory: drafts\/sample-listing/);
     assert.match(description, /Title: Sample Listing Audio/);
     assert.match(description, /Active: false/);
     assert.doesNotMatch(description, /\/ads/);
@@ -296,9 +338,8 @@ describe("kleinanzeigen plugin tools", () => {
     });
 
     assert.match(description, /Operation: set_ad_active/);
-    assert.match(description, /Ad directories: drafts\/lamp/);
+    assert.match(description, /Ad paths \(1\): drafts\/lamp/);
     assert.match(description, /Active: true/);
-    assert.match(description, /Confirm: true/);
     assert.doesNotMatch(description, /\/ads/);
   });
 

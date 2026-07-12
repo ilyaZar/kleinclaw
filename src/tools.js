@@ -27,19 +27,7 @@ export const SIDE_EFFECT_TOOL_NAMES = new Set([
   "kleinanzeigen_set_ad_active",
 ]);
 
-export const APPROVAL_TOOL_NAMES = new Set([
-  "kleinanzeigen_status",
-  "kleinanzeigen_list_ads",
-  "kleinanzeigen_ad_schema",
-  "kleinanzeigen_read_ad",
-  "kleinanzeigen_images_list",
-  "kleinanzeigen_browser_status",
-  "kleinanzeigen_browser_check",
-  "kleinanzeigen_verify",
-  ...SIDE_EFFECT_TOOL_NAMES,
-]);
-
-export function resolveApprovalToolNames(config = {}) {
+export function resolveApprovalToolNames(tools, config = {}) {
   const mode = typeof config.approvalMode === "string" ? config.approvalMode : "all";
 
   if (mode === "none") {
@@ -49,7 +37,7 @@ export function resolveApprovalToolNames(config = {}) {
     return new Set(SIDE_EFFECT_TOOL_NAMES);
   }
 
-  return new Set(APPROVAL_TOOL_NAMES);
+  return new Set(tools.map((tool) => tool.name));
 }
 
 function relativeConfiguredPath(value, config = {}) {
@@ -77,85 +65,101 @@ function relativeConfiguredPath(value, config = {}) {
   return `[redacted-path]/${path.basename(resolved)}`;
 }
 
-function summarizeList(values, config) {
-  if (!Array.isArray(values) || values.length === 0) {
-    return null;
-  }
-
-  return values
-    .map((value) => relativeConfiguredPath(value, config))
-    .filter(Boolean)
-    .join(", ");
-}
-
-function truncateLine(value, max = 500) {
+function truncateText(value, max = 256) {
   if (value.length <= max) {
     return value;
   }
   return `${value.slice(0, max - 3)}...`;
 }
 
+function summarizeList(values, config, max = 48) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return null;
+  }
+
+  return truncateText(
+    values
+      .map((value) => relativeConfiguredPath(value, config))
+      .filter(Boolean)
+      .join(", "),
+    max,
+  );
+}
+
 export function buildKleinanzeigenApprovalDescription({ toolName, params = {}, config = {} }) {
   const operation = toolName.replace(/^kleinanzeigen_/, "");
   const lines = [
-    "Allow this embedded miniclaw operation to run with redacted output.",
+    "Always allow trusts all KleinClaw tools until changed.",
     `Operation: ${operation}`,
   ];
 
+  if (typeof params.includeContact === "boolean") {
+    lines.push(`Include contact: ${params.includeContact}`);
+  }
+  if (typeof params.keepOld === "boolean") {
+    lines.push(`Keep old ads: ${params.keepOld}`);
+  }
   if (typeof params.selector === "string") {
-    lines.push(`Selector: ${params.selector}`);
+    lines.push(`Selector: ${truncateText(params.selector, 44)}`);
   }
   if (Array.isArray(params.selectors) && params.selectors.length > 0) {
-    lines.push(`Selectors: ${params.selectors.join(", ")}`);
+    lines.push(`Selectors: ${truncateText(params.selectors.join(", "), 44)}`);
+  }
+  const adPaths = [
+    ...(Array.isArray(params.adDirectories) ? params.adDirectories : []),
+    ...(Array.isArray(params.adConfigPaths) ? params.adConfigPaths : []),
+  ];
+  const summarizedAdPaths = summarizeList(adPaths, config);
+  if (summarizedAdPaths) {
+    lines.push(`Ad paths (${adPaths.length}): ${summarizedAdPaths}`);
   }
   if (Array.isArray(params.adIds) && params.adIds.length > 0) {
-    lines.push(`Ad IDs: ${params.adIds.join(", ")}`);
+    lines.push(`Ad IDs (${params.adIds.length}): ${truncateText(params.adIds.join(", "), 44)}`);
   }
-
-  const adDirectories = summarizeList(params.adDirectories, config);
-  if (adDirectories) {
-    lines.push(`Ad directories: ${adDirectories}`);
+  if (typeof params.directory === "string") {
+    lines.push(`Directory: ${truncateText(relativeConfiguredPath(params.directory, config) ?? "", 44)}`);
   }
-
-  const adConfigPaths = summarizeList(params.adConfigPaths, config);
-  if (adConfigPaths) {
-    lines.push(`Ad config files: ${adConfigPaths}`);
+  if (
+    ["verify", "publish", "update", "download", "extend"].includes(operation) &&
+    adPaths.length === 0 &&
+    !params.adIds?.length
+  ) {
+    lines.push("Scope: miniclaw config default selection");
   }
 
   if (operation === "browser_configure" || operation === "browser_check") {
+    const browserSettings = [];
     if (typeof params.browser === "string") {
-      lines.push(`Browser: ${params.browser}`);
-    }
-    if (typeof params.binaryLocation === "string") {
-      lines.push(`Browser binary: ${relativeConfiguredPath(params.binaryLocation, config)}`);
+      browserSettings.push(`browser=${truncateText(params.browser, 16)}`);
     }
     if (typeof params.usePrivateWindow === "boolean") {
-      lines.push(`Private window: ${params.usePrivateWindow}`);
+      browserSettings.push(`private=${params.usePrivateWindow}`);
     }
     if (typeof params.profileMode === "string") {
-      lines.push(`Profile mode: ${params.profileMode}`);
-    }
-    if (typeof params.userDataDir === "string") {
-      lines.push(`User data dir: ${relativeConfiguredPath(params.userDataDir, config)}`);
-    }
-    if (typeof params.profileName === "string") {
-      lines.push(`Profile name: ${params.profileName || "(default)"}`);
+      browserSettings.push(`mode=${truncateText(params.profileMode, 16)}`);
     }
     if (typeof params.allowUnsupportedBrowser === "boolean") {
-      lines.push(`Allow unsupported browser: ${params.allowUnsupportedBrowser}`);
+      browserSettings.push(`unsupported=${params.allowUnsupportedBrowser}`);
+    }
+    if (typeof params.profileName === "string") {
+      browserSettings.push(`profile=${truncateText(params.profileName || "(default)", 16)}`);
+    }
+    if (browserSettings.length > 0) {
+      lines.push(`Browser: ${browserSettings.join(", ")}`);
+    }
+    if (typeof params.binaryLocation === "string") {
+      lines.push(
+        `Binary: ${truncateText(relativeConfiguredPath(params.binaryLocation, config) ?? "", 28)}`,
+      );
+    }
+    if (typeof params.userDataDir === "string") {
+      lines.push(
+        `Data dir: ${truncateText(relativeConfiguredPath(params.userDataDir, config) ?? "", 28)}`,
+      );
     }
   } else if (operation === "draft_ad") {
-    if (typeof params.directory === "string") {
-      lines.push(`Draft directory: ${relativeConfiguredPath(params.directory, config)}`);
-    }
     if (typeof params.fileName === "string") {
-      lines.push(`Draft file: ${params.fileName}`);
-    }
-    if (typeof params.title === "string") {
-      lines.push(`Title: ${params.title}`);
-    }
-    if (typeof params.category === "string") {
-      lines.push(`Category: ${params.category}`);
+      lines.push(`Draft file: ${truncateText(params.fileName, 44)}`);
     }
     if (typeof params.active === "boolean") {
       lines.push(`Active: ${params.active}`);
@@ -163,21 +167,19 @@ export function buildKleinanzeigenApprovalDescription({ toolName, params = {}, c
     if (typeof params.overwrite === "boolean") {
       lines.push(`Overwrite: ${params.overwrite}`);
     }
+    if (typeof params.title === "string") {
+      lines.push(`Title: ${truncateText(params.title, 44)}`);
+    }
+    if (typeof params.category === "string") {
+      lines.push(`Category: ${truncateText(params.category, 44)}`);
+    }
   } else if (operation === "set_ad_active") {
     if (typeof params.active === "boolean") {
       lines.push(`Active: ${params.active}`);
     }
-  } else if (!adDirectories && !adConfigPaths && !Array.isArray(params.adIds)) {
-    lines.push("Scope: miniclaw config default selection");
-  }
-  if (typeof params.keepOld === "boolean") {
-    lines.push(`Keep old ads: ${params.keepOld}`);
-  }
-  if (typeof params.confirm === "boolean") {
-    lines.push(`Confirm: ${params.confirm}`);
   }
 
-  return lines.map((line) => truncateLine(line)).join("\n");
+  return truncateText(lines.join("\n"));
 }
 
 const adIdsSchema = {

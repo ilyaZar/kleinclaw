@@ -31,7 +31,7 @@ export function createKleinClawPluginEntry() {
         commandRunner: createCommandRunner(api.runtime),
       };
       const tools = createKleinanzeigenTools(pluginConfig);
-      const approvalToolNames = resolveApprovalToolNames(pluginConfig);
+      const approvalToolNames = resolveApprovalToolNames(tools, pluginConfig);
 
       for (const tool of tools) {
         api.registerTool(tool);
@@ -54,7 +54,25 @@ export function createKleinClawPluginEntry() {
               }),
               severity: "warning",
               timeoutMs: 120000,
-              timeoutBehavior: "deny",
+              async onResolution(decision) {
+                if (decision !== "allow-always") {
+                  return;
+                }
+                await api.runtime.config.mutateConfigFile({
+                  afterWrite: {
+                    mode: "none",
+                    reason: "KleinClaw updates the in-process approval gate",
+                  },
+                  mutate(draft) {
+                    const plugins = (draft.plugins ??= {});
+                    const entries = (plugins.entries ??= {});
+                    const entry = (entries.kleinclaw ??= {});
+                    const config = (entry.config ??= {});
+                    config.approvalMode = "none";
+                  },
+                });
+                approvalToolNames.clear();
+              },
             },
           };
         },
