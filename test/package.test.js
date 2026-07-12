@@ -158,9 +158,11 @@ describe("package install boundary", () => {
   it("keeps local VM test material out of the package", async () => {
     const files = await npmPackDryRunFiles();
 
+    await assert.rejects(fs.access("skills/local/kleinclaw-vm-drive"));
     for (const file of files) {
       assert.equal(file.startsWith("tmp/testing-vm/"), false);
       assert.equal(file.startsWith("skills/local/"), false);
+      assert.equal(file.includes("kleinclaw-vm-drive"), false);
     }
   });
 

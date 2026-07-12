@@ -12,3 +12,5 @@ specs/
 # Local VM test scratch space and unpublished agent skills.
 tmp/
 skills/local/
+.local/
+**/kleinclaw-vm-drive/
