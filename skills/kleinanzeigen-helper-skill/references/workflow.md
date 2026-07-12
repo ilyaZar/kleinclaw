@@ -13,7 +13,7 @@
    user confirmation.
 5. If the Kleinanzeigen plugin tools are unavailable, stop and tell the user the
    `kleinclaw` OpenClaw plugin is required.
-6. Call the matching optional plugin tool only after confirmation:
+6. Call the matching plugin tool only after confirmation:
    `kleinanzeigen_publish`, `kleinanzeigen_update`, `kleinanzeigen_delete`,
    `kleinanzeigen_download`, or `kleinanzeigen_extend`.
 7. Report only the sanitized result returned by the tool. If the result has

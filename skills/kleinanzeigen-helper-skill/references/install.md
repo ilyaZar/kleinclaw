@@ -1,13 +1,17 @@
 ## Prerequisites / Install
 
-- Install [KleinClaw](https://clawhub.ai/plugins/kleinclaw), then enable it:
+- Install [KleinClaw](https://clawhub.ai/plugins/kleinclaw). Managed installs
+  enable it automatically:
 
   ```bash
   openclaw plugins install clawhub:kleinclaw
-  openclaw plugins enable kleinclaw
   openclaw gateway restart
   ```
 
+- With `tools.profile: "coding"`, add `kleinclaw` once under
+  `tools.alsoAllow`. Sandboxed sessions also need it under
+  `tools.sandbox.tools.alsoAllow`. If a policy scope already uses `allow`, add
+  `kleinclaw` there instead of combining `allow` with `alsoAllow`.
 - Configure KleinClaw under `plugins.entries.kleinclaw.config` with
   `configPath` or `workingDirectory` in the active OpenClaw config. Use
   `openclaw config file` to print that file path. `configPath` points at the

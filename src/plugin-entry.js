@@ -1,7 +1,6 @@
 import {
   buildKleinanzeigenApprovalDescription,
   createKleinanzeigenTools,
-  OPTIONAL_TOOL_NAMES,
   resolveApprovalToolNames,
 } from "./tools.js";
 
@@ -35,10 +34,7 @@ export function createKleinClawPluginEntry() {
       const approvalToolNames = resolveApprovalToolNames(pluginConfig);
 
       for (const tool of tools) {
-        api.registerTool(
-          tool,
-          OPTIONAL_TOOL_NAMES.has(tool.name) ? { optional: true } : undefined,
-        );
+        api.registerTool(tool);
       }
 
       api.on(

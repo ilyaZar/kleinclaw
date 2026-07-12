@@ -11,7 +11,6 @@ import {
   APPROVAL_TOOL_NAMES,
   buildKleinanzeigenApprovalDescription,
   createKleinanzeigenTools,
-  OPTIONAL_TOOL_NAMES,
   resolveApprovalToolNames,
   SIDE_EFFECT_TOOL_NAMES,
 } from "../src/tools.js";
@@ -46,17 +45,8 @@ describe("kleinanzeigen plugin tools", () => {
       registeredTools.map(({ tool }) => tool.name),
       createKleinanzeigenTools().map((tool) => tool.name),
     );
-    assert.equal(
-      registeredTools.find(({ tool }) => tool.name === "kleinanzeigen_status")
-        ?.options?.optional,
-      true,
-    );
-    for (const { tool, options } of registeredTools) {
-      assert.equal(
-        Boolean(options?.optional),
-        OPTIONAL_TOOL_NAMES.has(tool.name),
-        `${tool.name} optional registration should match OPTIONAL_TOOL_NAMES`,
-      );
+    for (const { options } of registeredTools) {
+      assert.equal(options, undefined);
     }
 
     assert.equal(registeredHooks.length, 1);
@@ -181,13 +171,6 @@ describe("kleinanzeigen plugin tools", () => {
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_browser_configure"), true);
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_draft_ad"), true);
     assert.equal(SIDE_EFFECT_TOOL_NAMES.has("kleinanzeigen_set_ad_active"), true);
-    assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_verify"), true);
-    assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_status"), true);
-    assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_ad_schema"), true);
-    assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_read_ad"), true);
-    assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_images_list"), true);
-    assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_browser_status"), true);
-    assert.equal(OPTIONAL_TOOL_NAMES.has("kleinanzeigen_browser_check"), true);
     assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_verify"), true);
     assert.equal(APPROVAL_TOOL_NAMES.has("kleinanzeigen_status"), true);
     assert.equal(tools.length, 16);
@@ -204,8 +187,11 @@ describe("kleinanzeigen plugin tools", () => {
         "kleinanzeigen_extend",
       ],
     );
-    assert.deepEqual([...APPROVAL_TOOL_NAMES], [...OPTIONAL_TOOL_NAMES]);
-    assert.deepEqual([...resolveApprovalToolNames()], [...OPTIONAL_TOOL_NAMES]);
+    assert.deepEqual(
+      APPROVAL_TOOL_NAMES,
+      new Set(tools.map((tool) => tool.name)),
+    );
+    assert.deepEqual(resolveApprovalToolNames(), APPROVAL_TOOL_NAMES);
     assert.deepEqual(
       [...resolveApprovalToolNames({ approvalMode: "mutating" })],
       [...SIDE_EFFECT_TOOL_NAMES],

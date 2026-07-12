@@ -62,14 +62,15 @@ for agent-led setup and preflight, but the bundled helper skill should choose
 those details during normal use, meaning: your agent does the heavy lifting
 while you provide images and loose descriptions of your Inserate/ads.
 
-The tools are optional because they run a local command. By default all shipped
-KleinClaw tools route through OpenClaw approval before they run. OpenClaw
-approvals and `confirm: true` parameters are human review gates, not sandbox
-boundaries. Keep `adRoots` limited to listing workspaces you intend the plugin
-to read or write. Set `approvalMode` to `mutating` only when local checks should
-run without approval, or to `none` only for trusted local operator workflows.
-Account-changing tools still require `confirm: true`. Tool output is capped and
-redacted for configured paths, email addresses, and credential-like lines.
+The tools are part of KleinClaw's normal public plugin surface and run the
+bundled local command. By default all shipped KleinClaw tools route through
+OpenClaw approval before they run. OpenClaw approvals and `confirm: true`
+parameters are human review gates, not sandbox boundaries. Keep `adRoots`
+limited to listing workspaces you intend the plugin to read or write. Set
+`approvalMode` to `mutating` only when local checks should run without approval,
+or to `none` only for trusted local operator workflows. Account-changing tools
+still require `confirm: true`. Tool output is capped and redacted for configured
+paths, email addresses, and credential-like lines.
 
 The package also ships a `kleinanzeigen-helper-skill` under `skills/`. OpenClaw
 loads plugin skills when the plugin is enabled, so agents get the longer
@@ -82,6 +83,9 @@ description.
 ```bash
 openclaw plugins install clawhub:kleinclaw
 ```
+
+Managed installs enable KleinClaw automatically. Restart or reload the Gateway
+after installing plugin code.
 
 The plugin ships a built-in `kleinanzeigen-helper-skill`, so agents get workflow
 guidance when the plugin is enabled. The same guidance is also published as the
@@ -102,10 +106,9 @@ For local development:
 
 ```bash
 openclaw plugins install -l /path/to/kleinclaw
-openclaw plugins enable kleinclaw
 ```
 
-Restart the Gateway after installing plugin code.
+Restart or reload the Gateway after installing plugin code.
 
 ## Configure
 
@@ -177,14 +180,15 @@ Plugin config fields:
   tools through OpenClaw approval. `none` relies on tool-level `confirm: true`
   gates. Account-changing tools still need `confirm: true`.
 
-Also expose the optional tools through OpenClaw tool policy. This is still the
-same active OpenClaw config file, but now the block is top-level `tools`, next
-to `plugins`:
+The `full` tool profile exposes KleinClaw after installation without a separate
+tool grant. The `coding` profile filters arbitrary native plugin tools, so add
+one plugin-level grant when using it. If the agent runs in a sandbox, add the
+same grant at the sandbox layer:
 
 ```json
 {
   "tools": {
-    "profile": "full",
+    "profile": "coding",
     "alsoAllow": ["kleinclaw"],
     "sandbox": {
       "tools": {
@@ -198,15 +202,16 @@ to `plugins`:
 Tool policy fields:
 
 - `profile`: OpenClaw's built-in tool profile. Built-in values are `minimal`,
-  `coding`, `messaging`, and `full`; `full` is shown here for a simple local
-  first run.
+  `coding`, `messaging`, and `full`; `coding` is shown here with its required
+  additive plugin grant.
 - `alsoAllow`: extra tool groups or tool names to expose in normal agent
   sessions. `kleinclaw` means the tools from this plugin.
 - `sandbox.tools.alsoAllow`: the same extra tool exposure for sandboxed
   sessions. Include this if your agents run through the sandbox tool gate.
 
-You can allow individual tool names instead of `kleinclaw` when you want finer
-control.
+Do not set `allow` and `alsoAllow` in the same policy scope. If that scope
+already uses `allow`, add `kleinclaw` there instead. The sandbox grant controls
+tool exposure; native KleinClaw code still runs host-side in the Gateway.
 
 OpenClaw approval requests include the operation, selector, explicit ad IDs, and
 ad paths relative to configured `adRoots`. Check those details before approving
@@ -553,10 +558,15 @@ I-IV, with the arrows showing the interaction between the runtime layers.
 
 ## Troubleshooting
 
-If a routed agent sees the KleinClaw skill but no callable `kleinanzeigen_*`
-tools, check sandbox tool policy. A Gateway log like `sandbox tools.allow`
-removing `kleinanzeigen_status` means the plugin loaded, but the sandbox gate
-hid its tools from that session.
+If an agent sees the KleinClaw skill but no callable `kleinanzeigen_*` tools,
+inspect the runtime first, then the affected fresh session:
+
+```bash
+openclaw plugins inspect kleinclaw --runtime --json
+```
+
+Use `/tools verbose` in that session. Under the `coding` profile, grant the
+plugin ID once. If sandboxing is active, add the same sandbox-layer grant:
 
 ```json
 {
@@ -567,8 +577,8 @@ hid its tools from that session.
 }
 ```
 
-Restart or reload Gateway, then verify with `openclaw sandbox explain --json`
-and a `kleinanzeigen_status` smoke test.
+Restart or reload the Gateway, start a new session, then verify with
+`openclaw sandbox explain --json` and a `kleinanzeigen_status` smoke test.
 
 If repeated approval prompts are too noisy for a trusted local operator setup,
 change only the plugin entry in your own OpenClaw config:

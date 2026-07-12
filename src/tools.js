@@ -27,7 +27,7 @@ export const SIDE_EFFECT_TOOL_NAMES = new Set([
   "kleinanzeigen_set_ad_active",
 ]);
 
-export const OPTIONAL_TOOL_NAMES = new Set([
+export const APPROVAL_TOOL_NAMES = new Set([
   "kleinanzeigen_status",
   "kleinanzeigen_list_ads",
   "kleinanzeigen_ad_schema",
@@ -38,8 +38,6 @@ export const OPTIONAL_TOOL_NAMES = new Set([
   "kleinanzeigen_verify",
   ...SIDE_EFFECT_TOOL_NAMES,
 ]);
-
-export const APPROVAL_TOOL_NAMES = new Set(OPTIONAL_TOOL_NAMES);
 
 export function resolveApprovalToolNames(config = {}) {
   const mode = typeof config.approvalMode === "string" ? config.approvalMode : "all";
