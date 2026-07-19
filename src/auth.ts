@@ -55,6 +55,7 @@ export class LoginDetectionResult {
 export interface LoginController {
   readonly page?: { url?: string };
   webClick(type: By, value: string, timeout?: number): Promise<WebLocator>;
+  webExecute(jscode: string): Promise<unknown>;
   webInput(type: By, value: string, text: string, timeout?: number): Promise<WebLocator>;
   webOpen(
     url: string,
@@ -90,6 +91,23 @@ export interface LoginDiagnosticsContext {
 export interface VerificationPromptContext {
   kind: "sms" | "email";
   message: string;
+}
+
+export const IP_RANGE_BLOCK_MESSAGE =
+  "Kleinanzeigen temporarily blocked this network or IP range.";
+
+export class IpRangeBlockedError extends Error {
+  constructor() {
+    super(IP_RANGE_BLOCK_MESSAGE);
+    this.name = "IpRangeBlockedError";
+  }
+}
+
+export class ManualActionRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ManualActionRequiredError";
+  }
 }
 
 export interface LoginOptions {
@@ -153,6 +171,25 @@ function requireLoginCredentials(credentials: LoginConfig): void {
     throw new Error(
       "login.username and login.password must be configured before browser login",
     );
+  }
+}
+
+function isIpRangeBlockedPageText(text: unknown): boolean {
+  const normalized = String(text ?? "").replace(/\s+/g, " ").toLowerCase();
+  return normalized.includes("ip-bereich vorübergehend gesperrt") ||
+    (
+      normalized.includes("ip-bereich") &&
+      normalized.includes("vorbeugung von betrug") &&
+      normalized.includes("von der nutzung von kleinanzeigen ausgeschlossen")
+    );
+}
+
+async function assertIpRangeAvailable(controller: LoginController): Promise<void> {
+  const text = await controller.webExecute(
+    "document.body ? document.body.innerText.slice(0, 4000) : ''",
+  );
+  if (isIpRangeBlockedPageText(text)) {
+    throw new IpRangeBlockedError();
   }
 }
 
@@ -390,7 +427,9 @@ export async function isLoggedIn(
 
 async function promptForManualAction(message: string): Promise<void> {
   if (!input.isTTY || !output.isTTY) {
-    throw new Error(`${message} Manual browser action requires an interactive run.`);
+    throw new ManualActionRequiredError(
+      `${message} Manual browser action requires an interactive run.`,
+    );
   }
 
   console.error("############################################");
@@ -567,14 +606,6 @@ export async function clickGdprBanner(
   }
 }
 
-export async function dismissConsentBanner(
-  controller: LoginController,
-  options: LoginOptions = {},
-): Promise<void> {
-  const resolvedOptions = loginOptionsWithDefaults(options);
-  await clickGdprBanner(controller, resolvedOptions.quickDomTimeout);
-}
-
 async function checkVerificationPrompt(
   controller: LoginController,
   {
@@ -625,6 +656,7 @@ export async function login(
   const resolvedOptions = loginOptionsWithDefaults(options);
 
   await controller.webOpen(resolvedOptions.rootUrl);
+  await assertIpRangeAvailable(controller);
   await clickGdprBanner(controller, resolvedOptions.quickDomTimeout);
 
   let detectionResult = await getLoginState(controller, credentials, {
@@ -639,6 +671,7 @@ export async function login(
     await controller.webOpen(`${resolvedOptions.rootUrl}/m-einloggen-sso.html`, {
       timeout: resolvedOptions.pageLoadTimeout,
     });
+    await assertIpRangeAvailable(controller);
   } catch (error) {
     if (isTimeoutLike(error)) {
       await captureLoginDiagnostics(resolvedOptions, {
@@ -662,7 +695,7 @@ export async function login(
     throw error;
   }
 
-  await dismissConsentBanner(controller, resolvedOptions);
+  await clickGdprBanner(controller, resolvedOptions.quickDomTimeout);
   detectionResult = await getLoginState(controller, credentials, {
     ...resolvedOptions,
     captureSelectorDiagnostics: false,
