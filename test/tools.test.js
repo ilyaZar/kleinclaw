@@ -6,13 +6,13 @@ import path from "node:path";
 import {
   createCommandRunner,
   createKleinClawPluginEntry,
-} from "../src/plugin-entry.js";
+} from "../dist/plugin-entry.js";
 import {
   buildKleinanzeigenApprovalDescription,
   createKleinanzeigenTools,
   resolveApprovalToolNames,
   SIDE_EFFECT_TOOL_NAMES,
-} from "../src/tools.js";
+} from "../dist/tools.js";
 import {
   withMockMiniclawScript,
 } from "./helpers/command-runner.js";
@@ -158,7 +158,15 @@ describe("kleinanzeigen plugin tools", () => {
         configPath,
         commandRunner: async (argv, options) => {
           calls.push({ argv, options });
-          return { code: 0, stdout: "ok\n", stderr: "" };
+          return {
+            code: 0,
+            stdout: JSON.stringify({
+              schemaVersion: 1,
+              command: "verify",
+              status: "succeeded",
+            }),
+            stderr: "",
+          };
         },
       }).filter((tool) => tool.name === "kleinanzeigen_verify");
 
@@ -352,8 +360,11 @@ describe("kleinanzeigen plugin tools", () => {
       mockCli,
       [
         "#!/usr/bin/env node",
-        "console.log(process.argv.slice(2).join(' '));",
-        `console.log('using ${mockConfig}');`,
+        "console.log(JSON.stringify({",
+        "  schemaVersion: 1,",
+        "  command: 'verify',",
+        "  status: 'succeeded',",
+        "}));",
         "console.error('password: should-not-leak');",
       ].join("\n"),
       "utf8",
@@ -374,9 +385,10 @@ describe("kleinanzeigen plugin tools", () => {
       "--config=[redacted]",
       "--logfile=",
       "--workspace-mode=portable",
+      "--output=json",
       "verify",
     ]);
-    assert.match(payload.stdout, /using \[redacted-path\]/);
+    assert.equal(payload.stdout, "");
     assert.equal(payload.stderr, "[redacted sensitive line]");
     assert.doesNotMatch(result.content[0].text, /should-not-leak|private\/config/);
   });

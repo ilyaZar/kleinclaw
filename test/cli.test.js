@@ -4,33 +4,36 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
-  buildRedactions,
-  buildChildEnv,
   buildKleinanzeigenArgs,
   checkKleinanzeigenBrowser,
   configureKleinanzeigenBrowser,
   draftKleinanzeigenAd,
-  detectUserActionRequest,
-  extractKleinanzeigenDiagnostics,
   getKleinanzeigenAdSchema,
   getKleinanzeigenBrowserStatus,
-  getKleinanzeigenStatus,
   listKleinanzeigenImages,
   listKleinanzeigenAds,
-  redactArgs,
   readKleinanzeigenAd,
   runKleinanzeigenOperation,
+  setKleinanzeigenAdActive,
+} from "../dist/cli.js";
+import { parseMiniclawResult } from "../dist/miniclaw-protocol.js";
+import {
+  getKleinanzeigenStatus,
+} from "../dist/miniclaw-runtime.js";
+import {
+  buildChildEnv,
+  buildRedactions,
+  redactArgs,
   runProcess,
   sanitizeText,
-  setKleinanzeigenAdActive,
-} from "../src/cli.js";
+} from "../dist/process-boundary.js";
 import {
   createNodeCommandRunner,
   withCommandRunner,
   withMockMiniclawScript,
   writeExecutableMockScript,
 } from "./helpers/command-runner.js";
-import { createKleinanzeigenTools } from "../src/tools.js";
+import { createKleinanzeigenTools } from "../dist/tools.js";
 
 const SENTINEL_USER = "sentinel-user@example.invalid";
 const SENTINEL_PASSWORD = "sentinel-password-value";
@@ -49,6 +52,77 @@ function assertJsonOmits(value, needles) {
     assert.doesNotMatch(text, new RegExp(escapeRegExp(needle)));
   }
 }
+
+function mockResultLine(command, status = "succeeded", fields = {}) {
+  return `console.log(${JSON.stringify(JSON.stringify({
+    schemaVersion: 1,
+    command,
+    status,
+    ...fields,
+  }))});`;
+}
+
+describe("miniclaw protocol", () => {
+  it("fails closed on malformed or contradictory results", () => {
+    const transport = { exitCode: 0, timedOut: false };
+    const valid = JSON.stringify({
+      schemaVersion: 1,
+      command: "publish",
+      status: "succeeded",
+      counts: { changed: 1, failed: 0, total: 1 },
+    });
+
+    assert.equal(parseMiniclawResult(valid, "publish", transport).ok, true);
+    for (const output of [
+      "",
+      "{}",
+      `${valid}\nnoise`,
+      valid.replace('"schemaVersion":1', '"schemaVersion":2'),
+      valid.replace('"command":"publish"', '"command":"delete"'),
+    ]) {
+      assert.equal(parseMiniclawResult(output, "publish", transport).ok, false);
+    }
+    assert.equal(
+      parseMiniclawResult(valid, "publish", {
+        exitCode: 1,
+        timedOut: false,
+      }).ok,
+      false,
+    );
+    assert.equal(
+      parseMiniclawResult(
+        valid.replace(
+          '"counts":{"changed":1,"failed":0,"total":1}',
+          '"counts":{"changed":0,"failed":1,"total":1}',
+        ),
+        "publish",
+        transport,
+      ).ok,
+      false,
+    );
+    assert.equal(
+      parseMiniclawResult(
+        valid.replace('"status":"succeeded"', '"status":"partial_failure"')
+          .replace(',"counts":{"changed":1,"failed":0,"total":1}', ""),
+        "publish",
+        transport,
+      ).ok,
+      false,
+    );
+    assert.equal(
+      parseMiniclawResult(
+        valid.replace('"status":"succeeded"', '"status":"failed"')
+          .replace(
+            '"counts":{"changed":1,"failed":0,"total":1}',
+            '"counts":{"changed":0,"failed":1,"total":1}',
+          ),
+        "publish",
+        transport,
+      ).ok,
+      true,
+    );
+  });
+});
 
 async function executeKleinanzeigenTool(config, name, params = {}) {
   const tool = createKleinanzeigenTools(config).find((entry) => entry.name === name);
@@ -91,7 +165,6 @@ describe("kleinanzeigen CLI argument builder", () => {
       {
         configPath: "/secret/config.yaml",
         workspaceMode: "portable",
-        lang: "en",
       },
     );
 
@@ -99,14 +172,14 @@ describe("kleinanzeigen CLI argument builder", () => {
       "--config=/secret/config.yaml",
       "--logfile=",
       "--workspace-mode=portable",
-      "--lang=en",
+      "--output=json",
       "verify",
     ]);
     assert.deepEqual(redactArgs(args), [
       "--config=[redacted]",
       "--logfile=",
       "--workspace-mode=portable",
-      "--lang=en",
+      "--output=json",
       "verify",
     ]);
   });
@@ -125,6 +198,7 @@ describe("kleinanzeigen CLI argument builder", () => {
       "--config=/secret/config.yaml",
       "--logfile=",
       "--workspace-mode=portable",
+      "--output=json",
       "--ad-file=/secret/ads/lamp/ad.yaml",
       "verify",
     ]);
@@ -132,6 +206,7 @@ describe("kleinanzeigen CLI argument builder", () => {
       "--config=[redacted]",
       "--logfile=",
       "--workspace-mode=portable",
+      "--output=json",
       "--ad-file=[redacted]",
       "verify",
     ]);
@@ -162,6 +237,7 @@ describe("kleinanzeigen CLI argument builder", () => {
         "--config=config.yaml",
         "--logfile=",
         "--workspace-mode=portable",
+        "--output=json",
         "--allow-live-browser",
         "delete",
         "--ads=123,456",
@@ -201,6 +277,7 @@ describe("kleinanzeigen CLI argument builder", () => {
         "--config=config.yaml",
         "--logfile=",
         "--workspace-mode=portable",
+        "--output=json",
         "--allow-live-browser",
         "update",
         "--ads=all",
@@ -225,6 +302,7 @@ describe("kleinanzeigen CLI argument builder", () => {
         "--config=config.yaml",
         "--logfile=",
         "--workspace-mode=portable",
+        "--output=json",
         "--allow-live-browser",
         "publish",
         "--ads=changed,due",
@@ -240,6 +318,7 @@ describe("kleinanzeigen CLI argument builder", () => {
         "--config=config.yaml",
         "--logfile=",
         "--workspace-mode=portable",
+        "--output=json",
         "--allow-live-browser",
         "extend",
         "--ads=all",
@@ -255,9 +334,11 @@ describe("kleinanzeigen CLI status", () => {
       path.join(tmp, "mock-cli.mjs"),
       [
         "#!/usr/bin/env node",
-        "const command = process.argv[2];",
-        "if (command === 'version') console.log('1.2.3');",
-        "else if (command === 'help') console.log('publish verify delete update download extend');",
+        "const command = process.argv.at(-1);",
+        `if (command === 'version') ${mockResultLine("version", "succeeded", {
+          version: "1.2.3",
+          commands: ["publish", "verify", "delete", "update", "download", "extend"],
+        })}`,
         "else process.exit(2);",
       ],
     );
@@ -296,10 +377,13 @@ describe("kleinanzeigen CLI status", () => {
       workingDirectory: tmp,
       workspaceMode: "portable",
     }));
+    const miniclawPackage = JSON.parse(
+      await fs.readFile("miniclaw/package.json", "utf8"),
+    );
 
     assert.equal(status.ok, true);
     assert.equal(status.executable, "miniclaw");
-    assert.equal(status.version, "2026+miniclaw");
+    assert.equal(status.version, miniclawPackage.version);
     assert.deepEqual(status.commands, {
       verify: true,
       diagnose: true,
@@ -310,6 +394,29 @@ describe("kleinanzeigen CLI status", () => {
       extend: true,
     });
     assert.doesNotMatch(JSON.stringify(status), /should-not-be-read|password/);
+  });
+
+  it("rejects a failed version envelope even when the process exits zero", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-status-"));
+    const configPath = path.join(tmp, "config.yaml");
+    await fs.writeFile(configPath, "", "utf8");
+    const status = await getKleinanzeigenStatus({
+      configPath,
+      commandRunner: async () => ({
+        code: 0,
+        stdout: JSON.stringify({
+          schemaVersion: 1,
+          command: "version",
+          status: "failed",
+          version: "invalid",
+          commands: ["verify"],
+        }),
+      }),
+    });
+
+    assert.equal(status.ok, false);
+    assert.equal(status.version, "");
+    assert.deepEqual(Object.values(status.commands), Array(7).fill(false));
   });
 });
 
@@ -420,7 +527,13 @@ describe("browser config tools", () => {
       [
         "#!/usr/bin/env node",
         "if (process.argv.includes('diagnose')) {",
-        "  console.log('(ok) Browser binary is executable');",
+        `  ${mockResultLine("diagnose", "succeeded", {
+          diagnostics: [{
+            code: "browser_diagnostic",
+            severity: "info",
+            message: "Browser binary is executable",
+          }],
+        })}`,
         "  process.exit(0);",
         "}",
         "process.exit(2);",
@@ -534,8 +647,13 @@ describe("browser config tools", () => {
       [
         "#!/usr/bin/env node",
         "if (process.argv.includes('diagnose')) {",
-        "  console.log('(ok) Browser binary exists: /tmp/mock-browser');",
-        "  console.log('(ok) Browser binary is executable');",
+        `  ${mockResultLine("diagnose", "succeeded", {
+          diagnostics: [{
+            code: "browser_diagnostic",
+            severity: "info",
+            message: "Browser binary is executable",
+          }],
+        })}`,
         "  process.exit(0);",
         "}",
         "process.exit(2);",
@@ -818,11 +936,13 @@ describe("scoped ad configs", () => {
       [
         "#!/usr/bin/env node",
         "if (process.argv.includes('verify')) {",
-        "  console.log('DONE: No configuration errors found.');",
+        `  ${mockResultLine("verify")}`,
         "  process.exit(0);",
         "}",
         "if (process.argv.includes('publish')) {",
-        "  console.log('DONE: (Re-)published 1 ad');",
+        `  ${mockResultLine("publish", "succeeded", {
+          counts: { changed: 1, failed: 0, total: 1 },
+        })}`,
         "  process.exit(0);",
         "}",
         "process.exit(2);",
@@ -916,7 +1036,7 @@ describe("scoped ad configs", () => {
         "#!/usr/bin/env node",
         "import fs from 'node:fs';",
         `fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify(process.argv.slice(2)));`,
-        "console.log('scoped run complete');",
+        mockResultLine("verify"),
       ],
     );
     const configPath = path.join(tmp, "config.yaml");
@@ -950,6 +1070,7 @@ describe("scoped ad configs", () => {
       `--config=${configPath}`,
       "--logfile=",
       "--workspace-mode=portable",
+      "--output=json",
       `--ad-file=${adPath}`,
       "verify",
     ]);
@@ -957,10 +1078,11 @@ describe("scoped ad configs", () => {
       "--config=[redacted]",
       "--logfile=",
       "--workspace-mode=portable",
+      "--output=json",
       "--ad-file=[redacted]",
       "verify",
     ]);
-    assert.equal(result.stdout, "scoped run complete");
+    assert.equal(result.stdout, "");
     assertJsonOmits(result, [tmp, adRoot, adPath, configPath, "should-not-leak"]);
   });
 
@@ -979,7 +1101,9 @@ describe("scoped ad configs", () => {
         "#!/usr/bin/env node",
         "import fs from 'node:fs';",
         `fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify(process.argv.slice(2)));`,
-        "console.log('DONE: (Re-)published 1 ad');",
+        mockResultLine("publish", "succeeded", {
+          counts: { changed: 1, failed: 0, total: 1 },
+        }),
       ],
     );
     await fs.mkdir(selectedDir, { recursive: true });
@@ -1028,6 +1152,7 @@ describe("scoped ad configs", () => {
       `--config=${configPath}`,
       "--logfile=",
       "--workspace-mode=portable",
+      "--output=json",
       `--ad-file=${selectedPath}`,
       "--allow-live-browser",
       "publish",
@@ -1038,6 +1163,7 @@ describe("scoped ad configs", () => {
       "--config=[redacted]",
       "--logfile=",
       "--workspace-mode=portable",
+      "--output=json",
       "--ad-file=[redacted]",
       "--allow-live-browser",
       "publish",
@@ -1058,7 +1184,9 @@ describe("scoped ad configs", () => {
         "#!/usr/bin/env node",
         "import fs from 'node:fs';",
         `fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify(process.argv.slice(2)));`,
-        "console.log('DONE: Downloaded 1 of 1 ads');",
+        mockResultLine("download", "succeeded", {
+          counts: { changed: 1, failed: 0, total: 1 },
+        }),
       ],
     );
 
@@ -1077,6 +1205,7 @@ describe("scoped ad configs", () => {
       `--config=${configPath}`,
       "--logfile=",
       "--workspace-mode=portable",
+      "--output=json",
       "--allow-live-browser",
       "download",
       "--ads=2923858274",
@@ -1097,7 +1226,9 @@ describe("scoped ad configs", () => {
         "#!/usr/bin/env node",
         "import fs from 'node:fs';",
         `fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify(process.argv.slice(2)));`,
-        "console.log('DONE: updated 0 ads');",
+        mockResultLine("update", "no_op", {
+          counts: { changed: 0, failed: 0, total: 0 },
+        }),
       ],
     );
 
@@ -1116,6 +1247,7 @@ describe("scoped ad configs", () => {
       `--config=${configPath}`,
       "--logfile=",
       "--workspace-mode=portable",
+      "--output=json",
       "--allow-live-browser",
       "update",
       "--ads=2923858274,1111111111",
@@ -1153,7 +1285,15 @@ describe("scoped ad configs", () => {
           "#!/usr/bin/env node",
           "import fs from 'node:fs';",
           `fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify(process.argv.slice(2)));`,
-          "console.log('scoped run complete');",
+          exitCode === 0
+            ? mockResultLine("verify")
+            : mockResultLine("verify", "failed", {
+              diagnostics: [{
+                code: "internal_error",
+                severity: "error",
+                message: "verify failed",
+              }],
+            }),
           `process.exit(${exitCode});`,
         ],
       );
@@ -1175,6 +1315,7 @@ describe("scoped ad configs", () => {
         `--config=${configPath}`,
         "--logfile=",
         "--workspace-mode=portable",
+        "--output=json",
         `--ad-file=${adPath}`,
         "verify",
       ]);
@@ -1265,15 +1406,16 @@ describe("scoped ad configs", () => {
     await assert.rejects(() => fs.stat(marker), /ENOENT/);
   });
 
-  it("returns publish success evidence even when the process exits noisy", async () => {
+  it("rejects a success envelope when the process exits nonzero", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-outcome-"));
     const { adDir, adRoot, configPath } = await writeScopedAdFixture(tmp);
     const mockCli = await writeExecutableMockScript(
       path.join(tmp, "mock-cli.mjs"),
       [
         "#!/usr/bin/env node",
-        "console.log(' -> SUCCESS: ad published with ID 2923863425');",
-        "console.log('DONE: (Re-)published 1 ad');",
+        mockResultLine("publish", "succeeded", {
+          counts: { changed: 1, failed: 0, total: 1 },
+        }),
         "process.exit(1);",
       ],
     );
@@ -1287,15 +1429,12 @@ describe("scoped ad configs", () => {
       }),
     );
 
-    assert.equal(result.ok, true);
+    assert.equal(result.ok, false);
     assert.equal(result.processOk, false);
-    assert.equal(result.outcome.status, "succeeded");
-    assert.equal(result.outcome.success, true);
-    assert.deepEqual(result.outcome.adIds, ["2923863425"]);
-    assert.match(result.outcome.summary, /published 1 ad/);
+    assert.equal(result.outcome.status, "protocol_error");
   });
 
-  it("uses selected ad config changes as publish success evidence", async () => {
+  it("does not treat ad file changes as success evidence", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-outcome-"));
     const { adDir, adPath, adRoot, configPath } = await writeScopedAdFixture(tmp);
     const mockCli = await writeExecutableMockScript(
@@ -1318,17 +1457,9 @@ describe("scoped ad configs", () => {
       }),
     );
 
-    assert.equal(result.ok, true);
+    assert.equal(result.ok, false);
     assert.equal(result.processOk, false);
-    assert.equal(result.outcome.status, "succeeded");
-    assert.deepEqual(result.outcome.changedAdConfigs, [
-      {
-        adPath: path.join("sample-listing", "ad.yaml"),
-        title: "Sample Listing",
-        id: "2923863425",
-        changedFields: ["id"],
-      },
-    ]);
+    assert.equal(result.outcome.status, "protocol_error");
   });
 
   it("parses delete completion counts as changed and total ads", async () => {
@@ -1341,7 +1472,9 @@ describe("scoped ad configs", () => {
       path.join(tmp, "mock-cli.mjs"),
       [
         "#!/usr/bin/env node",
-        "console.log('DONE: Deleted 1 of 1');",
+        mockResultLine("delete", "succeeded", {
+          counts: { changed: 1, failed: 0, total: 1 },
+        }),
         "process.exit(0);",
       ],
     );
@@ -1363,30 +1496,86 @@ describe("scoped ad configs", () => {
 });
 
 describe("diagnostics", () => {
-  it("adds structured guidance for miniclaw validation errors", async () => {
-    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-diag-"));
-    const adDir = path.join(tmp, "drafts", "cut-n-run");
-    await fs.mkdir(adDir, { recursive: true });
-    await fs.writeFile(
-      path.join(adDir, "ad.yaml"),
-      'title: "Cut and Run Ausstellung Banksy Tragetasche / 25 Years Card Labour Streetart"\n',
-      "utf8",
-    );
-
-    const diagnostics = await extractKleinanzeigenDiagnostics(
+  it("returns structured guidance for a temporary IP-range block", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-ip-block-"));
+    const { adDir, adRoot, configPath } = await writeScopedAdFixture(tmp);
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
       [
-        "[ERROR] 1 validation error for [AdPartial]:",
-        "- title: Value error, title length exceeds 65 characters",
-      ].join("\n"),
-      { adRoots: [tmp] },
+        "#!/usr/bin/env node",
+        mockResultLine("publish", "failed", {
+          diagnostics: [{
+            code: "ip_range_blocked",
+            severity: "error",
+            message: "Kleinanzeigen temporarily blocked this network or IP range.",
+          }],
+        }),
+        "process.exit(4);",
+      ],
     );
 
-    assert.equal(diagnostics.length, 1);
-    assert.equal(diagnostics[0].kind, "ad_validation");
-    assert.equal(diagnostics[0].field, "title");
-    assert.equal(diagnostics[0].adPath, path.join("drafts", "cut-n-run", "ad.yaml"));
-    assert.equal(diagnostics[0].titleLength, 75);
-    assert.equal(diagnostics[0].limit, 65);
+    try {
+      const result = await runKleinanzeigenOperation(
+        "publish",
+        { confirm: true, adDirectories: [adDir] },
+        withMockMiniclawScript(mockCli, {
+          configPath,
+          adRoots: [adRoot],
+        }),
+      );
+
+      assert.equal(result.ok, false);
+      assert.equal(result.exitCode, 4);
+      assert.equal(result.needsUserAction, true);
+      assert.match(result.userActionHint, /stop automatic retries/i);
+      assert.deepEqual(result.diagnostics, [{
+        severity: "error",
+        kind: "ip_range_blocked",
+        message: "Kleinanzeigen temporarily blocked this network or IP range.",
+      }]);
+      assert.deepEqual(result.nextActions, [
+        "stop automatic retries and inform the user to try again later",
+      ]);
+      assert.doesNotMatch(JSON.stringify(result), /Ref#|IP#|2a01:/i);
+    } finally {
+      await fs.rm(tmp, { force: true, recursive: true });
+    }
+  });
+
+  it("marks interactive account checks as user actions", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-manual-"));
+    const { adDir, adRoot, configPath } = await writeScopedAdFixture(tmp);
+    const mockCli = await writeExecutableMockScript(
+      path.join(tmp, "mock-cli.mjs"),
+      [
+        "#!/usr/bin/env node",
+        mockResultLine("publish", "failed", {
+          diagnostics: [{
+            code: "manual_action_required",
+            severity: "error",
+            message: "Manual browser action requires an interactive run.",
+          }],
+        }),
+        "process.exit(2);",
+      ],
+    );
+
+    try {
+      const result = await runKleinanzeigenOperation(
+        "publish",
+        { confirm: true, adDirectories: [adDir] },
+        withMockMiniclawScript(mockCli, {
+          configPath,
+          adRoots: [adRoot],
+        }),
+      );
+
+      assert.equal(result.ok, false);
+      assert.equal(result.needsUserAction, true);
+      assert.match(result.userActionHint, /interactive browser run/);
+    } finally {
+      await fs.rm(tmp, { force: true, recursive: true });
+    }
   });
 
   it("returns diagnostics and next actions from failed miniclaw runs", async () => {
@@ -1397,8 +1586,13 @@ describe("diagnostics", () => {
       path.join(tmp, "mock-cli.mjs"),
       [
         "#!/usr/bin/env node",
-        "console.error('[ERROR] 1 validation error for [AdPartial]:');",
-        "console.error('- title: Value error, title length exceeds 65 characters');",
+        mockResultLine("verify", "failed", {
+          diagnostics: [{
+            code: "validation_error",
+            severity: "error",
+            message: "title length exceeds 65 characters",
+          }],
+        }),
         "process.exit(1);",
       ],
     );
@@ -1431,12 +1625,9 @@ describe("diagnostics", () => {
     );
 
     assert.equal(result.ok, false);
-    assert.equal(result.diagnostics[0].adPath, path.join("drafts", "cut-n-run", "ad.yaml"));
-    assert.equal(result.diagnostics[0].candidates.length, 1);
+    assert.equal(result.diagnostics[0].kind, "validation_error");
     assert.deepEqual(result.nextActions, [
-      "use kleinanzeigen_list_ads to find the target ad",
-      "use kleinanzeigen_verify with adDirectories or adConfigPaths for one ad",
-      "fix invalid ads before unscoped verify or bulk publish",
+      "fix invalid config or ads and rerun kleinanzeigen_verify",
     ]);
   });
 
@@ -1448,8 +1639,13 @@ describe("diagnostics", () => {
       path.join(tmp, "mock-cli.mjs"),
       [
         "#!/usr/bin/env node",
-        "console.error('[ERROR] 1 validation error for [AdPartial]:');",
-        "console.error('- title: Value error, title length exceeds 65 characters');",
+        mockResultLine("verify", "failed", {
+          diagnostics: [{
+            code: "validation_error",
+            severity: "error",
+            message: "title length exceeds 65 characters",
+          }],
+        }),
         "process.exit(1);",
       ],
     );
@@ -1489,9 +1685,7 @@ describe("diagnostics", () => {
       );
 
       assert.equal(result.ok, false);
-      assert.equal(result.diagnostics[0].field, "title");
-      assert.equal(result.diagnostics[0].adPath, undefined);
-      assert.equal(result.diagnostics[0].candidates, undefined);
+      assert.equal(result.diagnostics[0].kind, "validation_error");
       assert.deepEqual(result.nextActions, [
         "fix the selected ad config and rerun scoped kleinanzeigen_verify",
       ]);
@@ -1694,11 +1888,4 @@ describe("redacted output handling", () => {
     assert.equal(sanitizeText(result.stderr, [], 5), "yyyyy\n[truncated]");
   });
 
-  it("detects miniclaw prompts that need a direct user run", () => {
-    assert.equal(detectUserActionRequest("Press ENTER when done...").needsUserAction, true);
-    assert.equal(detectUserActionRequest("Captcha detected. Sleeping 6h before restart...").needsUserAction, true);
-    assert.equal(detectUserActionRequest("# Captcha vorhanden! Bitte lösen Sie das Captcha.").needsUserAction, true);
-    assert.equal(detectUserActionRequest("EOFError: EOF when reading a line").needsUserAction, true);
-    assert.equal(detectUserActionRequest("DONE: No configuration errors found.").needsUserAction, false);
-  });
 });

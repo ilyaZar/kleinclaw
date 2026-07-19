@@ -1,73 +1,26 @@
-import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-export const OPERATIONS = Object.freeze({
-  verify: { command: "verify", sideEffect: false },
-  diagnose: { command: "diagnose", sideEffect: false },
-  publish: { command: "publish", sideEffect: true, defaultSelector: "due" },
-  update: { command: "update", sideEffect: true, defaultSelector: "changed" },
-  delete: { command: "delete", sideEffect: true, requiresIds: true },
-  download: { command: "download", sideEffect: true, defaultSelector: "new" },
-  extend: { command: "extend", sideEffect: true, defaultSelector: "all" },
-});
+import {
+  assertSafeBrowserConfigureParams,
+  buildBrowserStatusPayload,
+  detectInstalledBrowsers,
+  resolveBrowserUpdates,
+} from "./browser-settings.js";
+import {
+  normalizeOptionalString,
+  normalizePositiveInteger,
+  normalizeWorkspaceMode,
+} from "./input.js";
+import {
+  assertConfiguredFiles,
+  invokeMiniclaw,
+  OPERATIONS,
+  resolveCliConfig,
+} from "./miniclaw-runtime.js";
+import { redactArgs } from "./process-boundary.js";
 
 const LOCAL_AD_ID_SCOPE_OPERATIONS = new Set(["publish", "update", "delete", "extend"]);
-const ALLOWED_ENV_KEYS = new Set([
-  "DBUS_SESSION_BUS_ADDRESS",
-  "DISPLAY",
-  "HOME",
-  "LANG",
-  "LC_ALL",
-  "LC_MESSAGES",
-  "LOGNAME",
-  "PATH",
-  "SHELL",
-  "SSL_CERT_DIR",
-  "SSL_CERT_FILE",
-  "TEMP",
-  "TMP",
-  "TMPDIR",
-  "USER",
-  "WAYLAND_DISPLAY",
-  "XAUTHORITY",
-  "XDG_CACHE_HOME",
-  "XDG_CONFIG_HOME",
-  "XDG_DATA_HOME",
-  "XDG_RUNTIME_DIR",
-  "XDG_STATE_HOME",
-]);
-
-const SECRET_ENV_RE = /(api|auth|cookie|credential|key|login|pass|secret|session|sms|token|user)/i;
-const SENSITIVE_LINE_RE = new RegExp(
-  [
-    "\\b(",
-    "password|passwd|username|login|cookie|session|token|secret|credential",
-    "|2fa|sms|user[_-]?data[_-]?dir|profile_name|browser profile",
-    ")\\b",
-  ].join(""),
-  "i",
-);
-const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
-const USER_ACTION_RE = new RegExp(
-  [
-    "\\b(",
-    "press (enter|a key)|when done|manual inspection|please solve",
-    "|eof when reading a line|eoferror",
-    "|captcha (present|detected|recognized|erkannt|vorhanden)",
-    "|captcha erkannt|bitte lösen|eingabetaste drücken",
-    ")\\b",
-  ].join(""),
-  "i",
-);
-const USER_ACTION_HINT = [
-  "The miniclaw runtime stopped or paused for an account check.",
-  "Run it directly in a terminal/browser, finish that step, then retry this tool.",
-].join(" ");
-const STATUS_TIMEOUT_MS = 15000;
-const STATUS_OUTPUT_CHARS = 3000;
 const AD_FILE_NAMES = ["ad.yaml", "ad.yml", "ad.json"];
 const DRAFT_AD_FILE_NAMES = ["ad.yaml", "ad.yml"];
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".gif", ".jpg", ".jpeg", ".png"]);
@@ -90,82 +43,6 @@ const SHIPPING_OPTIONS = [
   "Hermes_L",
 ];
 const CONDITION_VALUES = ["new", "like_new", "ok", "alright", "defect"];
-const MINICLAW_DEFAULT_BROWSER_ORDER = [
-  "chromium",
-  "chromium-browser",
-  "google-chrome",
-  "microsoft-edge",
-];
-const EMBEDDED_MINICLAW_CLI = fileURLToPath(
-  new URL("../miniclaw/dist/cli.js", import.meta.url),
-);
-const BROWSER_CHOICES = Object.freeze({
-  chromium: {
-    label: "Chromium",
-    commands: ["chromium", "chromium-browser"],
-    profileDir: [".config", "chromium"],
-    supportedByMiniclaw: true,
-  },
-  brave: {
-    label: "Brave",
-    commands: ["brave", "brave-browser"],
-    profileDir: [".config", "BraveSoftware", "Brave-Browser"],
-    supportedByMiniclaw: false,
-    supportNote: "not documented or auto-detected by miniclaw",
-  },
-  "google-chrome": {
-    label: "Google Chrome",
-    commands: ["google-chrome", "google-chrome-stable"],
-    profileDir: [".config", "google-chrome"],
-    supportedByMiniclaw: true,
-  },
-  "microsoft-edge": {
-    label: "Microsoft Edge",
-    commands: ["microsoft-edge", "microsoft-edge-stable"],
-    profileDir: [".config", "microsoft-edge"],
-    supportedByMiniclaw: true,
-  },
-});
-const SUPPORTED_BROWSER_IDS = Object.freeze(
-  Object.entries(BROWSER_CHOICES)
-    .filter(([, choice]) => choice.supportedByMiniclaw)
-    .map(([id]) => id),
-);
-const BROWSER_COMMAND_ALIASES = Object.freeze(
-  Object.fromEntries(
-    Object.entries(BROWSER_CHOICES).flatMap(([id, choice]) =>
-      choice.commands.map((command) => [command, id]),
-    ),
-  ),
-);
-
-function normalizeOptionalString(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function normalizeWorkspaceMode(value) {
-  const mode = normalizeOptionalString(value) ?? "portable";
-  if (!["portable", "xdg"].includes(mode)) {
-    throw new Error("workspaceMode must be portable or xdg");
-  }
-  return mode;
-}
-
-function normalizePositiveInteger(value, fallback, min, max) {
-  if (!Number.isInteger(value)) {
-    return fallback;
-  }
-  return Math.min(Math.max(value, min), max);
-}
-
-function embeddedMiniclawRuntime() {
-  return {
-    argsPrefix: [EMBEDDED_MINICLAW_CLI],
-    command: process.execPath,
-    label: "miniclaw",
-  };
-}
-
 function normalizeAdIds(value) {
   if (value === undefined) {
     return undefined;
@@ -229,6 +106,11 @@ function normalizeStringArray(value, name, { maxItems = 20 } = {}) {
   return [...new Set(values)];
 }
 
+function normalizeBoolean(value, name) {
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") throw new Error(`${name} must be a boolean`);
+  return value;
+}
 function requireConfirmed(operation, params) {
   if (OPERATIONS[operation]?.sideEffect && params.confirm !== true) {
     throw new Error("confirm must be true for this account-changing operation");
@@ -246,7 +128,6 @@ export function buildKleinanzeigenArgs(operation, params = {}, config = {}) {
   const args = [];
   const configPath = normalizeOptionalString(config.configPath);
   const workspaceMode = normalizeWorkspaceMode(config.workspaceMode);
-  const lang = normalizeOptionalString(config.lang);
 
   if (!configPath) {
     throw new Error("plugin config must set configPath or workingDirectory");
@@ -254,22 +135,17 @@ export function buildKleinanzeigenArgs(operation, params = {}, config = {}) {
   args.push(`--config=${configPath}`);
   args.push("--logfile=");
   args.push(`--workspace-mode=${workspaceMode}`);
+  args.push("--output=json");
   for (const adFileOverride of normalizeStringArray(config.adFileOverrides, "adFileOverrides", {
     maxItems: 50,
   })) {
     args.push(`--ad-file=${adFileOverride}`);
   }
-  if (lang) {
-    if (!["en", "de"].includes(lang)) {
-      throw new Error("lang must be en or de");
-    }
-    args.push(`--lang=${lang}`);
-  }
   if (spec.sideEffect) {
     args.push("--allow-live-browser");
   }
 
-  args.push(spec.command);
+  args.push(operation);
 
   if (["verify", "diagnose"].includes(operation)) {
     return args;
@@ -314,103 +190,6 @@ export function buildKleinanzeigenArgs(operation, params = {}, config = {}) {
   return args;
 }
 
-export function buildChildEnv(sourceEnv = process.env) {
-  const env = {};
-  for (const [key, value] of Object.entries(sourceEnv)) {
-    if (!ALLOWED_ENV_KEYS.has(key) || SECRET_ENV_RE.test(key) || value === undefined) {
-      continue;
-    }
-    env[key] = value;
-  }
-  return env;
-}
-
-export function buildRedactions(config = {}) {
-  const values = [];
-  const add = (value) => {
-    if (typeof value === "string" && value.trim()) {
-      values.push(value.trim());
-    }
-  };
-
-  add(config.workingDirectory);
-  add(config.configPath);
-  if (config.runtime) {
-    add(config.runtime.command);
-    for (const arg of config.runtime.argsPrefix ?? []) {
-      add(arg);
-    }
-  }
-  for (const adFileOverride of Array.isArray(config.adFileOverrides)
-    ? config.adFileOverrides
-    : []) {
-    add(adFileOverride);
-  }
-  for (const root of Array.isArray(config.adRoots) ? config.adRoots : []) {
-    add(root);
-  }
-  if (typeof config.configPath === "string" && config.configPath.trim()) {
-    const parent = path.dirname(config.configPath.trim());
-    if (parent !== "." && parent !== path.parse(parent).root) {
-      add(parent);
-    }
-  }
-
-  return [...new Set(values)].sort((a, b) => b.length - a.length);
-}
-
-export function sanitizeText(text, redactions = [], maxChars = 6000) {
-  const normalized = String(text ?? "").replace(/\r\n/g, "\n");
-  const sanitizedLines = normalized.split("\n").map((line) => {
-    if (SENSITIVE_LINE_RE.test(line)) {
-      return "[redacted sensitive line]";
-    }
-
-    let next = line.replace(EMAIL_RE, "[redacted-email]");
-    for (const raw of redactions) {
-      const value = String(raw).trim();
-      if (value) {
-        next = next.split(value).join("[redacted-path]");
-      }
-    }
-    return next;
-  });
-
-  const sanitized = sanitizedLines.join("\n").trim();
-  if (maxChars <= 0) {
-    return "";
-  }
-  if (sanitized.length <= maxChars) {
-    return sanitized;
-  }
-  return `${sanitized.slice(0, maxChars)}\n[truncated]`;
-}
-
-export function redactArgs(args = []) {
-  return args.map((arg) => {
-    if (arg.startsWith("--config=")) {
-      return "--config=[redacted]";
-    }
-    if (arg === "--logfile=") {
-      return arg;
-    }
-    if (arg.startsWith("--logfile=")) {
-      return "--logfile=[redacted]";
-    }
-    if (arg.startsWith("--ad-file=")) {
-      return "--ad-file=[redacted]";
-    }
-    return arg;
-  });
-}
-
-export function detectUserActionRequest(text) {
-  return {
-    needsUserAction: USER_ACTION_RE.test(String(text ?? "")),
-    userActionHint: USER_ACTION_HINT,
-  };
-}
-
 function localSuccessProcessFields() {
   return {
     exitCode: 0,
@@ -420,48 +199,6 @@ function localSuccessProcessFields() {
     stdout: "",
     stderr: "",
   };
-}
-
-export function resolveCliConfig(config = {}) {
-  const configuredConfigPath = normalizeOptionalString(config.configPath);
-  const configuredCwd = normalizeOptionalString(config.workingDirectory);
-  const configPath =
-    configuredConfigPath ?? (configuredCwd ? path.join(configuredCwd, "config.yaml") : undefined);
-  if (!configPath) {
-    throw new Error("plugin config must set configPath or workingDirectory");
-  }
-  const cwd = configuredCwd ?? path.dirname(configPath);
-
-  return {
-    cwd,
-    configPath,
-    runtime: embeddedMiniclawRuntime(),
-    workspaceMode: normalizeWorkspaceMode(config.workspaceMode),
-    lang: normalizeOptionalString(config.lang),
-    timeoutMs: normalizePositiveInteger(config.timeoutMs, 120000, 1000, 600000),
-    maxOutputChars: normalizePositiveInteger(config.maxOutputChars, 6000, 0, 20000),
-    commandRunner: typeof config.commandRunner === "function" ? config.commandRunner : undefined,
-  };
-}
-
-function resolveConfiguredConfigPath(config = {}) {
-  const configuredConfigPath = normalizeOptionalString(config.configPath);
-  const configuredCwd = normalizeOptionalString(config.workingDirectory);
-  return configuredConfigPath ?? (configuredCwd ? path.join(configuredCwd, "config.yaml") : undefined);
-}
-
-async function assertConfiguredFiles(config) {
-  try {
-    const stat = await fs.stat(config.configPath);
-    if (!stat.isFile()) {
-      throw new Error("configured miniclaw config is not a file");
-    }
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      throw new Error("configured miniclaw config was not found");
-    }
-    throw error;
-  }
 }
 
 async function realPath(value) {
@@ -722,7 +459,6 @@ function renderAdYaml(ad) {
     "specialAttributes",
     "price",
     "priceType",
-    "autoPriceReduction",
     "shippingType",
     "shippingCosts",
     "shippingOptions",
@@ -850,305 +586,6 @@ function parseBrowserConfigText(text) {
   return { ...config, configured: true };
 }
 
-function normalizeBrowserName(value) {
-  const browser = normalizeOptionalString(value);
-  if (browser === undefined) {
-    return undefined;
-  }
-  if (browser !== "auto" && !SUPPORTED_BROWSER_IDS.includes(browser)) {
-    throw new Error(
-      `browser must be one of: auto, ${SUPPORTED_BROWSER_IDS.join(", ")}`,
-    );
-  }
-  return browser;
-}
-
-function normalizeBoolean(value, name) {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (typeof value !== "boolean") {
-    throw new Error(`${name} must be a boolean`);
-  }
-  return value;
-}
-
-function normalizeProfileMode(value) {
-  const mode = normalizeOptionalString(value);
-  if (mode === undefined) {
-    return undefined;
-  }
-  if (!["workspace", "system-default", "custom"].includes(mode)) {
-    throw new Error("profileMode must be workspace, system-default, or custom");
-  }
-  return mode;
-}
-
-function normalizeOptionalPathSetting(value, name) {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (typeof value !== "string") {
-    throw new Error(`${name} must be a string`);
-  }
-  return value.trim();
-}
-
-function assertSafeBrowserConfigureParams(params = {}) {
-  const forbidden = [
-    "binaryLocation",
-    "allowUnsupportedBrowser",
-    "userDataDir",
-  ].filter((key) => params[key] !== undefined);
-  if (forbidden.length > 0) {
-    throw new Error(
-      `${forbidden.join(", ")} cannot be changed through browser_configure; ` +
-        "edit the local miniclaw config outside OpenClaw",
-    );
-  }
-  if (params.profileMode === "custom") {
-    throw new Error(
-      "profileMode custom cannot be persisted through browser_configure; " +
-        "edit the local miniclaw config outside OpenClaw",
-    );
-  }
-  if (params.profileName !== undefined && params.profileMode !== "system-default") {
-    throw new Error("profileName requires profileMode system-default");
-  }
-}
-
-function uniqueValues(values) {
-  return [...new Set(values.filter(Boolean))];
-}
-
-function browserSearchPaths(sourceEnv = process.env) {
-  return uniqueValues([
-    ...(sourceEnv.PATH ? sourceEnv.PATH.split(path.delimiter) : []),
-    "/usr/local/bin",
-    "/usr/bin",
-    "/bin",
-    "/opt/brave-bin",
-  ]);
-}
-
-async function fileIsExecutable(filePath) {
-  try {
-    await fs.access(filePath, fsConstants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function findExecutable(command, sourceEnv = process.env) {
-  if (!command) {
-    return null;
-  }
-  if (path.isAbsolute(command) || command.includes(path.sep)) {
-    const resolved = path.resolve(command);
-    return (await fileIsExecutable(resolved)) ? resolved : null;
-  }
-
-  for (const directory of browserSearchPaths(sourceEnv)) {
-    const candidate = path.join(directory, command);
-    if (await fileIsExecutable(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
-async function resolveBrowserChoice(browser, sourceEnv = process.env) {
-  const choice = BROWSER_CHOICES[browser];
-  if (!choice) {
-    return null;
-  }
-  for (const command of choice.commands) {
-    const executable = await findExecutable(command, sourceEnv);
-    if (executable) {
-      return executable;
-    }
-  }
-  return null;
-}
-
-function inferBrowserIdFromExecutable(executable) {
-  const lower = path.basename(String(executable ?? "")).toLowerCase().replace(/\.exe$/, "");
-  if (Object.hasOwn(BROWSER_COMMAND_ALIASES, lower)) {
-    return BROWSER_COMMAND_ALIASES[lower];
-  }
-  const full = String(executable ?? "").toLowerCase();
-  if (full.includes("brave")) {
-    return "brave";
-  }
-  if (full.includes("chromium")) {
-    return "chromium";
-  }
-  if (full.includes("chrome")) {
-    return "google-chrome";
-  }
-  if (full.includes("edge") || full.includes("msedge")) {
-    return "microsoft-edge";
-  }
-  return null;
-}
-
-async function browserVersion(executable, commandRunner) {
-  if (!executable) {
-    return "";
-  }
-  const result = await runProcess(executable, ["--version"], {
-    timeoutMs: 4000,
-    maxBufferChars: 500,
-    env: buildChildEnv(),
-    commandRunner,
-  });
-  return firstNonEmptyLine([result.stdout, result.stderr].filter(Boolean).join("\n"));
-}
-
-async function detectInstalledBrowsers({ sourceEnv = process.env, commandRunner } = {}) {
-  const detected = [];
-  for (const [id, choice] of Object.entries(BROWSER_CHOICES)) {
-    const executable = await resolveBrowserChoice(id, sourceEnv);
-    detected.push({
-      id,
-      label: choice.label,
-      commands: choice.commands,
-      installed: Boolean(executable),
-      executable,
-      version: executable ? await browserVersion(executable, commandRunner) : "",
-      supportedByMiniclaw: choice.supportedByMiniclaw,
-      supportNote: choice.supportNote ?? "",
-      miniclawAutoDefault: choice.commands.some((command) =>
-        MINICLAW_DEFAULT_BROWSER_ORDER.includes(command),
-      ),
-    });
-  }
-  return detected;
-}
-
-function effectiveMiniclawAutoBrowser(detectedBrowsers) {
-  for (const command of MINICLAW_DEFAULT_BROWSER_ORDER) {
-    const browser = detectedBrowsers.find((entry) => entry.commands.includes(command));
-    if (browser?.installed) {
-      return browser;
-    }
-  }
-  return null;
-}
-
-function displayWorkspaceBrowserPath(filePath, baseDir) {
-  if (!filePath) {
-    return "";
-  }
-  const resolved = path.resolve(baseDir, filePath);
-  const relative = path.relative(baseDir, resolved);
-  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
-    return relative || ".";
-  }
-  return `[redacted-path]/${path.basename(resolved)}`;
-}
-
-function displayBrowserProfilePath(filePath, baseDir, { allowWorkspaceProfile = false } = {}) {
-  if (!filePath) {
-    return "";
-  }
-  if (allowWorkspaceProfile) {
-    const workspaceProfile = path.join(baseDir, ".temp", "browser-profile");
-    if (path.resolve(baseDir, filePath) === workspaceProfile) {
-      return displayWorkspaceBrowserPath(filePath, baseDir);
-    }
-  }
-  return "[configured-profile-dir]";
-}
-
-function redactBrowserArgument(argument, baseDir) {
-  const match = /^--user-data-dir=(.*)$/.exec(argument);
-  if (!match) {
-    return argument;
-  }
-  return `--user-data-dir=${displayBrowserProfilePath(
-    match[1].replace(/^["']|["']$/g, ""),
-    baseDir,
-  )}`;
-}
-
-function displayProfileName(profileName) {
-  return profileName ? "[configured-profile]" : "";
-}
-
-function profileDirForBrowser(browser) {
-  const choice = BROWSER_CHOICES[browser];
-  if (!choice) {
-    return "";
-  }
-  return path.join(os.homedir(), ...choice.profileDir);
-}
-
-function buildBrowserStatusPayload({ cliConfig, browserConfig, detectedBrowsers }) {
-  const autoBrowser = effectiveMiniclawAutoBrowser(detectedBrowsers);
-  const configuredBinaryLocation = browserConfig.binary_location;
-  const configuredBrowser = configuredBinaryLocation
-    ? inferBrowserIdFromExecutable(configuredBinaryLocation)
-    : "auto";
-  const effectiveBrowser = configuredBinaryLocation
-    ? detectedBrowsers.find((entry) => entry.id === configuredBrowser) ?? {
-        id: configuredBrowser,
-        executable: configuredBinaryLocation,
-      }
-    : autoBrowser;
-  const expectedWorkspaceProfileDir =
-    !browserConfig.user_data_dir && cliConfig.workspaceMode === "portable"
-      ? path.join(cliConfig.cwd, ".temp", "browser-profile")
-      : "";
-
-  return {
-    ok: true,
-    operation: "browser_status",
-    configFile: {
-      configured: true,
-      exists: true,
-      isFile: true,
-    },
-    browser: {
-      supportedChoices: ["auto", ...SUPPORTED_BROWSER_IDS],
-      configured: {
-        browser: configuredBrowser,
-        binaryLocation: configuredBinaryLocation,
-        usePrivateWindow: browserConfig.use_private_window,
-        userDataDir: displayBrowserProfilePath(browserConfig.user_data_dir, cliConfig.cwd),
-        userDataDirConfigured: Boolean(browserConfig.user_data_dir),
-        profileName: displayProfileName(browserConfig.profile_name),
-        profileNameConfigured: Boolean(browserConfig.profile_name),
-        arguments: browserConfig.arguments.map((entry) =>
-          redactBrowserArgument(entry, cliConfig.cwd),
-        ),
-      },
-      effective: {
-        browser: effectiveBrowser?.id ?? null,
-        binaryLocation: configuredBinaryLocation || autoBrowser?.executable || "",
-        usePrivateWindow: browserConfig.use_private_window,
-        userDataDir: displayBrowserProfilePath(
-          browserConfig.user_data_dir || expectedWorkspaceProfileDir,
-          cliConfig.cwd,
-          { allowWorkspaceProfile: !browserConfig.user_data_dir },
-        ),
-        userDataDirConfigured: Boolean(browserConfig.user_data_dir),
-        profileName: displayProfileName(browserConfig.profile_name) || "Default",
-        profileNameConfigured: Boolean(browserConfig.profile_name),
-      },
-      notes: configuredBinaryLocation
-        ? []
-        : [
-            "auto detection follows miniclaw order",
-            "Brave is detected as a custom Chromium-family browser, not an official miniclaw choice",
-          ],
-    },
-    detectedBrowsers,
-    ...localSuccessProcessFields(),
-  };
-}
-
 function scalarBrowserLine(indent, key, value) {
   const rendered = typeof value === "boolean" ? String(value) : quoteYamlScalar(value);
   return `${indent}${key}: ${rendered}`;
@@ -1219,98 +656,6 @@ async function writeFileAtomic(filePath, content, mode) {
   }
 }
 
-async function resolveBrowserUpdates(params = {}, cliConfig, currentBrowserConfig) {
-  if (params.confirm !== true) {
-    throw new Error("confirm must be true before changing browser config");
-  }
-
-  const browser = normalizeBrowserName(params.browser);
-  const binaryLocation = normalizeOptionalPathSetting(params.binaryLocation, "binaryLocation");
-  const userDataDir = normalizeOptionalPathSetting(params.userDataDir, "userDataDir");
-  const profileName = normalizeOptionalPathSetting(params.profileName, "profileName");
-  const profileMode = normalizeProfileMode(params.profileMode);
-  const allowUnsupportedBrowser =
-    normalizeBoolean(params.allowUnsupportedBrowser, "allowUnsupportedBrowser") ?? false;
-  const updates = {};
-
-  if (browser && binaryLocation) {
-    throw new Error("browser cannot be combined with binaryLocation");
-  }
-
-  if (browser === "auto") {
-    updates.binary_location = "";
-  } else if (browser) {
-    const executable = await resolveBrowserChoice(browser);
-    if (!executable) {
-      throw new Error(`${BROWSER_CHOICES[browser].label} executable was not found on PATH`);
-    }
-    updates.binary_location = executable;
-  } else if (binaryLocation !== undefined) {
-    if (!binaryLocation) {
-      throw new Error("binaryLocation must not be empty");
-    }
-    const executable = path.resolve(cliConfig.cwd, binaryLocation);
-    if (!(await fileIsExecutable(executable))) {
-      throw new Error("binaryLocation does not point to an executable file");
-    }
-    const inferredBrowser = inferBrowserIdFromExecutable(executable);
-    const browserChoice = inferredBrowser ? BROWSER_CHOICES[inferredBrowser] : null;
-    if (!browserChoice?.supportedByMiniclaw && !allowUnsupportedBrowser) {
-      throw new Error(
-        "binaryLocation is not a supported miniclaw browser; " +
-          "set allowUnsupportedBrowser true to try it as a custom Chromium-family executable",
-      );
-    }
-    updates.binary_location = executable;
-  }
-
-  if (params.usePrivateWindow !== undefined) {
-    updates.use_private_window = normalizeBoolean(params.usePrivateWindow, "usePrivateWindow");
-  }
-
-  if (profileMode === "workspace") {
-    updates.user_data_dir = "";
-    updates.profile_name = "";
-  } else if (profileMode === "system-default") {
-    const effectiveBinary = updates.binary_location ?? currentBrowserConfig.binary_location;
-    const effectiveBrowser =
-      browser && browser !== "auto"
-        ? browser
-        : inferBrowserIdFromExecutable(effectiveBinary) ?? inferBrowserIdFromExecutable(
-            effectiveMiniclawAutoBrowser(
-              await detectInstalledBrowsers({ commandRunner: cliConfig.commandRunner }),
-            )?.executable,
-          );
-    const profileDir = profileDirForBrowser(effectiveBrowser);
-    if (!profileDir) {
-      throw new Error("profileMode system-default needs a known browser choice");
-    }
-    updates.user_data_dir = profileDir;
-    updates.profile_name = profileName ?? "";
-  } else if (profileMode === "custom") {
-    if (userDataDir === undefined || !userDataDir) {
-      throw new Error("profileMode custom requires userDataDir");
-    }
-    updates.user_data_dir = path.resolve(cliConfig.cwd, userDataDir);
-    if (profileName !== undefined) {
-      updates.profile_name = profileName;
-    }
-  } else {
-    if (userDataDir !== undefined) {
-      updates.user_data_dir = userDataDir ? path.resolve(cliConfig.cwd, userDataDir) : "";
-    }
-    if (profileName !== undefined) {
-      updates.profile_name = profileName;
-    }
-  }
-
-  if (Object.keys(updates).length === 0) {
-    throw new Error("provide at least one browser setting to change");
-  }
-
-  return updates;
-}
-
 function parseAdSummary(text) {
   const summary = {
     active: null,
@@ -1354,285 +699,46 @@ function parseAdSummary(text) {
   return summary;
 }
 
-function parseAdOperationState(text, filePath = "") {
+function parseAdId(text, filePath = "") {
   if (path.extname(filePath).toLowerCase() === ".json") {
     try {
       const parsed = JSON.parse(text);
-      return {
-        id: parsed.id ? String(parsed.id) : null,
-        title: typeof parsed.title === "string" ? parsed.title : "",
-        updatedOn: typeof parsed.updated_on === "string" ? parsed.updated_on : "",
-        createdOn: typeof parsed.created_on === "string" ? parsed.created_on : "",
-        contentHash: typeof parsed.content_hash === "string" ? parsed.content_hash : "",
-        repostCount: Number.isInteger(parsed.repost_count) ? parsed.repost_count : null,
-      };
+      return parsed.id ? String(parsed.id) : null;
     } catch {
-      return { id: null, title: "", updatedOn: "", createdOn: "", contentHash: "", repostCount: null };
+      return null;
     }
   }
-
-  const state = {
-    id: null,
-    title: "",
-    updatedOn: "",
-    createdOn: "",
-    contentHash: "",
-    repostCount: null,
-  };
 
   for (const rawLine of String(text ?? "").split("\n")) {
-    const topLevel = /^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$/.exec(rawLine.trimEnd());
-    if (!topLevel) {
-      continue;
+    const match = /^id:\s*(.*)$/.exec(rawLine.trimEnd());
+    if (match) {
+      return stripYamlScalar(match[1]) || null;
     }
-    const key = topLevel[1];
-    const value = stripYamlScalar(topLevel[2]);
-    if (key === "id") {
-      state.id = value || null;
-    } else if (key === "title") {
-      state.title = value;
-    } else if (key === "updated_on") {
-      state.updatedOn = value;
-    } else if (key === "created_on") {
-      state.createdOn = value;
-    } else if (key === "content_hash") {
-      state.contentHash = value;
-    } else if (key === "repost_count") {
-      state.repostCount = /^\d+$/.test(value) ? Number(value) : null;
-    }
-  }
-
-  return state;
-}
-
-async function readAdOperationSnapshots(adConfigPaths = [], config = {}) {
-  const roots = normalizeStringArray(config.adRoots, "adRoots", { maxItems: 50 });
-  const resolvedRoots = roots.length
-    ? await Promise.all(
-        roots.map(async (entry) => realPath(entry).catch(() => null)),
-      )
-    : [];
-  const snapshots = [];
-
-  for (const adConfigPath of adConfigPaths) {
-    try {
-      const text = await fs.readFile(adConfigPath, "utf8");
-      const displayRoot =
-        resolvedRoots.find((root) => root && pathIsInside(adConfigPath, root)) ??
-        path.dirname(adConfigPath);
-      snapshots.push({
-        path: adConfigPath,
-        displayPath: displayPathForAd(adConfigPath, displayRoot),
-        exists: true,
-        ...parseAdOperationState(text, adConfigPath),
-      });
-    } catch (error) {
-      if (error?.code !== "ENOENT") {
-        throw error;
-      }
-      snapshots.push({
-        path: adConfigPath,
-        displayPath: path.basename(adConfigPath),
-        exists: false,
-        id: null,
-        title: "",
-        updatedOn: "",
-        createdOn: "",
-        contentHash: "",
-        repostCount: null,
-      });
-    }
-  }
-
-  return snapshots;
-}
-
-function operationDonePatterns(operation) {
-  if (operation === "publish") {
-    return [
-      {
-        re: /DONE:\s+\(Re-\)published\s+(\d+)\s+ads?(?:\s+\((\d+)\s+failed after retries\))?/i,
-        verb: "published",
-      },
-      { re: /DONE:\s+No new\/outdated ads found\./i, verb: "no_op" },
-    ];
-  }
-  if (operation === "update") {
-    return [
-      {
-        re: /DONE:\s+updated\s+(\d+)\s+ads?(?:\s+\((\d+)\s+failed after retries\))?/i,
-        verb: "updated",
-      },
-      { re: /DONE:\s+No changed ads found\./i, verb: "no_op" },
-    ];
-  }
-  if (operation === "delete") {
-    return [
-      {
-        re: /DONE:\s+Deleted\s+(\d+)\s+of\s+(\d+)/i,
-        verb: "deleted",
-        totalGroup: true,
-      },
-      { re: /DONE:\s+No ads to delete found\./i, verb: "no_op" },
-    ];
-  }
-  if (operation === "extend") {
-    return [
-      { re: /DONE:\s+Extended\s+(\d+)\s+ads?/i, verb: "extended" },
-      { re: /DONE:\s+No ads (?:found to extend|extended)\./i, verb: "no_op" },
-    ];
-  }
-  return [];
-}
-
-function parseOperationDone(operation, text) {
-  for (const pattern of operationDonePatterns(operation)) {
-    const match = pattern.re.exec(text);
-    if (!match) {
-      continue;
-    }
-    if (pattern.verb === "no_op") {
-      return { verb: "no_op", count: 0, failed: 0, total: 0 };
-    }
-    if (pattern.totalGroup) {
-      const count = Number(match[1] ?? 0);
-      const total = Number(match[2] ?? count);
-      return {
-        verb: pattern.verb,
-        count,
-        failed: Math.max(total - count, 0),
-        total,
-      };
-    }
-    const count = Number(match[1] ?? 0);
-    const failed = Number(match[2] ?? 0);
-    return {
-      verb: pattern.verb,
-      count,
-      failed,
-      total: match[2] !== undefined ? count + failed : count,
-    };
   }
   return null;
 }
 
-function summarizeAdSnapshotChanges(before = [], after = []) {
-  const beforeByPath = new Map(before.map((entry) => [entry.path, entry]));
-  const changes = [];
-  for (const next of after) {
-    const previous = beforeByPath.get(next.path);
-    if (!previous || !next.exists) {
-      continue;
-    }
-    const changedFields = [];
-    if (next.id && next.id !== previous.id) {
-      changedFields.push("id");
-    }
-    if (next.updatedOn && next.updatedOn !== previous.updatedOn) {
-      changedFields.push("updated_on");
-    }
-    if (next.contentHash && next.contentHash !== previous.contentHash) {
-      changedFields.push("content_hash");
-    }
-    if (next.repostCount !== null && next.repostCount !== previous.repostCount) {
-      changedFields.push("repost_count");
-    }
-    if (changedFields.length) {
-      changes.push({
-        adPath: next.displayPath,
-        title: next.title || previous.title,
-        id: next.id,
-        changedFields,
-      });
-    }
-  }
-  return changes;
-}
-
-function extractSuccessIds(text) {
-  return [...String(text ?? "").matchAll(/SUCCESS:\s+ad (?:published|updated) with ID\s+(\d+)/gi)]
-    .map((match) => match[1])
-    .filter(Boolean);
-}
-
-function buildOperationOutcome({ operation, result, rawText, beforeSnapshots, afterSnapshots }) {
-  if (operation === "verify") {
-    return {
-      success: Boolean(result.ok),
-      status: result.ok ? "succeeded" : "failed",
-      summary: result.ok ? "verify completed successfully" : "verify failed",
-      evidence: result.ok ? ["process exited successfully"] : [],
-    };
-  }
-
-  const done = parseOperationDone(operation, rawText);
-  const successIds = extractSuccessIds(rawText);
-  const changedAdConfigs = summarizeAdSnapshotChanges(beforeSnapshots, afterSnapshots);
-  const failedCount = done?.failed ?? 0;
-  const successEvidence = [];
-
-  if (successIds.length) {
-    successEvidence.push(`success ids: ${successIds.join(", ")}`);
-  }
-  if (done) {
-    successEvidence.push(`done marker: ${done.verb}`);
-  }
-  if (changedAdConfigs.length) {
-    successEvidence.push("selected ad config changed after operation");
-  }
-  if (result.ok) {
-    successEvidence.push("process exited successfully");
-  }
-
-  if (done?.verb === "no_op") {
-    return {
-      success: true,
-      status: "no_op",
-      summary: "miniclaw completed successfully with no matching ads to change",
-      evidence: successEvidence,
-      counts: { changed: 0, failed: 0, total: 0 },
-      adIds: successIds,
-      changedAdConfigs,
-    };
-  }
-
-  const hasSuccessEvidence =
-    result.ok || successIds.length > 0 || changedAdConfigs.length > 0 || (done?.count ?? 0) > 0;
-  if (hasSuccessEvidence && failedCount === 0) {
-    return {
-      success: true,
-      status: result.timedOut ? "succeeded_with_process_timeout" : "succeeded",
-      summary: done
-        ? `miniclaw ${done.verb} ${done.count} ad${done.count === 1 ? "" : "s"}`
-        : "miniclaw operation produced success evidence",
-      evidence: successEvidence,
-      counts: done ? { changed: done.count, failed: 0, total: done.total } : undefined,
-      adIds: successIds,
-      changedAdConfigs,
-    };
-  }
-
-  if (hasSuccessEvidence && failedCount > 0) {
+function buildOperationOutcome(operation, parsed) {
+  if (!parsed.ok) {
     return {
       success: false,
-      status: "partial_failure",
-      summary: `miniclaw changed ${done.count} ad${done.count === 1 ? "" : "s"} but ${failedCount} failed`,
-      evidence: successEvidence,
-      counts: { changed: done.count, failed: failedCount, total: done.total },
-      adIds: successIds,
-      changedAdConfigs,
+      status: "protocol_error",
+      summary: "miniclaw returned invalid structured output",
     };
   }
-
+  const { counts, status } = parsed.result;
+  const success = status === "succeeded" || status === "no_op";
   return {
-    success: false,
-    status: result.timedOut ? "timed_out" : "failed",
-    summary: result.timedOut
-      ? "miniclaw process timed out without success evidence"
-      : "miniclaw process failed",
-    evidence: successEvidence,
-    adIds: successIds,
-    changedAdConfigs,
+    success,
+    status,
+    summary: status === "no_op"
+      ? "miniclaw completed successfully with no matching ads to change"
+      : status === "succeeded"
+      ? `${operation} completed successfully`
+      : status === "partial_failure"
+      ? `${operation} completed with failed items`
+      : `${operation} failed`,
+    ...(counts ? { counts } : {}),
   };
 }
 
@@ -1762,7 +868,7 @@ async function resolveAdIdScopedAdConfigPaths(operation, params = {}, config = {
       throw error;
     }
 
-    const id = parseAdOperationState(text, adConfigPath).id;
+    const id = parseAdId(text, adConfigPath);
     if (matchesById.has(id)) {
       matchesById.get(id).push(adConfigPath);
     }
@@ -1772,78 +878,6 @@ async function resolveAdIdScopedAdConfigPaths(operation, params = {}, config = {
     return [];
   }
   return [...new Set(requestedIds.flatMap((id) => matchesById.get(id)))];
-}
-
-async function findTitleLengthCandidates(config = {}, { limit = 65, maxResults = 10 } = {}) {
-  const roots = normalizeStringArray(config.adRoots, "adRoots", { maxItems: 50 });
-  const scopedAdFiles = Array.isArray(config.adFileOverrides)
-    ? config.adFileOverrides.map((entry) => String(entry).trim()).filter(Boolean)
-    : [];
-  const configuredAdFiles = scopedAdFiles.length
-    ? scopedAdFiles
-    : await readConfiguredAdFiles(config.configPath);
-  const configuredExisting = [];
-  for (const adConfigPath of configuredAdFiles) {
-    try {
-      const stat = await fs.stat(adConfigPath);
-      if (stat.isFile()) {
-        configuredExisting.push(await realPath(adConfigPath));
-      }
-    } catch (error) {
-      if (error?.code !== "ENOENT") {
-        throw error;
-      }
-    }
-  }
-
-  if (configuredExisting.length) {
-    const resolvedRoots = await Promise.all(roots.map((entry) => realPath(entry)));
-    const fallbackRoot = path.dirname(await realPath(config.configPath));
-    const candidates = [];
-    for (const adConfigPath of configuredExisting) {
-      const text = await fs.readFile(adConfigPath, "utf8");
-      const summary = parseAdSummary(text);
-      if (summary.title.length <= limit) {
-        continue;
-      }
-      const displayRoot =
-        resolvedRoots.find((root) => pathIsInside(adConfigPath, root)) ?? fallbackRoot;
-      candidates.push({
-        adPath: displayPathForAd(adConfigPath, displayRoot),
-        title: summary.title,
-        titleLength: summary.title.length,
-        limit,
-      });
-      if (candidates.length >= maxResults) {
-        return candidates;
-      }
-    }
-    return candidates;
-  }
-
-  if (!roots.length) {
-    return [];
-  }
-
-  const candidates = [];
-  for (const root of await Promise.all(roots.map((entry) => realPath(entry)))) {
-    for (const adConfigPath of await findAdFiles(root, { maxFiles: 400 })) {
-      const text = await fs.readFile(adConfigPath, "utf8");
-      const summary = parseAdSummary(text);
-      if (summary.title.length > limit) {
-        candidates.push({
-          adPath: displayPathForAd(adConfigPath, root),
-          title: summary.title,
-          titleLength: summary.title.length,
-          limit,
-        });
-        if (candidates.length >= maxResults) {
-          return candidates;
-        }
-      }
-    }
-  }
-  return candidates;
 }
 
 export async function listKleinanzeigenAds(config = {}, params = {}) {
@@ -2264,69 +1298,25 @@ export async function draftKleinanzeigenAd(params = {}, config = {}) {
   };
 }
 
-export async function extractKleinanzeigenDiagnostics(text, config = {}) {
-  const diagnostics = [];
-  const lines = String(text ?? "").replace(/\r\n/g, "\n").split("\n");
-  let target = "";
-
-  for (const line of lines) {
-    const validationHeader = /\[ERROR\]\s+\d+\s+validation error for \[(.+?)\]:/.exec(line);
-    if (validationHeader) {
-      target = validationHeader[1];
-      continue;
-    }
-
-    const validationLine = /^-\s*([A-Za-z0-9_.-]+):\s*(.+)$/.exec(line.trim());
-    if (!validationLine || !target) {
-      continue;
-    }
-
-    const field = validationLine[1];
-    const message = validationLine[2].trim();
-    const diagnostic = {
-      severity: "error",
-      kind: target.includes("AdPartial") ? "ad_validation" : "config_validation",
-      field,
-      message,
-      suggestedAction: target.includes("AdPartial")
-        ? "fix the invalid ad or run a scoped operation for a different ad"
-        : "fix the miniclaw config and rerun verify",
-    };
-
-    if (/title length exceeds 65 characters/i.test(message)) {
-      const candidates = await findTitleLengthCandidates(config, { limit: 65 });
-      if (candidates.length) {
-        diagnostic.candidates = candidates;
-        if (candidates.length === 1) {
-          diagnostic.adPath = candidates[0].adPath;
-          diagnostic.title = candidates[0].title;
-          diagnostic.titleLength = candidates[0].titleLength;
-          diagnostic.limit = candidates[0].limit;
-        }
-      }
-    }
-
-    diagnostics.push(diagnostic);
-  }
-
-  return diagnostics;
-}
-
 function buildNextActions(diagnostics = [], scoped) {
   if (!diagnostics.length) {
     return [];
   }
-  if (diagnostics.some((entry) => entry.kind === "config_validation")) {
-    return ["fix the miniclaw config and rerun kleinanzeigen_verify"];
+  if (diagnostics.some((entry) => entry.kind === "ip_range_blocked")) {
+    return ["stop automatic retries and inform the user to try again later"];
   }
-  if (scoped) {
+  if (diagnostics.some((entry) => entry.kind === "captcha")) {
+    return ["solve the account check in the browser before retrying"];
+  }
+  if (diagnostics.some((entry) => entry.kind === "manual_action_required")) {
+    return ["complete the account check in an interactive browser run"];
+  }
+  if (scoped && diagnostics.some((entry) => entry.kind === "validation_error")) {
     return ["fix the selected ad config and rerun scoped kleinanzeigen_verify"];
   }
-  return [
-    "use kleinanzeigen_list_ads to find the target ad",
-    "use kleinanzeigen_verify with adDirectories or adConfigPaths for one ad",
-    "fix invalid ads before unscoped verify or bulk publish",
-  ];
+  return diagnostics.some((entry) => entry.kind === "validation_error")
+    ? ["fix invalid config or ads and rerun kleinanzeigen_verify"]
+    : [];
 }
 
 async function resolveScopedAdConfigPaths(params = {}, config = {}) {
@@ -2505,7 +1495,7 @@ function buildInactivePublishPreflightResult({ operation, inactiveAds, cliConfig
       changedAdConfigs: [],
     },
     command: {
-      executable: cliConfig.runtime.label,
+      executable: "miniclaw",
       args: redactArgs(args),
     },
     processOk: false,
@@ -2545,75 +1535,6 @@ async function createTemporaryConfig(cliConfig, content, ext = path.extname(cliC
     config: { ...cliConfig, configPath, cwd: configDir },
     cleanup: () => fs.rm(configPath, { force: true }),
   };
-}
-
-function commandSupportFromHelp(text) {
-  const lower = String(text ?? "").toLowerCase();
-  return Object.fromEntries(
-    Object.keys(OPERATIONS).map((operation) => [operation, lower.includes(operation)]),
-  );
-}
-
-function firstNonEmptyLine(text) {
-  return String(text ?? "")
-    .split("\n")
-    .map((line) => line.trim())
-    .find(Boolean) ?? "";
-}
-
-export function runProcess(command, args, options = {}) {
-  const commandRunner = options.commandRunner;
-  const timeoutMs = options.timeoutMs ?? 120000;
-  const maxBufferChars = Number.isInteger(options.maxBufferChars)
-    ? Math.max(options.maxBufferChars, 0)
-    : 20000;
-  const captureLimit = maxBufferChars + 1;
-
-  const capOutput = (value) => String(value ?? "").slice(0, captureLimit);
-  if (typeof commandRunner !== "function") {
-    return Promise.resolve({
-      ok: false,
-      exitCode: null,
-      signal: null,
-      stdout: "",
-      stderr: "",
-      error: new Error("OpenClaw command runner is not available"),
-      timedOut: false,
-    });
-  }
-
-  return commandRunner([command, ...args], {
-    cwd: options.cwd,
-    env: options.env ?? buildChildEnv(),
-    timeoutMs,
-  }).then(
-    (result) => {
-      const timedOut =
-        result?.termination === "timeout" || result?.termination === "no-output-timeout";
-      const exitCode = Number.isInteger(result?.code) ? result.code : null;
-      return {
-        ok: exitCode === 0 && !timedOut,
-        exitCode,
-        signal: result?.signal ?? null,
-        stdout: capOutput(result?.stdout),
-        stderr: capOutput(result?.stderr),
-        timedOut,
-      };
-    },
-    (error) => ({
-      ok: false,
-      exitCode: null,
-      signal: null,
-      stdout: "",
-      stderr: "",
-      error,
-      timedOut: false,
-    }),
-  );
-}
-
-function runRuntimeProcess(runtime, args, options = {}) {
-  return runProcess(runtime.command, [...runtime.argsPrefix, ...args], options);
 }
 
 export async function getKleinanzeigenBrowserStatus(config = {}) {
@@ -2678,30 +1599,6 @@ function browserCheckOverridesRequested(params = {}) {
   ].some((key) => params[key] !== undefined);
 }
 
-function extractBrowserCheckDiagnostics(text) {
-  const lines = String(text ?? "").replace(/\r\n/g, "\n").split("\n");
-  const failures = [];
-  const warnings = [];
-  const successes = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (/\(fail\)|failed|not found|not executable|permission/i.test(trimmed)) {
-      failures.push(trimmed);
-    } else if (/\(warn\)|warning/i.test(trimmed)) {
-      warnings.push(trimmed);
-    } else if (/\(ok\)|detected|executable/i.test(trimmed)) {
-      successes.push(trimmed);
-    }
-  }
-
-  return {
-    failures,
-    warnings,
-    successes,
-  };
-}
-
 export async function checkKleinanzeigenBrowser(params = {}, config = {}) {
   const cliConfig = resolveCliConfig(config);
   await assertConfiguredFiles(cliConfig);
@@ -2730,30 +1627,28 @@ export async function checkKleinanzeigenBrowser(params = {}, config = {}) {
     detectedBrowsers,
   });
 
-  let result;
   try {
     const args = buildKleinanzeigenArgs("diagnose", {}, checkConfig);
-    result = await runRuntimeProcess(checkConfig.runtime, args, {
-      cwd: checkConfig.cwd,
-      timeoutMs: checkConfig.timeoutMs,
-      maxBufferChars: checkConfig.maxOutputChars,
-      env: buildChildEnv(),
-      commandRunner: checkConfig.commandRunner,
-    });
-    const redactions = buildRedactions({ ...config, ...checkConfig });
-    const rawText = [result.stdout, result.stderr, result.error?.message]
-      .filter(Boolean)
-      .join("\n");
-    const diagnostics = extractBrowserCheckDiagnostics(rawText);
-    const stdout = sanitizeText(result.stdout, redactions, checkConfig.maxOutputChars);
-    const stderr = sanitizeText(
-      result.error ? `${result.stderr}\n${result.error.message}` : result.stderr,
-      redactions,
-      checkConfig.maxOutputChars,
+    const { diagnostics, parsed, result, stderr } = await invokeMiniclaw(
+      "diagnose",
+      args,
+      checkConfig,
+      config,
     );
-    const failures = diagnostics.failures.map((line) => sanitizeText(line, redactions, 500));
-    const warnings = diagnostics.warnings.map((line) => sanitizeText(line, redactions, 500));
-    const canUse = Boolean(result.ok && failures.length === 0);
+    const failures = diagnostics
+      .filter((entry) => entry.severity === "error")
+      .map((entry) => entry.message);
+    const warnings = diagnostics
+      .filter((entry) => entry.severity === "warning")
+      .map((entry) => entry.message);
+    if (!parsed.ok) {
+      failures.push("miniclaw returned invalid structured output");
+    }
+    const canUse = Boolean(
+      parsed.ok &&
+      parsed.result.status === "succeeded" &&
+      result.ok,
+    );
 
     return {
       ok: canUse,
@@ -2770,92 +1665,19 @@ export async function checkKleinanzeigenBrowser(params = {}, config = {}) {
       browser: status.browser,
       detectedBrowsers: status.detectedBrowsers,
       command: {
-        executable: checkConfig.runtime.label,
+        executable: "miniclaw",
         args: redactArgs(args),
       },
       exitCode: result.exitCode,
       signal: result.signal,
       timedOut: result.timedOut,
       needsUserAction: false,
-      stdout,
+      stdout: "",
       stderr,
     };
   } finally {
     await tempConfig.cleanup();
   }
-}
-
-export async function getKleinanzeigenStatus(config = {}) {
-  const runtime = embeddedMiniclawRuntime();
-  const configPath = resolveConfiguredConfigPath(config);
-  const cwd =
-    normalizeOptionalString(config.workingDirectory) ?? (configPath ? path.dirname(configPath) : undefined);
-  const commandRunner = typeof config.commandRunner === "function" ? config.commandRunner : undefined;
-  const redactions = buildRedactions({ ...config, runtime, workingDirectory: cwd, configPath });
-
-  const configFile = {
-    configured: Boolean(configPath),
-    exists: false,
-    isFile: false,
-  };
-  if (configPath) {
-    try {
-      const stat = await fs.stat(configPath);
-      configFile.exists = true;
-      configFile.isFile = stat.isFile();
-    } catch (error) {
-      if (error?.code !== "ENOENT") {
-        throw error;
-      }
-    }
-  }
-
-  const versionResult = await runRuntimeProcess(runtime, ["version"], {
-    cwd,
-    timeoutMs: STATUS_TIMEOUT_MS,
-    maxBufferChars: STATUS_OUTPUT_CHARS,
-    env: buildChildEnv(),
-    commandRunner,
-  });
-  const versionText = sanitizeText(
-    [versionResult.stdout, versionResult.stderr, versionResult.error?.message].filter(Boolean).join("\n"),
-    redactions,
-    1000,
-  );
-
-  let helpResult = null;
-  let helpText = "";
-  if (!versionResult.error) {
-    helpResult = await runRuntimeProcess(runtime, ["help"], {
-      cwd,
-      timeoutMs: STATUS_TIMEOUT_MS,
-      maxBufferChars: STATUS_OUTPUT_CHARS,
-      env: buildChildEnv(),
-      commandRunner,
-    });
-    helpText = sanitizeText(
-      [helpResult.stdout, helpResult.stderr, helpResult.error?.message].filter(Boolean).join("\n"),
-      redactions,
-      STATUS_OUTPUT_CHARS,
-    );
-  }
-
-  return {
-    ok: Boolean(versionResult.ok && helpResult?.ok && configFile.configured && configFile.isFile),
-    operation: "status",
-    executable: runtime.label,
-    cwd: cwd ? "[redacted-path]" : null,
-    configFile,
-    workspaceMode: normalizeWorkspaceMode(config.workspaceMode),
-    version: firstNonEmptyLine(versionText),
-    commands: commandSupportFromHelp(helpText),
-    exitCode: helpResult?.exitCode ?? versionResult.exitCode,
-    signal: helpResult?.signal ?? versionResult.signal,
-    timedOut: Boolean(versionResult.timedOut || helpResult?.timedOut),
-    needsUserAction: false,
-    stdout: "",
-    stderr: versionResult.error || helpResult?.error ? firstNonEmptyLine(helpText || versionText) : "",
-  };
 }
 
 export async function runKleinanzeigenOperation(operation, params = {}, config = {}) {
@@ -2886,67 +1708,41 @@ export async function runKleinanzeigenOperation(operation, params = {}, config =
       });
     }
   }
-  const snapshotPaths =
-    scopedAdConfigPaths.length > 0
-      ? scopedAdConfigPaths
-      : await readConfiguredAdFiles(baseCliConfig.configPath);
-  const beforeSnapshots = await readAdOperationSnapshots(snapshotPaths, config);
   const cliConfig = scopedAdConfigPaths.length > 0
     ? { ...baseCliConfig, adFileOverrides: scopedAdConfigPaths }
     : baseCliConfig;
   await assertConfiguredFiles(cliConfig);
-  let args;
-  let result;
-  args = buildKleinanzeigenArgs(operation, params, cliConfig);
-  result = await runRuntimeProcess(cliConfig.runtime, args, {
-    cwd: cliConfig.cwd,
-    timeoutMs: cliConfig.timeoutMs,
-    maxBufferChars: cliConfig.maxOutputChars,
-    env: buildChildEnv(),
-    commandRunner: cliConfig.commandRunner,
-  });
-  const afterSnapshots = await readAdOperationSnapshots(snapshotPaths, config);
-  const redactions = buildRedactions({ ...config, ...cliConfig });
-  const rawText = [result.stdout, result.stderr, result.error?.message].filter(Boolean).join("\n");
-  const userAction = detectUserActionRequest(rawText);
-
-  const stdout = sanitizeText(result.stdout, redactions, cliConfig.maxOutputChars);
-  const stderr = sanitizeText(
-    result.error ? `${result.stderr}\n${result.error.message}` : result.stderr,
-    redactions,
-    cliConfig.maxOutputChars,
-  );
-  const diagnostics = await extractKleinanzeigenDiagnostics(
-    rawText,
-    scopedAdConfigPaths.length > 0
-      ? { ...config, adFileOverrides: scopedAdConfigPaths }
-      : config,
+  const args = buildKleinanzeigenArgs(operation, params, cliConfig);
+  const { diagnostics, parsed, result, stderr } = await invokeMiniclaw(
+    operation,
+    args,
+    cliConfig,
+    config,
   );
   const nextActions = buildNextActions(diagnostics, scopedAdConfigPaths.length > 0);
-  const outcome = buildOperationOutcome({
-    operation,
-    result,
-    rawText,
-    beforeSnapshots,
-    afterSnapshots,
-  });
+  const outcome = buildOperationOutcome(operation, parsed);
+  const userAction = diagnostics.find((entry) =>
+    entry.kind === "captcha" ||
+    entry.kind === "ip_range_blocked" ||
+    entry.kind === "manual_action_required"
+  );
 
   return {
     ok: outcome.success,
     operation,
     outcome,
     command: {
-      executable: cliConfig.runtime.label,
+      executable: "miniclaw",
       args: redactArgs(args),
     },
     processOk: result.ok,
     exitCode: result.exitCode,
     signal: result.signal,
     timedOut: result.timedOut,
-    needsUserAction: userAction.needsUserAction,
-    ...(userAction.needsUserAction ? { userActionHint: userAction.userActionHint } : {}),
+    needsUserAction: Boolean(userAction),
+    ...(userAction ? { userActionHint: nextActions[0] } : {}),
     ...(diagnostics.length ? { diagnostics, nextActions } : {}),
-    stdout,
+    stdout: "",
     stderr,
   };
 }
