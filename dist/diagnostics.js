@@ -39,8 +39,7 @@ function jsonValueReplacer(_key, value) {
 function timestampFor(date) {
     return date.toISOString()
         .replace(/[-:]/g, "")
-        .replace(/\.\d{3}Z$/, "")
-        .replace("T", "T");
+        .replace(/\.\d{3}Z$/, "");
 }
 function safeSubject(subject) {
     return subject.replace(/[^A-Za-z0-9_-]/g, "_");
@@ -56,10 +55,6 @@ function buildBaseName({ attempt, basePrefix, now, randomHex, subject, }) {
     return base;
 }
 async function saveScreenshot(page, screenshotPath) {
-    if (page.save_screenshot) {
-        await page.save_screenshot(screenshotPath);
-        return true;
-    }
     if (page.screenshot) {
         await page.screenshot({ path: screenshotPath });
         return true;
@@ -67,9 +62,6 @@ async function saveScreenshot(page, screenshotPath) {
     return false;
 }
 async function pageContent(page) {
-    if (page.get_content) {
-        return page.get_content();
-    }
     if (page.content) {
         return page.content();
     }

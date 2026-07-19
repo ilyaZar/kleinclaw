@@ -10,7 +10,6 @@ import { DiagnosticsConfig, } from "./diagnostics-config.js";
 import { DownloadConfig } from "./download-config.js";
 import { DeletingConfig, PublishingConfig, } from "./publishing-config.js";
 import { TimeoutConfig } from "./timeout-config.js";
-import { UpdateCheckConfig, } from "./update-check-config.js";
 import { ValidationError } from "./validation-error.js";
 import { BUILTIN_CATEGORIES } from "../resources/categories.js";
 export { AdDefaults, AutoPriceReductionConfig, ContactDefaults, } from "./ad-defaults-config.js";
@@ -19,7 +18,6 @@ export { CaptureOnConfig, DiagnosticsConfig, } from "./diagnostics-config.js";
 export { DownloadConfig, } from "./download-config.js";
 export { DeletingConfig, PublishingConfig, } from "./publishing-config.js";
 export { TimeoutConfig, } from "./timeout-config.js";
-export { UpdateCheckConfig, } from "./update-check-config.js";
 export { ValidationError } from "./validation-error.js";
 export class Config {
     adFiles;
@@ -32,7 +30,6 @@ export class Config {
     login;
     diagnostics;
     timeouts;
-    updateCheck;
     constructor(input = {}) {
         this.adFiles = input.adFiles ?? input.ad_files ?? ["./**/ad_*.{json,yml,yaml}"];
         if (!this.adFiles.length || this.adFiles.some((pattern) => !pattern.trim())) {
@@ -47,7 +44,6 @@ export class Config {
         this.login = new LoginConfig(input.login ?? {});
         this.diagnostics = new DiagnosticsConfig(input.diagnostics ?? {});
         this.timeouts = new TimeoutConfig(input.timeouts ?? {});
-        this.updateCheck = new UpdateCheckConfig(input.updateCheck ?? input.update_check ?? {});
     }
     withValues(values) {
         return new Config(deepMerge(configToInput(this), values));
@@ -77,7 +73,6 @@ function configToInput(config) {
         login: config.login,
         diagnostics: config.diagnostics,
         timeouts: config.timeouts,
-        updateCheck: config.updateCheck,
     };
 }
 function deepMerge(base, patch) {

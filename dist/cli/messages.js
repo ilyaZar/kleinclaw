@@ -1,3 +1,50 @@
+export const SUPPORTED_COMMANDS = [
+    "verify",
+    "diagnose",
+    "publish",
+    "update",
+    "delete",
+    "download",
+    "extend",
+];
+export function commandStatus(changed, failed, total) {
+    if (total === 0) {
+        return "no_op";
+    }
+    if (failed === 0) {
+        return changed === 0 ? "no_op" : "succeeded";
+    }
+    return changed === 0 ? "failed" : "partial_failure";
+}
+export function setCommandResult(parsed, status, options = {}) {
+    const { message, ...result } = options;
+    parsed.result = {
+        schemaVersion: 1,
+        command: parsed.command,
+        status,
+        ...result,
+    };
+    if (parsed.output !== "json" && message) {
+        printDoneBlock(message);
+    }
+}
+export function setCountResult(parsed, changed, failed, total, message) {
+    setCommandResult(parsed, commandStatus(changed, failed, total), {
+        counts: { changed, failed, total },
+        message,
+    });
+}
+export function writeCommandResult(parsed, exitCode) {
+    if (parsed.output !== "json") {
+        return;
+    }
+    const result = parsed.result ?? {
+        schemaVersion: 1,
+        command: parsed.command,
+        status: exitCode === 0 ? "succeeded" : "failed",
+    };
+    console.log(JSON.stringify(result));
+}
 export function noAdsMessage(command) {
     switch (command) {
         case "publish":

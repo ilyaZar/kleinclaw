@@ -1,11 +1,13 @@
+import { IP_RANGE_BLOCK_MESSAGE, IpRangeBlockedError, } from "../auth.js";
 import { CaptchaEncountered } from "../publish-form.js";
 import { createBrowserPublishUpdateSideEffects } from "../publish-side-effects.js";
 import { hasErrorName, isRecord } from "../value-guards.js";
 import { isNumericIdSelector } from "../ad-selector.js";
 import { hasInjectedDownloadHandlers, runInjectedDeleteCommand, runInjectedDownloadCommand, runInjectedExtendCommand, runInjectedPublishUpdateCommand, } from "./injected-runners.js";
 import { loadDownloadCommand, loadSideEffectAds } from "./loaders.js";
-import { noAdsMessage, printDoneBlock } from "./messages.js";
+import { noAdsMessage, setCommandResult } from "./messages.js";
 const CAPTCHA_EXIT_CODE = 3;
+const IP_RANGE_BLOCK_EXIT_CODE = 4;
 const SIGNAL_CLEANUP_TIMEOUT_MS = 5000;
 function canRunLiveBrowserCommand(command) {
     return command === "publish" ||
@@ -35,6 +37,77 @@ function printCaptchaBoundaryMessage(error) {
         console.error(`Configured restart delay: ${restartDelaySeconds} seconds.`);
     }
     console.error("Retry from the caller after the delay or rerun after solving it.");
+}
+function isIpRangeBlocked(error) {
+    return error instanceof IpRangeBlockedError ||
+        hasErrorName(error, "IpRangeBlockedError");
+}
+function isManualActionRequired(error) {
+    return hasErrorName(error, "ManualActionRequiredError");
+}
+function printIpRangeBlockBoundaryMessage() {
+    console.error(IP_RANGE_BLOCK_MESSAGE);
+    console.error("Live command stopped. Do not retry automatically.");
+    console.error("Inform the user and try again later.");
+}
+function liveBoundaryExitCode(error, parsed) {
+    if (isIpRangeBlocked(error)) {
+        printIpRangeBlockBoundaryMessage();
+        setCommandResult(parsed, "failed", {
+            diagnostics: [{
+                    code: "ip_range_blocked",
+                    severity: "error",
+                    message: IP_RANGE_BLOCK_MESSAGE,
+                }],
+        });
+        return IP_RANGE_BLOCK_EXIT_CODE;
+    }
+    if (isCaptchaEncountered(error)) {
+        printCaptchaBoundaryMessage(error);
+        const restartDelaySeconds = captchaRestartDelaySeconds(error);
+        setCommandResult(parsed, "failed", {
+            diagnostics: [{
+                    code: "captcha",
+                    severity: "error",
+                    message: "Captcha encountered; live command stopped.",
+                    ...(restartDelaySeconds === null
+                        ? {}
+                        : { retryAfterSeconds: restartDelaySeconds }),
+                }],
+        });
+        return CAPTCHA_EXIT_CODE;
+    }
+    if (isManualActionRequired(error)) {
+        const message = error instanceof Error
+            ? error.message
+            : "Manual browser action requires an interactive run.";
+        console.error(message);
+        setCommandResult(parsed, "failed", {
+            diagnostics: [{
+                    code: "manual_action_required",
+                    severity: "error",
+                    message,
+                }],
+        });
+        return 2;
+    }
+    return null;
+}
+function hasUserActionResult(parsed) {
+    return parsed.result?.diagnostics?.some((entry) => entry.code === "captcha" ||
+        entry.code === "ip_range_blocked" ||
+        entry.code === "manual_action_required") ?? false;
+}
+async function closeLiveSideEffects(sideEffects, parsed) {
+    try {
+        await sideEffects?.close?.();
+    }
+    catch (error) {
+        if (!hasUserActionResult(parsed)) {
+            throw error;
+        }
+        console.error(`Failed to close live browser: ${String(error)}`);
+    }
 }
 function installLiveBrowserSignalCleanup(getSideEffects) {
     const signals = ["SIGINT", "SIGTERM"];
@@ -98,20 +171,23 @@ export async function runLiveBrowserCommand(parsed, createLiveSideEffects, works
             return await runInjectedDownloadCommand(parsed, sideEffects, workspace);
         }
         catch (error) {
-            if (isCaptchaEncountered(error)) {
-                printCaptchaBoundaryMessage(error);
-                return CAPTCHA_EXIT_CODE;
+            const boundaryExitCode = liveBoundaryExitCode(error, parsed);
+            if (boundaryExitCode !== null) {
+                return boundaryExitCode;
             }
             throw error;
         }
         finally {
             removeSignalCleanup();
-            await sideEffects?.close?.();
+            await closeLiveSideEffects(sideEffects, parsed);
         }
     }
     const loaded = await loadSideEffectAds(parsed);
     if (!loaded.ads.length) {
-        printDoneBlock(noAdsMessage(parsed.command) ?? "DONE: No ads found.");
+        setCommandResult(parsed, "no_op", {
+            counts: { changed: 0, failed: 0, total: 0 },
+            message: noAdsMessage(parsed.command) ?? "DONE: No ads found.",
+        });
         return 0;
     }
     let sideEffects = null;
@@ -136,14 +212,14 @@ export async function runLiveBrowserCommand(parsed, createLiveSideEffects, works
         return await runInjectedPublishUpdateCommand(parsed, sideEffects, loaded);
     }
     catch (error) {
-        if (isCaptchaEncountered(error)) {
-            printCaptchaBoundaryMessage(error);
-            return CAPTCHA_EXIT_CODE;
+        const boundaryExitCode = liveBoundaryExitCode(error, parsed);
+        if (boundaryExitCode !== null) {
+            return boundaryExitCode;
         }
         throw error;
     }
     finally {
         removeSignalCleanup();
-        await sideEffects?.close?.();
+        await closeLiveSideEffects(sideEffects, parsed);
     }
 }

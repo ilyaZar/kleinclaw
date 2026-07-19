@@ -29,8 +29,8 @@ export function parseArgs(argv) {
         workspaceMode: null,
         keepOldAds: false,
         allowLiveBrowser: false,
-        verbose: false,
-        lang: null,
+        output: "text",
+        result: null,
     };
     const commands = [];
     for (let index = 2; index < argv.length; index += 1) {
@@ -38,10 +38,6 @@ export function parseArgs(argv) {
         if (arg === "-h" || arg === "--help") {
             parsed.command = "help";
             return parsed;
-        }
-        if (arg === "-v" || arg === "--verbose") {
-            parsed.verbose = true;
-            continue;
         }
         if (arg === "--force") {
             parsed.adsSelector = "all";
@@ -54,6 +50,15 @@ export function parseArgs(argv) {
         }
         if (arg === "--allow-live-browser") {
             parsed.allowLiveBrowser = true;
+            continue;
+        }
+        if (arg.startsWith("--output")) {
+            const option = readOptionValue(argv, index, "--output");
+            if (option.value !== "json") {
+                throw new Error(`Invalid --output '${option.value}'`);
+            }
+            parsed.output = "json";
+            index = option.nextIndex;
             continue;
         }
         if (arg.startsWith("--ads")) {
@@ -91,12 +96,6 @@ export function parseArgs(argv) {
                 throw new Error(`Invalid --workspace-mode '${option.value}'`);
             }
             parsed.workspaceMode = mode;
-            index = option.nextIndex;
-            continue;
-        }
-        if (arg.startsWith("--lang")) {
-            const option = readOptionValue(argv, index, "--lang");
-            parsed.lang = option.value;
             index = option.nextIndex;
             continue;
         }

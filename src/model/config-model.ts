@@ -27,10 +27,6 @@ import {
   type PublishingConfigInput,
 } from "./publishing-config.js";
 import { TimeoutConfig, type TimeoutConfigInput } from "./timeout-config.js";
-import {
-  UpdateCheckConfig,
-  type UpdateCheckConfigInput,
-} from "./update-check-config.js";
 import { ValidationError } from "./validation-error.js";
 import { BUILTIN_CATEGORIES } from "../resources/categories.js";
 
@@ -72,11 +68,6 @@ export {
   type TimeoutConfigInput,
   type TimeoutKey,
 } from "./timeout-config.js";
-export {
-  UpdateCheckConfig,
-  type UpdateCheckChannel,
-  type UpdateCheckConfigInput,
-} from "./update-check-config.js";
 export { ValidationError } from "./validation-error.js";
 
 export interface ConfigInput {
@@ -92,8 +83,6 @@ export interface ConfigInput {
   login?: LoginConfigInput;
   diagnostics?: DiagnosticsConfigInput;
   timeouts?: TimeoutConfigInput;
-  updateCheck?: UpdateCheckConfigInput;
-  update_check?: UpdateCheckConfigInput;
 }
 
 export class Config {
@@ -107,7 +96,6 @@ export class Config {
   readonly login: LoginConfig;
   readonly diagnostics: DiagnosticsConfig;
   readonly timeouts: TimeoutConfig;
-  readonly updateCheck: UpdateCheckConfig;
 
   constructor(input: ConfigInput = {}) {
     this.adFiles = input.adFiles ?? input.ad_files ?? ["./**/ad_*.{json,yml,yaml}"];
@@ -123,9 +111,6 @@ export class Config {
     this.login = new LoginConfig(input.login ?? {});
     this.diagnostics = new DiagnosticsConfig(input.diagnostics ?? {});
     this.timeouts = new TimeoutConfig(input.timeouts ?? {});
-    this.updateCheck = new UpdateCheckConfig(
-      input.updateCheck ?? input.update_check ?? {},
-    );
   }
 
   withValues(values: ConfigInput): Config {
@@ -157,7 +142,6 @@ function configToInput(config: Config): ConfigInput {
     login: config.login,
     diagnostics: config.diagnostics,
     timeouts: config.timeouts,
-    updateCheck: config.updateCheck,
   };
 }
 

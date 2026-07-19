@@ -37,7 +37,6 @@ export interface BrowserSessionPlanOptions {
 
 export interface BrowserCandidateOptions {
   env?: NodeJS.ProcessEnv;
-  homeDir?: string;
   platform?: NodeJS.Platform;
   searchPath?: string;
 }
@@ -98,11 +97,9 @@ function which(command: string, searchPath = process.env.PATH ?? ""): string | n
 
 export function browserCandidatePaths({
   env = process.env,
-  homeDir = os.homedir(),
   platform = process.platform,
   searchPath = process.env.PATH ?? "",
 }: BrowserCandidateOptions = {}): Array<string | null> {
-  void homeDir;
   const winPath = (...parts: string[]) => path.win32.join(...parts);
   const programFiles = env.PROGRAMFILES ?? "C:\\Program Files";
   const programFilesX86 = env["PROGRAMFILES(X86)"] ?? "C:\\Program Files (x86)";
@@ -185,19 +182,6 @@ export function writeInitialPrefs(prefsFile: string): void {
   fs.writeFileSync(prefsFile, JSON.stringify(buildInitialPrefs()), "utf8");
 }
 
-export function hasNonEmptyUserDataDirArg(args: Iterable<string>): boolean {
-  for (const arg of args) {
-    if (!arg.startsWith("--user-data-dir=")) {
-      continue;
-    }
-    const raw = arg.split("=", 2)[1]?.trim().replace(/^["']|["']$/g, "") ?? "";
-    if (raw) {
-      return true;
-    }
-  }
-  return false;
-}
-
 function expandUser(filePath: string, homeDir: string): string {
   if (filePath === "~") {
     return homeDir;
@@ -266,7 +250,7 @@ export function buildBrowserSessionPlan(
       `Specified browser binary [${configuredBinaryLocation}] does not exist.`,
     );
   }
-  const binaryLocation = configuredBinaryLocation || getCompatibleBrowser({ homeDir });
+  const binaryLocation = configuredBinaryLocation || getCompatibleBrowser();
   const remoteHost = remoteDebuggingHostFromArguments(browserConfig.arguments);
   const remotePort = remoteDebuggingPortFromArguments(browserConfig.arguments);
   const environment: Record<string, string> = {};

@@ -19,7 +19,6 @@ export class TimeoutConfig {
     paginationInitial;
     paginationFollowUp;
     quickDom;
-    updateCheck;
     webRequest;
     chromeRemoteProbe;
     chromeRemoteDebugging;
@@ -51,7 +50,6 @@ export class TimeoutConfig {
         this.paginationFollowUp =
             input.paginationFollowUp ?? input.pagination_follow_up ?? 5;
         this.quickDom = input.quickDom ?? input.quick_dom ?? 2;
-        this.updateCheck = input.updateCheck ?? input.update_check ?? 10;
         this.webRequest = input.webRequest ?? input.web_request ?? 60;
         this.chromeRemoteProbe =
             input.chromeRemoteProbe ?? input.chrome_remote_probe ?? 2;
@@ -95,7 +93,6 @@ export class TimeoutConfig {
         validateNumber("timeouts.pagination_initial", this.paginationInitial, 1);
         validateNumber("timeouts.pagination_follow_up", this.paginationFollowUp, 1);
         validateNumber("timeouts.quick_dom", this.quickDom, 0.1);
-        validateNumber("timeouts.update_check", this.updateCheck, 1);
         validateNumber("timeouts.web_request", this.webRequest, 1);
         validateNumber("timeouts.chrome_remote_probe", this.chromeRemoteProbe, 0.1);
         validateNumber("timeouts.chrome_remote_debugging", this.chromeRemoteDebugging, 1);

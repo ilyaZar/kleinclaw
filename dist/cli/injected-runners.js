@@ -5,12 +5,12 @@ import { saveDataFile } from "../io.js";
 import { isNumericIdSelector } from "../ad-selector.js";
 import { runPublishAdsBatch, runUpdateAdsBatch, } from "../publish-orchestration.js";
 import { ensureDirectory } from "../workspace.js";
-import { deleteDoneMessage, downloadDoneMessage, extendDoneMessage, noAdsMessage, printDoneBlock, sideEffectDoneMessage, } from "./messages.js";
+import { deleteDoneMessage, downloadDoneMessage, extendDoneMessage, noAdsMessage, setCountResult, sideEffectDoneMessage, } from "./messages.js";
 import { loadDownloadCommand, loadSideEffectAds, } from "./loaders.js";
 async function loadInjectedSideEffectContext(parsed, sideEffects, loaded) {
     const { ads, config } = loaded ?? await loadSideEffectAds(parsed);
     if (!ads.length) {
-        printDoneBlock(noAdsMessage(parsed.command) ?? "DONE: No ads found.");
+        setCountResult(parsed, 0, 0, 0, noAdsMessage(parsed.command) ?? "DONE: No ads found.");
         return null;
     }
     const context = { ads, config, parsed };
@@ -57,7 +57,7 @@ export async function runInjectedPublishUpdateCommand(parsed, sideEffects, loade
             ...commonOptions,
             publishAd: sideEffects.updateAd,
         });
-    printDoneBlock(sideEffectDoneMessage(parsed.command, result.succeeded, result.failed));
+    setCountResult(parsed, result.succeeded, result.failed, result.succeeded + result.failed, sideEffectDoneMessage(parsed.command, result.succeeded, result.failed));
     return 0;
 }
 export function hasInjectedDeleteHandlers(command, sideEffects) {
@@ -77,7 +77,8 @@ export async function runInjectedDeleteCommand(parsed, sideEffects, loaded) {
         publishedAds,
         saveAdConfig: saveDataFile,
     });
-    printDoneBlock(deleteDoneMessage(result.deleted, result.processed));
+    const failed = Math.max(result.processed - result.deleted, 0);
+    setCountResult(parsed, result.deleted, failed, result.processed, deleteDoneMessage(result.deleted, result.processed));
     return 0;
 }
 export function hasInjectedExtendHandlers(command, sideEffects) {
@@ -95,7 +96,8 @@ export async function runInjectedExtendCommand(parsed, sideEffects, loaded) {
         publishedAds,
         saveAdConfig: saveDataFile,
     });
-    printDoneBlock(extendDoneMessage(result.extended, result.attempted));
+    const failed = Math.max(result.attempted - result.extended, 0);
+    setCountResult(parsed, result.extended, failed, result.attempted, extendDoneMessage(result.extended, result.attempted));
     return 0;
 }
 export function hasInjectedDownloadHandlers(command, sideEffects) {
@@ -127,6 +129,7 @@ export async function runInjectedDownloadCommand(parsed, sideEffects, workspace)
         savedAds,
         selector: effectiveSelector,
     });
-    printDoneBlock(downloadDoneMessage(result.selector, result.downloaded, result.targetCount));
+    const failed = Math.max(result.targetCount - result.downloaded, 0);
+    setCountResult(parsed, result.downloaded, failed, result.targetCount, downloadDoneMessage(result.selector, result.downloaded, result.targetCount));
     return 0;
 }

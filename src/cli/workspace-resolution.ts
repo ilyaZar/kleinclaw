@@ -9,7 +9,16 @@ import {
 import { type Command, type ParsedArgs } from "./types.js";
 
 function commandNeedsWorkspace(command: Command | string): boolean {
-  return !["help", "version", "create-config"].includes(command);
+  return [
+    "delete",
+    "diagnose",
+    "download",
+    "extend",
+    "publish",
+    "update",
+    "update-content-hash",
+    "verify",
+  ].includes(command);
 }
 
 export async function resolveCommandWorkspace(

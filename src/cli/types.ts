@@ -22,12 +22,47 @@ export type Command =
   | "update"
   | "download"
   | "extend"
-  | "update-check"
   | "update-content-hash"
   | "create-config"
   | "diagnose"
   | "help"
   | "version";
+
+export type CommandStatus =
+  | "succeeded"
+  | "no_op"
+  | "partial_failure"
+  | "failed";
+
+export type DiagnosticCode =
+  | "validation_error"
+  | "ip_range_blocked"
+  | "captcha"
+  | "manual_action_required"
+  | "browser_diagnostic"
+  | "internal_error";
+
+export interface CommandDiagnostic {
+  code: DiagnosticCode;
+  severity: "info" | "warning" | "error";
+  message: string;
+  retryAfterSeconds?: number;
+}
+
+export interface CommandResult {
+  schemaVersion: 1;
+  command: string;
+  status: CommandStatus;
+  counts?: {
+    changed: number;
+    failed: number;
+    skipped?: number;
+    total: number;
+  };
+  diagnostics?: CommandDiagnostic[];
+  version?: string;
+  commands?: string[];
+}
 
 export interface ParsedArgs {
   command: Command | string;
@@ -42,8 +77,8 @@ export interface ParsedArgs {
   workspaceMode: "portable" | "xdg" | null;
   keepOldAds: boolean;
   allowLiveBrowser: boolean;
-  verbose: boolean;
-  lang: string | null;
+  output: "text" | "json";
+  result: CommandResult | null;
 }
 
 export interface CommandPreparation {

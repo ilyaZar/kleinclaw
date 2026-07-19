@@ -1,8 +1,23 @@
 {
-  "name": "miniclaw",
-  "version": "0.1.0",
-  "description": "TypeScript Kleinanzeigen publishing core for KleinClaw",
+  "name": "@ilyazar/miniclaw",
+  "version": "0.2.0",
+  "description": "TypeScript CLI package for local Kleinanzeigen listing workflows",
   "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ilyaZar/kleinclaw.git",
+    "directory": "miniclaw"
+  },
+  "bugs": {
+    "url": "https://github.com/ilyaZar/kleinclaw/issues"
+  },
+  "homepage": "https://github.com/ilyaZar/kleinclaw/tree/main/miniclaw#readme",
+  "keywords": [
+    "kleinanzeigen",
+    "cli",
+    "browser-automation",
+    "typescript"
+  ],
   "type": "module",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -11,8 +26,8 @@
       "default": "./dist/index.js"
     },
     "./cli": {
-      "types": "./dist/cli.d.ts",
-      "default": "./dist/cli.js"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
   "engines": {
@@ -22,7 +37,8 @@
     "dist/",
     "src/",
     "README.md",
-    "LICENSE.txt",
+    "LICENSE",
+    "NOTICE",
     "package.json"
   ],
   "bin": {
@@ -32,5 +48,8 @@
     "decimal.js": "^10.6.0",
     "glob": "^13.0.6",
     "yaml": "^2.9.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

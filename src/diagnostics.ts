@@ -11,8 +11,6 @@ import path from "node:path";
 
 export interface DiagnosticsPage {
   content?(): Promise<string>;
-  get_content?(): Promise<string>;
-  save_screenshot?(filePath: string): Promise<void>;
   screenshot?(options: { path: string }): Promise<unknown>;
 }
 
@@ -77,8 +75,7 @@ function jsonValueReplacer(_key: string, value: unknown): unknown {
 function timestampFor(date: Date): string {
   return date.toISOString()
     .replace(/[-:]/g, "")
-    .replace(/\.\d{3}Z$/, "")
-    .replace("T", "T");
+    .replace(/\.\d{3}Z$/, "");
 }
 
 function safeSubject(subject: string): string {
@@ -107,10 +104,6 @@ async function saveScreenshot(
   page: DiagnosticsPage,
   screenshotPath: string,
 ): Promise<boolean> {
-  if (page.save_screenshot) {
-    await page.save_screenshot(screenshotPath);
-    return true;
-  }
   if (page.screenshot) {
     await page.screenshot({ path: screenshotPath });
     return true;
@@ -119,9 +112,6 @@ async function saveScreenshot(
 }
 
 async function pageContent(page: DiagnosticsPage): Promise<string | null> {
-  if (page.get_content) {
-    return page.get_content();
-  }
   if (page.content) {
     return page.content();
   }

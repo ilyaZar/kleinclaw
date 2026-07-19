@@ -3,7 +3,29 @@ import { type ExtendAdHook } from "../extend-orchestration.js";
 import { type Config } from "../model/config-model.js";
 import { type CapturePublishError, type DeleteAdHook, type PublishedAdState, type PublishingResultHook, type PublishAdAttempt, type SleepHook } from "../publish-orchestration.js";
 import { type LoadedAd } from "../selection.js";
-export type Command = "publish" | "verify" | "delete" | "update" | "download" | "extend" | "update-check" | "update-content-hash" | "create-config" | "diagnose" | "help" | "version";
+export type Command = "publish" | "verify" | "delete" | "update" | "download" | "extend" | "update-content-hash" | "create-config" | "diagnose" | "help" | "version";
+export type CommandStatus = "succeeded" | "no_op" | "partial_failure" | "failed";
+export type DiagnosticCode = "validation_error" | "ip_range_blocked" | "captcha" | "manual_action_required" | "browser_diagnostic" | "internal_error";
+export interface CommandDiagnostic {
+    code: DiagnosticCode;
+    severity: "info" | "warning" | "error";
+    message: string;
+    retryAfterSeconds?: number;
+}
+export interface CommandResult {
+    schemaVersion: 1;
+    command: string;
+    status: CommandStatus;
+    counts?: {
+        changed: number;
+        failed: number;
+        skipped?: number;
+        total: number;
+    };
+    diagnostics?: CommandDiagnostic[];
+    version?: string;
+    commands?: string[];
+}
 export interface ParsedArgs {
     command: Command | string;
     adsSelector: string;
@@ -17,8 +39,8 @@ export interface ParsedArgs {
     workspaceMode: "portable" | "xdg" | null;
     keepOldAds: boolean;
     allowLiveBrowser: boolean;
-    verbose: boolean;
-    lang: string | null;
+    output: "text" | "json";
+    result: CommandResult | null;
 }
 export interface CommandPreparation {
     command: Command | string;

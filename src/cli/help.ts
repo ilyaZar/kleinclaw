@@ -1,6 +1,6 @@
 const CONFIG_SCHEMA_URL = "miniclaw://schemas/config.schema.json";
 
-export const VERSION = "2026+miniclaw";
+export const VERSION = "0.2.0";
 
 export const DEFAULT_CONFIG = `# yaml-language-server: $schema=${CONFIG_SCHEMA_URL}
 ad_files:
@@ -36,11 +36,6 @@ browser:
 login:
   username: "changeme"
   password: "changeme"
-
-update_check:
-  enabled: true
-  channel: latest
-  interval: 7d
 `;
 
 export function usage(): string {
@@ -53,7 +48,6 @@ Commands:
   update   - updates published ads
   extend   - extends ads within the 8-day window before expiry
   download - downloads one or multiple ads
-  update-check - checks for available updates
   update-content-hash - recalculates each ad's content_hash
   create-config - creates a new default configuration file
   diagnose - diagnoses browser connection issues
@@ -65,11 +59,11 @@ Options:
   --ads=all|due|new|changed|<id(s)>
   --force
   --keep-old
+  --ad-file=<PATH> (repeatable)
   --allow-live-browser
   --config=<PATH>
   --workspace-mode=portable|xdg
   --logfile=<PATH>
-  --lang=en|de
-  -v, --verbose
+  --output=json
 `;
 }
