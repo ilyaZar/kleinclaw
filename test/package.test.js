@@ -10,7 +10,7 @@ import { parse as parseYaml } from "yaml";
 
 import { toAd } from "../miniclaw/dist/model/ad-normalization.js";
 import { BUILTIN_CATEGORIES } from "../miniclaw/dist/resources/categories.js";
-import { createKleinanzeigenTools } from "../src/tools.js";
+import { createKleinanzeigenTools } from "../dist/tools.js";
 
 const execFileAsync = promisify(execFile);
 const allowedDependencies = {
@@ -99,8 +99,16 @@ describe("package install boundary", () => {
     for (const script of lifecycleScripts) {
       assert.equal(pkg.scripts?.[script], undefined);
     }
-    assert.equal(pkg.scripts?.build, "npm run build:miniclaw");
+    assert.equal(
+      pkg.scripts?.build,
+      "npm run clean:generated && npm run build:miniclaw && npm run build:host",
+    );
+    assert.equal(pkg.scripts?.["build:host"], "tsc -p tsconfig.host.json");
     assert.equal(pkg.scripts?.["build:miniclaw"], "tsc -p tsconfig.miniclaw.json");
+    assert.equal(
+      pkg.scripts?.["clean:generated"],
+      "node scripts/clean-generated.mjs",
+    );
     assert.deepEqual(pkg.dependencies, allowedDependencies);
     assert.deepEqual(pkg.devDependencies, allowedDevDependencies);
   });
@@ -126,8 +134,12 @@ describe("package install boundary", () => {
     const requiredFiles = [
       "index.js",
       "LICENSE",
+      "dist/cli.js",
+      "dist/plugin-entry.js",
+      "dist/tools.js",
       "examples/sample-listing/ad.yaml",
-      "miniclaw/LICENSE.txt",
+      "miniclaw/LICENSE",
+      "miniclaw/NOTICE",
       "miniclaw/README.md",
       "miniclaw/package.json",
       "miniclaw/dist/cli.js",
@@ -135,9 +147,6 @@ describe("package install boundary", () => {
       "miniclaw/src/cli.ts",
       "miniclaw/src/index.ts",
       "openclaw.plugin.json",
-      "src/cli.js",
-      "src/plugin-entry.js",
-      "src/tools.js",
       "skills/kleinanzeigen-helper-skill/SKILL.md",
       "skills/kleinanzeigen-helper-skill/references/ad-authoring.md",
       "skills/kleinanzeigen-helper-skill/references/browser-behaviour.md",
@@ -201,7 +210,7 @@ describe("package install boundary", () => {
         "utf8",
       );
       await fs.copyFile("index.js", path.join(tmp, "index.js"));
-      await fs.cp("src", path.join(tmp, "src"), { recursive: true });
+      await fs.cp("dist", path.join(tmp, "dist"), { recursive: true });
       await fs.symlink(path.join(process.cwd(), "miniclaw"), path.join(tmp, "miniclaw"), "dir");
       await writeFakeOpenClawSdk(tmp);
 
@@ -291,7 +300,7 @@ describe("package install boundary", () => {
       assert.equal(entry.id, "kleinclaw");
       assert.equal(typeof entry.register, "function");
       assert.equal(files.has("miniclaw/dist/cli.js"), true);
-      assert.equal(files.has("src/plugin-entry.js"), true);
+      assert.equal(files.has("dist/plugin-entry.js"), true);
       await fs.access(path.join(packageRoot, "miniclaw", "dist", "cli.js"));
 
       entry.register({
@@ -336,10 +345,7 @@ describe("package install boundary", () => {
       assert.equal(verifyPayload.operation, "verify");
       assert.equal(verifyPayload.command.executable, "miniclaw");
       assert.equal(verifyPayload.outcome.status, "succeeded");
-      assert.match(
-        [verifyPayload.stdout, verifyPayload.stderr].join("\n"),
-        /DONE: No configuration errors found\./,
-      );
+      assert.equal(verifyPayload.stdout, "");
       assert.equal(verifyPayload.needsUserAction, false);
       assert.doesNotMatch(verifyResult.content[0].text, new RegExp(tmp));
     } finally {
@@ -347,9 +353,181 @@ describe("package install boundary", () => {
     }
   });
 
+  it("packs miniclaw as a standalone package and CLI", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "miniclaw-pack-"));
+    const packDir = path.join(tmp, "pack");
+    const extractDir = path.join(tmp, "extract");
+    const consumerDir = path.join(tmp, "consumer");
+
+    try {
+      await fs.mkdir(packDir, { recursive: true });
+      await fs.mkdir(extractDir, { recursive: true });
+      await fs.mkdir(
+        path.join(consumerDir, "node_modules", "@ilyazar"),
+        { recursive: true },
+      );
+
+      const { stdout } = await execFileAsync(
+        "npm",
+        ["pack", "--json", "--ignore-scripts", "--pack-destination", packDir],
+        {
+          cwd: path.join(process.cwd(), "miniclaw"),
+          maxBuffer: 4_000_000,
+        },
+      );
+      const [pack] = JSON.parse(stdout);
+      const tarballPath = path.join(packDir, pack.filename);
+      const files = new Set(pack.files.map((file) => file.path));
+      const sourceManifest = JSON.parse(
+        await fs.readFile("miniclaw/package.json", "utf8"),
+      );
+
+      assert.equal(pack.name, sourceManifest.name);
+      assert.equal(pack.version, sourceManifest.version);
+      for (const file of [
+        "LICENSE",
+        "NOTICE",
+        "README.md",
+        "dist/cli.js",
+        "dist/index.d.ts",
+        "dist/index.js",
+        "package.json",
+        "src/cli.ts",
+        "src/index.ts",
+      ]) {
+        assert.equal(files.has(file), true, `${file} should be published`);
+      }
+      assert.equal(files.has("LICENSE.txt"), false);
+
+      await execFileAsync("tar", ["-xzf", tarballPath, "-C", extractDir]);
+      const packageRoot = path.join(extractDir, "package");
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(packageRoot, "package.json"), "utf8"),
+      );
+
+      assert.equal(manifest.name, "@ilyazar/miniclaw");
+      assert.equal(manifest.license, "AGPL-3.0-or-later");
+      assert.equal(manifest.bin.miniclaw, "./dist/cli.js");
+      assert.deepEqual(Object.keys(manifest.exports), [".", "./cli"]);
+      assert.equal(manifest.publishConfig.access, "public");
+      assert.deepEqual(manifest.dependencies, allowedDependencies);
+      assert.match(
+        await fs.readFile(path.join(packageRoot, "LICENSE"), "utf8"),
+        /GNU AFFERO GENERAL PUBLIC LICENSE/,
+      );
+      assert.match(
+        await fs.readFile(path.join(packageRoot, "NOTICE"), "utf8"),
+        /TypeScript port and adaptation/,
+      );
+
+      await linkRuntimeDependencies(packageRoot);
+      await fs.symlink(
+        packageRoot,
+        path.join(consumerDir, "node_modules", "@ilyazar", "miniclaw"),
+        "dir",
+      );
+      await fs.writeFile(
+        path.join(consumerDir, "package.json"),
+        JSON.stringify({ type: "module" }),
+        "utf8",
+      );
+      await fs.writeFile(
+        path.join(consumerDir, "import-check.mjs"),
+        [
+          'import * as miniclaw from "@ilyazar/miniclaw";',
+          'import * as cli from "@ilyazar/miniclaw/cli";',
+          "console.log(JSON.stringify({",
+          "  cliKeys: Object.keys(cli),",
+          "  rootKeys: Object.keys(miniclaw),",
+          "}));",
+        ].join("\n"),
+        "utf8",
+      );
+      const imported = await execFileAsync(
+        process.execPath,
+        ["import-check.mjs"],
+        { cwd: consumerDir },
+      );
+      assert.deepEqual(JSON.parse(imported.stdout), {
+        cliKeys: ["run"],
+        rootKeys: ["run"],
+      });
+
+      await fs.writeFile(
+        path.join(consumerDir, "types-check.ts"),
+        [
+          'import { run } from "@ilyazar/miniclaw";',
+          "// @ts-expect-error domain models are not public exports",
+          'import { Config } from "@ilyazar/miniclaw";',
+          "const runResult: Promise<number> = run(['node', 'miniclaw', 'help']);",
+          "// @ts-expect-error injection hooks are not public run options",
+          "run(['node', 'miniclaw', 'help'], { sideEffects: {} });",
+          "void [Config, runResult];",
+        ].join("\n"),
+        "utf8",
+      );
+      await execFileAsync(
+        process.execPath,
+        [
+          path.join(process.cwd(), "node_modules", "typescript", "bin", "tsc"),
+          "--module",
+          "NodeNext",
+          "--moduleResolution",
+          "NodeNext",
+          "--noEmit",
+          "--strict",
+          "--target",
+          "ES2022",
+          "types-check.ts",
+        ],
+        { cwd: consumerDir },
+      );
+
+      await fs.writeFile(
+        path.join(consumerDir, "deep-import-check.mjs"),
+        [
+          "try {",
+          '  await import("@ilyazar/miniclaw/workspace");',
+          "  process.exitCode = 1;",
+          "} catch (error) {",
+          "  console.log(error.code);",
+          "}",
+        ].join("\n"),
+        "utf8",
+      );
+      const deepImport = await execFileAsync(
+        process.execPath,
+        ["deep-import-check.mjs"],
+        { cwd: consumerDir },
+      );
+      assert.equal(
+        deepImport.stdout.trim(),
+        "ERR_PACKAGE_PATH_NOT_EXPORTED",
+      );
+
+      const cliPath = path.join(packageRoot, manifest.bin.miniclaw);
+      const binDir = path.join(tmp, "bin");
+      const binPath = path.join(binDir, "miniclaw");
+      await fs.mkdir(binDir, { recursive: true });
+      await fs.chmod(cliPath, 0o755);
+      await fs.symlink(cliPath, binPath, "file");
+
+      const version = await execFileAsync(binPath, ["version"]);
+      const help = await execFileAsync(binPath, ["help"]);
+      const structured = await execFileAsync(
+        binPath,
+        ["--output=json", "version"],
+      );
+      assert.equal(version.stdout.trim(), manifest.version);
+      assert.match(help.stdout, /^Usage: miniclaw COMMAND \[OPTIONS\]/);
+      assert.equal(JSON.parse(structured.stdout).version, manifest.version);
+    } finally {
+      await fs.rm(tmp, { force: true, recursive: true });
+    }
+  });
+
   it("embeds an importable built miniclaw runtime", async () => {
     const miniclaw = await import("../miniclaw/dist/index.js");
-    const cli = await import("../miniclaw/dist/cli.js");
     const miniclawPkg = JSON.parse(await fs.readFile("miniclaw/package.json", "utf8"));
 
     assert.equal(miniclawPkg.license, "AGPL-3.0-or-later");
@@ -357,23 +535,26 @@ describe("package install boundary", () => {
     assert.equal(miniclawPkg.devDependencies, undefined);
     assert.deepEqual(miniclawPkg.dependencies, allowedDependencies);
     assert.equal(Object.hasOwn(miniclawPkg.dependencies, "playwright-core"), false);
-    assert.equal(miniclaw.run, cli.run);
-    assert.equal(typeof miniclaw.Config, "function");
-    assert.equal(typeof miniclaw.runPublishAdsBatch, "function");
-    assert.equal(typeof miniclaw.createBrowserPublishUpdateSideEffects, "function");
-    assert.equal(miniclaw.publishAdForm, undefined);
+    assert.deepEqual(Object.keys(miniclaw), ["run"]);
+    assert.deepEqual(
+      miniclawPkg.exports["./cli"],
+      miniclawPkg.exports["."],
+    );
   });
 
   it("keeps embedded miniclaw defaults local to miniclaw", async () => {
-    const miniclaw = await import("../miniclaw/dist/index.js");
+    const { APP_NAME } = await import("../miniclaw/dist/workspace.js");
     const cliHelp = await import("../miniclaw/dist/cli/help.js");
     const persistence = await import("../miniclaw/dist/download-extractor/persistence.js");
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kleinclaw-defaults-"));
     const configPath = path.join(tmp, "config.yaml");
 
-    assert.equal(miniclaw.APP_NAME, "miniclaw");
+    assert.equal(APP_NAME, "miniclaw");
     assert.match(cliHelp.DEFAULT_CONFIG, /miniclaw:\/\/schemas\/config\.schema\.json/);
     assert.doesNotMatch(cliHelp.DEFAULT_CONFIG, /kleinanzeigen-bot/);
+    assert.doesNotMatch(cliHelp.DEFAULT_CONFIG, /update_check/);
+    assert.match(cliHelp.usage(), /--ad-file=<PATH> \(repeatable\)/);
+    assert.doesNotMatch(cliHelp.usage(), /--lang|--verbose|update-check/);
     assert.equal(
       persistence.AD_SCHEMA_HEADER,
       "# yaml-language-server: $schema=miniclaw://schemas/ad.schema.json",
@@ -927,6 +1108,7 @@ describe("package install boundary", () => {
       "package-lock.json",
       "test/cli.test.js",
       "test/tools.test.js",
+      "tsconfig.host.json",
       "tsconfig.miniclaw.json",
       "node_modules/.package-lock.json",
       "reports/plugin-inspector-report.json",
@@ -956,6 +1138,7 @@ describe("package install boundary", () => {
       "node_modules/",
       "reports/",
       "specs/",
+      "src/",
       "test/",
       "miniclaw/node_modules/",
       "miniclaw/scripts/",
@@ -976,7 +1159,7 @@ describe("package install boundary", () => {
     const files = await npmPackDryRunFiles();
     const provenanceOnlyFiles = new Set([
       "CHANGELOG.md",
-      "miniclaw/LICENSE.txt",
+      "miniclaw/NOTICE",
     ]);
     const stalePatterns = [
       [/kleinanzeigen-bot/, "kleinanzeigen-bot"],
@@ -1052,7 +1235,14 @@ describe("package install boundary", () => {
       await fs.readFile("LICENSE", "utf8"),
       /GNU AFFERO GENERAL PUBLIC LICENSE/,
     );
-    assert.match(await fs.readFile("miniclaw/LICENSE.txt", "utf8"), /AGPL-3\.0-or-later/);
+    assert.match(
+      await fs.readFile("miniclaw/LICENSE", "utf8"),
+      /GNU AFFERO GENERAL PUBLIC LICENSE/,
+    );
+    assert.match(
+      await fs.readFile("miniclaw/NOTICE", "utf8"),
+      /AGPL-3\.0-or-later/,
+    );
     assert.equal(pkg.openclaw.install.minHostVersion, ">=2026.6.5");
     assert.equal(pkg.peerDependencies.openclaw, ">=2026.6.5");
     assert.equal(pkg.openclaw.compat.minGatewayVersion, "2026.6.5");
