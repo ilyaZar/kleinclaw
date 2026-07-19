@@ -24,11 +24,6 @@ import {
   PublishedAdsFetchIncompleteError,
 } from "../miniclaw/dist/published-ads.js";
 import {
-  inspectLocalUpdateCheck,
-  parseDurationSeconds,
-  UpdateCheckState,
-} from "../miniclaw/dist/update-check.js";
-import {
   resolveWorkspace,
 } from "../miniclaw/dist/workspace.js";
 
@@ -405,58 +400,5 @@ describe("miniclaw content hashes", () => {
 
     assert.equal(contentHashForAd(base), contentHashForAd(sameContent));
     assert.notEqual(contentHashForAd(base), contentHashForAd(changedContent));
-  });
-});
-
-describe("miniclaw update-check state", () => {
-  it("parses compact durations and falls back from unsafe intervals", () => {
-    assert.equal(parseDurationSeconds("1d 2h 3m 4s"), 93784);
-
-    const state = new UpdateCheckState({
-      last_check: "2026-01-01T00:00:00+00:00",
-    });
-
-    assert.equal(
-      state.shouldCheck("90d", "latest", new Date("2026-01-08T00:00:01Z")),
-      true,
-    );
-    assert.equal(
-      state.shouldCheck("90d", "latest", new Date("2026-01-07T00:00:00Z")),
-      false,
-    );
-    assert.equal(
-      state.shouldCheck("0d", "preview", new Date("2026-01-02T00:00:01Z")),
-      true,
-    );
-  });
-
-  it("inspects local update state without performing network checks", async () => {
-    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "miniclaw-update-"));
-    const stateFile = path.join(tmp, "update_check_state.json");
-    await fs.writeFile(
-      stateFile,
-      JSON.stringify({
-        version: 0,
-        last_check: "2026-01-01T00:00:00+00:00",
-      }),
-      "utf8",
-    );
-
-    const result = await inspectLocalUpdateCheck({
-      config: new Config({
-        updateCheck: {
-          enabled: true,
-          channel: "latest",
-          interval: "7d",
-        },
-      }),
-      stateFile,
-      now: new Date("2026-01-03T00:00:00Z"),
-    });
-
-    assert.equal(result.enabled, true);
-    assert.equal(result.shouldCheck, false);
-    assert.equal(result.networkSkipped, false);
-    assert.equal(result.lastCheck?.toISOString(), "2026-01-01T00:00:00.000Z");
   });
 });

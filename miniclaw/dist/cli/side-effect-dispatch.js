@@ -1,6 +1,6 @@
 import { hasInjectedDeleteHandlers, hasInjectedDownloadHandlers, hasInjectedExtendHandlers, hasInjectedPublishUpdateHandlers, runInjectedDeleteCommand, runInjectedDownloadCommand, runInjectedExtendCommand, runInjectedPublishUpdateCommand, } from "./injected-runners.js";
 import { runLiveBrowserCommand } from "./live-browser.js";
-import { browserCommandMessage, printDoneBlock } from "./messages.js";
+import { browserCommandMessage, setCommandResult } from "./messages.js";
 import { planCommand } from "./planning.js";
 export async function runSideEffectCommand(parsed, sideEffects, createLiveSideEffects, workspace) {
     if (hasInjectedPublishUpdateHandlers(parsed.command, sideEffects)) {
@@ -23,7 +23,10 @@ export async function runSideEffectCommand(parsed, sideEffects, createLiveSideEf
     }
     const plan = await planCommand(parsed);
     if (plan.doneMessage) {
-        printDoneBlock(plan.doneMessage);
+        setCommandResult(parsed, "no_op", {
+            counts: { changed: 0, failed: 0, total: 0 },
+            message: plan.doneMessage,
+        });
         return 0;
     }
     if (plan.needsBrowser) {

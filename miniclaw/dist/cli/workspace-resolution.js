@@ -1,7 +1,16 @@
 import path from "node:path";
 import { APP_NAME, ensureDirectory, resolveWorkspace, } from "../workspace.js";
 function commandNeedsWorkspace(command) {
-    return !["help", "version", "create-config"].includes(command);
+    return [
+        "delete",
+        "diagnose",
+        "download",
+        "extend",
+        "publish",
+        "update",
+        "update-content-hash",
+        "verify",
+    ].includes(command);
 }
 export async function resolveCommandWorkspace(parsed) {
     if (!commandNeedsWorkspace(parsed.command)) {

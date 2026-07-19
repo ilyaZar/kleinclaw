@@ -5,7 +5,6 @@
  */
 
 import fs from "node:fs";
-import path from "node:path";
 
 import {
   buildBrowserSessionPlan,
@@ -94,14 +93,6 @@ function isBrowserSessionPlan(value: unknown): value is BrowserSessionPlan {
     "browserArgs" in value &&
     "remoteHost" in value
   );
-}
-
-export function browserSessionPlanFrom(
-  source: Config | BrowserConfig | BrowserSessionPlan,
-): BrowserSessionPlan {
-  return isBrowserSessionPlan(source)
-    ? source
-    : buildBrowserSessionPlan(source);
 }
 
 function firstContext(browser: BrowserSessionBrowser): BrowserSessionContext {
@@ -197,8 +188,4 @@ export async function createBrowserSession(
     plan,
     close: () => closeBrowserSession(plan.mode, browser, context),
   };
-}
-
-export function preferencesFileForSession(plan: BrowserSessionPlan): string | null {
-  return plan.preferencesFile ? path.resolve(plan.preferencesFile) : null;
 }

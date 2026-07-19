@@ -1,4 +1,83 @@
-import { type Command, type CommandPlan } from "./types.js";
+import {
+  type Command,
+  type CommandDiagnostic,
+  type CommandPlan,
+  type CommandResult,
+  type CommandStatus,
+  type ParsedArgs,
+} from "./types.js";
+
+export const SUPPORTED_COMMANDS = [
+  "verify",
+  "diagnose",
+  "publish",
+  "update",
+  "delete",
+  "download",
+  "extend",
+] as const;
+
+export function commandStatus(
+  changed: number,
+  failed: number,
+  total: number,
+): CommandStatus {
+  if (total === 0) {
+    return "no_op";
+  }
+  if (failed === 0) {
+    return changed === 0 ? "no_op" : "succeeded";
+  }
+  return changed === 0 ? "failed" : "partial_failure";
+}
+
+export function setCommandResult(
+  parsed: ParsedArgs,
+  status: CommandStatus,
+  options: {
+    counts?: CommandResult["counts"];
+    diagnostics?: CommandDiagnostic[];
+    message?: string;
+    version?: string;
+    commands?: string[];
+  } = {},
+): void {
+  const { message, ...result } = options;
+  parsed.result = {
+    schemaVersion: 1,
+    command: parsed.command,
+    status,
+    ...result,
+  };
+  if (parsed.output !== "json" && message) {
+    printDoneBlock(message);
+  }
+}
+
+export function setCountResult(
+  parsed: ParsedArgs,
+  changed: number,
+  failed: number,
+  total: number,
+  message: string,
+): void {
+  setCommandResult(parsed, commandStatus(changed, failed, total), {
+    counts: { changed, failed, total },
+    message,
+  });
+}
+
+export function writeCommandResult(parsed: ParsedArgs, exitCode: number): void {
+  if (parsed.output !== "json") {
+    return;
+  }
+  const result = parsed.result ?? {
+    schemaVersion: 1 as const,
+    command: parsed.command,
+    status: exitCode === 0 ? "succeeded" as const : "failed" as const,
+  };
+  console.log(JSON.stringify(result));
+}
 
 export function noAdsMessage(command: Command | string): string | null {
   switch (command) {

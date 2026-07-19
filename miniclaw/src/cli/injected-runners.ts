@@ -14,7 +14,7 @@ import {
   downloadDoneMessage,
   extendDoneMessage,
   noAdsMessage,
-  printDoneBlock,
+  setCountResult,
   sideEffectDoneMessage,
 } from "./messages.js";
 import {
@@ -40,7 +40,13 @@ async function loadInjectedSideEffectContext(
 ): Promise<LoadedInjectedSideEffectContext | null> {
   const { ads, config } = loaded ?? await loadSideEffectAds(parsed);
   if (!ads.length) {
-    printDoneBlock(noAdsMessage(parsed.command) ?? "DONE: No ads found.");
+    setCountResult(
+      parsed,
+      0,
+      0,
+      0,
+      noAdsMessage(parsed.command) ?? "DONE: No ads found.",
+    );
     return null;
   }
 
@@ -107,8 +113,16 @@ export async function runInjectedPublishUpdateCommand(
       publishAd: sideEffects.updateAd!,
     });
 
-  printDoneBlock(
-    sideEffectDoneMessage(parsed.command, result.succeeded, result.failed),
+  setCountResult(
+    parsed,
+    result.succeeded,
+    result.failed,
+    result.succeeded + result.failed,
+    sideEffectDoneMessage(
+      parsed.command,
+      result.succeeded,
+      result.failed,
+    ),
   );
   return 0;
 }
@@ -144,7 +158,14 @@ export async function runInjectedDeleteCommand(
     saveAdConfig: saveDataFile,
   });
 
-  printDoneBlock(deleteDoneMessage(result.deleted, result.processed));
+  const failed = Math.max(result.processed - result.deleted, 0);
+  setCountResult(
+    parsed,
+    result.deleted,
+    failed,
+    result.processed,
+    deleteDoneMessage(result.deleted, result.processed),
+  );
   return 0;
 }
 
@@ -177,7 +198,14 @@ export async function runInjectedExtendCommand(
     saveAdConfig: saveDataFile,
   });
 
-  printDoneBlock(extendDoneMessage(result.extended, result.attempted));
+  const failed = Math.max(result.attempted - result.extended, 0);
+  setCountResult(
+    parsed,
+    result.extended,
+    failed,
+    result.attempted,
+    extendDoneMessage(result.extended, result.attempted),
+  );
   return 0;
 }
 
@@ -221,7 +249,12 @@ export async function runInjectedDownloadCommand(
     selector: effectiveSelector,
   });
 
-  printDoneBlock(
+  const failed = Math.max(result.targetCount - result.downloaded, 0);
+  setCountResult(
+    parsed,
+    result.downloaded,
+    failed,
+    result.targetCount,
     downloadDoneMessage(
       result.selector,
       result.downloaded,

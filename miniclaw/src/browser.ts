@@ -35,7 +35,6 @@ export {
   buildBrowserSessionPlan,
   buildInitialPrefs,
   getCompatibleBrowser,
-  hasNonEmptyUserDataDirArg,
   resolveUserDataDirPaths,
   writeInitialPrefs,
   type BrowserSessionPlan,

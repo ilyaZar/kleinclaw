@@ -40,6 +40,4 @@ export interface BrowserSession {
 export declare class LiveBrowserSessionDisabledError extends Error {
     constructor();
 }
-export declare function browserSessionPlanFrom(source: Config | BrowserConfig | BrowserSessionPlan): BrowserSessionPlan;
 export declare function createBrowserSession(source: Config | BrowserConfig | BrowserSessionPlan, { allowLiveBrowser, cwd, defaultUserDataDir, driver, timeout, ensureProfilePrefs: shouldEnsureProfilePrefs, }?: CreateBrowserSessionOptions): Promise<BrowserSession>;
-export declare function preferencesFileForSession(plan: BrowserSessionPlan): string | null;

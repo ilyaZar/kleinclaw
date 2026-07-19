@@ -59,8 +59,7 @@ function which(command, searchPath = process.env.PATH ?? "") {
     }
     return null;
 }
-export function browserCandidatePaths({ env = process.env, homeDir = os.homedir(), platform = process.platform, searchPath = process.env.PATH ?? "", } = {}) {
-    void homeDir;
+export function browserCandidatePaths({ env = process.env, platform = process.platform, searchPath = process.env.PATH ?? "", } = {}) {
     const winPath = (...parts) => path.win32.join(...parts);
     const programFiles = env.PROGRAMFILES ?? "C:\\Program Files";
     const programFilesX86 = env["PROGRAMFILES(X86)"] ?? "C:\\Program Files (x86)";
@@ -133,18 +132,6 @@ export function buildInitialPrefs() {
 export function writeInitialPrefs(prefsFile) {
     fs.writeFileSync(prefsFile, JSON.stringify(buildInitialPrefs()), "utf8");
 }
-export function hasNonEmptyUserDataDirArg(args) {
-    for (const arg of args) {
-        if (!arg.startsWith("--user-data-dir=")) {
-            continue;
-        }
-        const raw = arg.split("=", 2)[1]?.trim().replace(/^["']|["']$/g, "") ?? "";
-        if (raw) {
-            return true;
-        }
-    }
-    return false;
-}
 function expandUser(filePath, homeDir) {
     if (filePath === "~") {
         return homeDir;
@@ -187,7 +174,7 @@ export function buildBrowserSessionPlan(configOrBrowserConfig, { defaultUserData
     if (configuredBinaryLocation && !pathExists(configuredBinaryLocation)) {
         throw new Error(`Specified browser binary [${configuredBinaryLocation}] does not exist.`);
     }
-    const binaryLocation = configuredBinaryLocation || getCompatibleBrowser({ homeDir });
+    const binaryLocation = configuredBinaryLocation || getCompatibleBrowser();
     const remoteHost = remoteDebuggingHostFromArguments(browserConfig.arguments);
     const remotePort = remoteDebuggingPortFromArguments(browserConfig.arguments);
     const environment = {};

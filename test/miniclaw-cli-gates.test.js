@@ -7,6 +7,11 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { Config } from "../miniclaw/dist/model/config-model.js";
+import {
+  IpRangeBlockedError,
+  ManualActionRequiredError,
+} from "../miniclaw/dist/auth.js";
+import { run } from "../miniclaw/dist/cli.js";
 import { parseArgs } from "../miniclaw/dist/cli/parser.js";
 import { planCommand } from "../miniclaw/dist/cli/planning.js";
 import { runLiveBrowserCommand } from "../miniclaw/dist/cli/live-browser.js";
@@ -35,23 +40,27 @@ function parsedArgs(overrides = {}) {
     workspaceMode: null,
     keepOldAds: false,
     allowLiveBrowser: false,
-    verbose: false,
-    lang: null,
     ...overrides,
   };
 }
 
 async function captureStderr(fn) {
   const original = console.error;
+  const originalLog = console.log;
   const lines = [];
+  const stdout = [];
   console.error = (...args) => {
     lines.push(args.join(" "));
   };
+  console.log = (...args) => {
+    stdout.push(args.join(" "));
+  };
   try {
     const result = await fn();
-    return { lines, result };
+    return { lines, result, stdout };
   } finally {
     console.error = original;
+    console.log = originalLog;
   }
 }
 
@@ -169,6 +178,69 @@ async function runSignalCleanupSmoke(signal, expectedCode) {
 }
 
 describe("miniclaw CLI planning", () => {
+  it("rejects removed no-op options and update checks", async () => {
+    for (const option of ["--lang=en", "--verbose", "-v"]) {
+      assert.throws(
+        () => parseArgs(["node", "miniclaw", option, "verify"]),
+        /unknown option/,
+      );
+    }
+
+    const updateCheck = await captureStderr(
+      () => run(["node", "miniclaw", "update-check"]),
+    );
+    assert.equal(updateCheck.result, 2);
+    assert.deepEqual(updateCheck.lines, ["Unknown command: update-check"]);
+  });
+
+  it("frames parse failures when JSON output was requested", async () => {
+    for (const argv of [
+      ["node", "miniclaw", "--output=json", "--unknown", "version"],
+      ["node", "miniclaw", "--output=json", "version", "help"],
+    ]) {
+      const output = await captureStderr(
+        () => assert.rejects(() => run(argv)),
+      );
+      assert.equal(output.stdout.length, 1);
+      assert.equal(JSON.parse(output.stdout[0]).status, "failed");
+    }
+  });
+
+  it("reports changed and skipped content hashes coherently", async () => {
+    const { configPath, tmp } = await createListingWorkspace();
+    const argv = [
+      "node",
+      "miniclaw",
+      "--output=json",
+      "--workspace-mode=portable",
+      `--config=${configPath}`,
+      "update-content-hash",
+    ];
+    try {
+      const first = await captureStderr(() => run(argv));
+      const second = await captureStderr(() => run(argv));
+      assert.deepEqual(JSON.parse(first.stdout[0]).counts, {
+        changed: 1,
+        failed: 0,
+        skipped: 0,
+        total: 1,
+      });
+      assert.deepEqual(JSON.parse(second.stdout[0]), {
+        schemaVersion: 1,
+        command: "update-content-hash",
+        status: "no_op",
+        counts: {
+          changed: 0,
+          failed: 0,
+          skipped: 1,
+          total: 1,
+        },
+      });
+    } finally {
+      await fs.rm(tmp, { force: true, recursive: true });
+    }
+  });
+
   it("plans verify without browser automation and keeps selected ad context", async () => {
     const { configPath, tmp } = await createListingWorkspace();
     try {
@@ -303,6 +375,76 @@ describe("miniclaw CLI browser gates", () => {
       })),
       /Workspace must be resolved before download/,
     );
+  });
+
+  it("stops live commands when Kleinanzeigen blocks the IP range", async () => {
+    const { configPath, tmp } = await createListingWorkspace();
+    try {
+      const { lines, result } = await captureStderr(() =>
+        runLiveBrowserCommand(
+          parsedArgs({
+            command: "publish",
+            configPath,
+            allowLiveBrowser: true,
+          }),
+          async () => {
+            throw new IpRangeBlockedError();
+          },
+        ),
+      );
+      const stderr = lines.join("\n");
+
+      assert.equal(result, 4);
+      assert.match(stderr, /temporarily blocked this network or IP range/i);
+      assert.match(stderr, /do not retry automatically/i);
+      assert.match(stderr, /inform the user and try again later/i);
+      assert.doesNotMatch(stderr, /Ref#|IP#|2a01:/i);
+    } finally {
+      await fs.rm(tmp, { force: true, recursive: true });
+    }
+  });
+
+  it("preserves manual-action results when browser cleanup fails", async () => {
+    const { configPath, tmp } = await createListingWorkspace();
+    try {
+      const output = await captureStderr(() =>
+        run(
+          [
+            "node",
+            "miniclaw",
+            "--output=json",
+            "--allow-live-browser",
+            "--workspace-mode=portable",
+            `--config=${configPath}`,
+            "publish",
+          ],
+          {
+            createLiveSideEffects: () => ({
+              close: async () => {
+                throw new Error("cleanup failed");
+              },
+              fetchPublishedAds: async () => {
+                throw new ManualActionRequiredError(
+                  "Manual browser action requires an interactive run.",
+                );
+              },
+              publishAd: async () => {},
+            }),
+          },
+        )
+      );
+      const payload = JSON.parse(output.stdout[0]);
+
+      assert.equal(output.result, 2);
+      assert.equal(payload.status, "failed");
+      assert.equal(
+        payload.diagnostics[0].code,
+        "manual_action_required",
+      );
+      assert.match(output.lines.join("\n"), /cleanup failed/);
+    } finally {
+      await fs.rm(tmp, { force: true, recursive: true });
+    }
   });
 
   it("closes live side effects when injected download hooks are incomplete", async () => {

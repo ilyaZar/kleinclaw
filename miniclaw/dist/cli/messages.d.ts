@@ -1,4 +1,15 @@
-import { type Command, type CommandPlan } from "./types.js";
+import { type Command, type CommandDiagnostic, type CommandPlan, type CommandResult, type CommandStatus, type ParsedArgs } from "./types.js";
+export declare const SUPPORTED_COMMANDS: readonly ["verify", "diagnose", "publish", "update", "delete", "download", "extend"];
+export declare function commandStatus(changed: number, failed: number, total: number): CommandStatus;
+export declare function setCommandResult(parsed: ParsedArgs, status: CommandStatus, options?: {
+    counts?: CommandResult["counts"];
+    diagnostics?: CommandDiagnostic[];
+    message?: string;
+    version?: string;
+    commands?: string[];
+}): void;
+export declare function setCountResult(parsed: ParsedArgs, changed: number, failed: number, total: number, message: string): void;
+export declare function writeCommandResult(parsed: ParsedArgs, exitCode: number): void;
 export declare function noAdsMessage(command: Command | string): string | null;
 export declare function printDoneBlock(message: string): void;
 export declare function printDiagnosticLine(status: string, message: string): void;

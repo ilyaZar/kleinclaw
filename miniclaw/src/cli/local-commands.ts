@@ -9,10 +9,13 @@ import {
   evaluateAutoPriceReduction,
 } from "../model/ad-model.js";
 import { loadSelectedAds } from "../selection.js";
-import { inspectLocalUpdateCheck } from "../update-check.js";
-import { type Workspace } from "../workspace.js";
 import { DEFAULT_CONFIG } from "./help.js";
-import { printDiagnosticLine, printDoneBlock } from "./messages.js";
+import {
+  commandStatus,
+  printDiagnosticLine,
+  setCommandResult,
+  setCountResult,
+} from "./messages.js";
 import { type ParsedArgs } from "./types.js";
 
 export async function createDefaultConfig(configPath: string): Promise<number> {
@@ -73,7 +76,9 @@ export async function verifyConfig(parsed: ParsedArgs): Promise<number> {
     }
   }
 
-  printDoneBlock("DONE: No configuration errors found.");
+  setCommandResult(parsed, "succeeded", {
+    message: "DONE: No configuration errors found.",
+  });
   return 0;
 }
 
@@ -87,7 +92,7 @@ export async function updateContentHashes(parsed: ParsedArgs): Promise<number> {
     excludeAdsWithId: false,
   });
   if (!ads.length) {
-    printDoneBlock("DONE: No active ads found.");
+    setCountResult(parsed, 0, 0, 0, "DONE: No active ads found.");
     return 0;
   }
 
@@ -102,38 +107,32 @@ export async function updateContentHashes(parsed: ParsedArgs): Promise<number> {
   }
 
   const noun = changed === 1 ? "ad" : "ads";
-  printDoneBlock(`DONE: Updated [content_hash] in ${changed} ${noun}`);
-  return 0;
-}
-
-export async function runUpdateCheck(
-  parsed: ParsedArgs,
-  workspace: Workspace,
-): Promise<number> {
-  const config = await loadConfigFile(parsed.configPath);
-  const result = await inspectLocalUpdateCheck({
-    config,
-    stateFile: path.join(workspace.stateDir, "update_check_state.json"),
-    skipIntervalCheck: true,
+  const skipped = ads.length - changed;
+  setCommandResult(parsed, commandStatus(changed, 0, ads.length), {
+    counts: { changed, failed: 0, skipped, total: ads.length },
+    message: `DONE: Updated [content_hash] in ${changed} ${noun}`,
   });
-
-  if (!result.enabled) {
-    printDoneBlock("DONE: update check disabled.");
-    return 0;
-  }
-  if (!result.shouldCheck) {
-    printDoneBlock("DONE: update check skipped until interval elapses.");
-    return 0;
-  }
-  printDoneBlock("DONE: update check network request skipped by local-only build.");
   return 0;
 }
 
 export async function runDiagnose(parsed: ParsedArgs): Promise<number> {
   const config = await loadConfigFile(parsed.configPath);
   const report = buildBrowserDiagnosticReport(config);
-  for (const line of report.lines) {
-    printDiagnosticLine(line.status, line.message);
+  if (parsed.output === "text") {
+    for (const line of report.lines) {
+      printDiagnosticLine(line.status, line.message);
+    }
   }
+  const diagnostics = report.lines.map((line) => ({
+    code: "browser_diagnostic" as const,
+    severity: line.status === "fail"
+      ? "error" as const
+      : line.status === "warn"
+      ? "warning" as const
+      : "info" as const,
+    message: line.message,
+  }));
+  const failed = diagnostics.some((line) => line.severity === "error");
+  setCommandResult(parsed, failed ? "failed" : "succeeded", { diagnostics });
   return 0;
 }

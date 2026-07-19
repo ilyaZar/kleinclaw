@@ -1,7 +1,5 @@
 export interface DiagnosticsPage {
     content?(): Promise<string>;
-    get_content?(): Promise<string>;
-    save_screenshot?(filePath: string): Promise<void>;
     screenshot?(options: {
         path: string;
     }): Promise<unknown>;

@@ -103,7 +103,6 @@ function detectModeFromFootprintsWithHits(configFile, options = {}) {
     const cwdConfig = path.join(runtimeCwd(options), "config.yaml");
     const xdgConfigDir = getXdgBaseDir("config", options);
     const xdgCacheDir = getXdgBaseDir("cache", options);
-    const xdgStateDir = getXdgBaseDir("state", options);
     const configInXdgTree = isRelativeTo(resolvedConfig, xdgConfigDir);
     const portableHits = [];
     const xdgHits = [];
@@ -134,9 +133,6 @@ function detectModeFromFootprintsWithHits(configFile, options = {}) {
     }
     if (exists(path.join(xdgCacheDir, "diagnostics"))) {
         xdgHits.push(path.join(xdgCacheDir, "diagnostics"));
-    }
-    if (exists(path.join(xdgStateDir, "update_check_state.json"))) {
-        xdgHits.push(path.join(xdgStateDir, "update_check_state.json"));
     }
     const portableDetected = portableHits.length > 0;
     const xdgDetected = xdgHits.length > 0;
