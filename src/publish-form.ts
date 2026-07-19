@@ -6,7 +6,6 @@
 
 import {
   AdUpdateStrategy,
-  type Ad,
 } from "./model/ad-model.js";
 import { By } from "./web-primitives.js";
 import {
@@ -44,7 +43,6 @@ import {
   type PublishAdFormOptions,
   type PublishAdFormResult,
   type PublishingFormController,
-  type PublishingFormOptions,
 } from "./publish-form/types.js";
 
 export {
@@ -260,33 +258,4 @@ export async function publishAdForm(
   }
 
   return { adConfig, adId, removedImageCount };
-}
-
-export async function fillCorePublishFormFields(
-  controller: PublishingFormController,
-  ad: Pick<
-    Ad,
-    | "description"
-    | "descriptionPrefix"
-    | "descriptionSuffix"
-    | "price"
-    | "priceType"
-    | "sellDirectly"
-    | "shippingCosts"
-    | "shippingOptions"
-    | "shippingType"
-    | "type"
-  >,
-  options: PublishingFormOptions = {},
-): Promise<void> {
-  if (ad.type === "WANTED") {
-    await controller.webClick(By.ID, "ad-type-WANTED");
-    await selectWantedShipping(controller, ad.shippingType, options);
-  } else {
-    await setShipping(controller, ad, options);
-  }
-
-  await configurePriceFields(controller, ad);
-  await configureSellDirectly(controller, ad, options);
-  await setDescriptionField(controller, ad);
 }

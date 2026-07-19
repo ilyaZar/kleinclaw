@@ -1,6 +1,10 @@
 import { type TimeoutKey } from "../model/config-model.js";
 import { By, type WebSelector } from "./selector.js";
 import { Is, type WebControllerOptions, type WebElement, type WebLocator, type WebPage, type WebRequestOptions, type WebResponse } from "./types.js";
+type LocatorOptions = {
+    parent?: WebLocator | null;
+    timeout?: number;
+};
 type FirstAvailableOptions = {
     description?: string;
     key?: TimeoutKey;
@@ -21,24 +25,15 @@ export declare class WebController {
     locatorFor(type: By, value: string, parent?: WebLocator | null): WebLocator;
     webExecute(jscode: string): Promise<unknown>;
     webRequest(url: string, method?: string, validResponseCodes?: number | Iterable<number>, headers?: Record<string, string> | null, { timeout }?: WebRequestOptions): Promise<WebResponse>;
-    webFind(type: By, value: string, { parent, timeout, }?: {
-        parent?: WebLocator | null;
-        timeout?: number;
-    }): Promise<WebLocator>;
+    webFind(type: By, value: string, { parent, timeout, }?: LocatorOptions): Promise<WebLocator>;
     webFindFirstAvailable(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: FirstAvailableOptions): Promise<[WebLocator, number]>;
     webFindFirstAvailableOnce(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: FirstAvailableOptions): Promise<[WebLocator, number]>;
     webTextFirstAvailable(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: FirstAvailableOptions): Promise<[string, number]>;
     webTextFirstAvailableOnce(selectors: readonly WebSelector[], { description, key, parent, timeout, }?: FirstAvailableOptions): Promise<[string, number]>;
     private webFindFirstAvailableWithinBudget;
     private webFindOnce;
-    webProbe(type: By, value: string, { parent, timeout, }?: {
-        parent?: WebLocator | null;
-        timeout?: number;
-    }): Promise<WebLocator | null>;
-    webFindAll(type: By, value: string, { parent, timeout, }?: {
-        parent?: WebLocator | null;
-        timeout?: number;
-    }): Promise<WebElement[]>;
+    webProbe(type: By, value: string, { parent, timeout, }?: LocatorOptions): Promise<WebLocator | null>;
+    webFindAll(type: By, value: string, { parent, timeout, }?: LocatorOptions): Promise<WebElement[]>;
     private webFindAllOnce;
     webCheck(type: By, value: string, attr: Is, timeout?: number): Promise<boolean>;
     webClick(type: By, value: string, timeout?: number): Promise<WebLocator>;

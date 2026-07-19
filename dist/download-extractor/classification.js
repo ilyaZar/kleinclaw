@@ -6,15 +6,9 @@
 import { elementAttribute } from "./browser-elements.js";
 import { dimensionsFromBelenConf, removeSuffix, textAttribute, visibleText, } from "./page-data.js";
 import { By, TimeoutError, } from "../web-primitives.js";
+import { CONDITION_TO_API } from "../condition.js";
 const BREADCRUMB_MIN_DEPTH = 2;
 const BREADCRUMB_RE = /\/c(\d+)/g;
-const CONDITION_DISPLAY_TO_API = {
-    defekt: "defect",
-    "gut": "ok",
-    "in ordnung": "alright",
-    neu: "new",
-    "sehr gut": "like_new",
-};
 const LABEL_TO_KEY = {
     zustand: "condition_s",
 };
@@ -111,7 +105,7 @@ export async function extractSpecialAttributesFromDom(controller) {
             continue;
         }
         if (attrKey === "condition_s") {
-            const apiValue = CONDITION_DISPLAY_TO_API[valueText];
+            const apiValue = CONDITION_TO_API[valueText];
             if (apiValue) {
                 attributes[attrKey] = apiValue;
             }

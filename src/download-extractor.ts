@@ -44,6 +44,7 @@ import {
   saveDownloadedAd,
   STAGING_DIR_PREFIX,
 } from "./download-extractor/persistence.js";
+import { type WebReadController } from "./download-extractor/controller.js";
 import {
   contentHashForLoadedAd,
   toAd,
@@ -54,10 +55,6 @@ import { type Config } from "./model/config-model.js";
 import {
   By,
   TimeoutError,
-  type WebElement,
-  type WebLocator,
-  type WebRequestOptions,
-  type WebResponse,
 } from "./web-primitives.js";
 
 export {
@@ -71,31 +68,9 @@ export {
 const LOG_SNIPPET_LIMIT = 120;
 const ELLIPSIS = "...";
 
-export interface DownloadExtractorController {
+export interface DownloadExtractorController extends WebReadController {
   readonly page?: { url?: string };
   webExecute(jscode: string): Promise<unknown>;
-  webFind(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | WebElement | null; timeout?: number },
-  ): Promise<WebLocator>;
-  webFindAll(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | WebElement | null; timeout?: number },
-  ): Promise<WebElement[]>;
-  webText(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | WebElement | null; timeout?: number },
-  ): Promise<string>;
-  webRequest(
-    url: string,
-    method?: string,
-    validResponseCodes?: number | Iterable<number>,
-    headers?: Record<string, string> | null,
-    options?: WebRequestOptions,
-  ): Promise<WebResponse>;
 }
 
 export interface ExtractAdPageInfoResult {

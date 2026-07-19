@@ -39,6 +39,11 @@ import {
 
 const DEFAULT_WEB_REQUEST_TIMEOUT = 60;
 
+type LocatorOptions = {
+  parent?: WebLocator | null;
+  timeout?: number;
+};
+
 type FirstAvailableOptions = {
   description?: string;
   key?: TimeoutKey;
@@ -191,10 +196,7 @@ export class WebController {
     {
       parent = null,
       timeout,
-    }: {
-      parent?: WebLocator | null;
-      timeout?: number;
-    } = {},
+    }: LocatorOptions = {},
   ): Promise<WebLocator> {
     return this.runWithTimeoutRetries(
       (effectiveTimeout) => this.webFindOnce(
@@ -400,10 +402,7 @@ export class WebController {
     {
       parent = null,
       timeout,
-    }: {
-      parent?: WebLocator | null;
-      timeout?: number;
-    } = {},
+    }: LocatorOptions = {},
   ): Promise<WebLocator | null> {
     const probeTimeout = this.baseTimeout("quickDom", timeout);
     try {
@@ -422,10 +421,7 @@ export class WebController {
     {
       parent = null,
       timeout,
-    }: {
-      parent?: WebLocator | null;
-      timeout?: number;
-    } = {},
+    }: LocatorOptions = {},
   ): Promise<WebElement[]> {
     return this.runWithTimeoutRetries(
       (effectiveTimeout) => this.webFindAllOnce(

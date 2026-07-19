@@ -7,25 +7,13 @@
 import { extractAdIdFromAdUrl } from "../ad-identity.js";
 import { type ContactInput } from "../model/ad-model.js";
 import { isRecord } from "../value-guards.js";
+import { type WebReadController } from "./controller.js";
 import {
   By,
   TimeoutError,
-  type WebElement,
-  type WebLocator,
 } from "../web-primitives.js";
 
-interface ContactController {
-  webFind(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | WebElement | null; timeout?: number },
-  ): Promise<WebLocator>;
-  webText(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | WebElement | null; timeout?: number },
-  ): Promise<string>;
-}
+type ContactController = Pick<WebReadController, "webFind" | "webText">;
 
 export function extractSellDirectlyFromAdPage(
   pageUrl: string,

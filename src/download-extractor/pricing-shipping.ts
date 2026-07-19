@@ -6,11 +6,8 @@
 
 import { OPTION_NAME_BY_CARRIER_CODE, type AdInput } from "../model/ad-model.js";
 import { type Config } from "../model/config-model.js";
-import {
-  By,
-  TimeoutError,
-  type WebResponse,
-} from "../web-primitives.js";
+import { By, TimeoutError } from "../web-primitives.js";
+import { type WebReadController } from "./controller.js";
 import {
   parseGermanDecimal,
   parsePriceAmount,
@@ -21,15 +18,10 @@ const SHIPPING_OPTIONS_URL =
   "https://gateway.kleinanzeigen.de/postad/api/v1/" +
   "shipping-options?posterType=PRIVATE";
 
-interface PricingShippingController {
-  webText(type: By, value: string): Promise<string>;
-  webRequest(
-    url: string,
-    method?: string,
-    validResponseCodes?: number | Iterable<number>,
-    headers?: Record<string, string> | null,
-  ): Promise<WebResponse>;
-}
+type PricingShippingController = Pick<
+  WebReadController,
+  "webRequest" | "webText"
+>;
 
 export async function extractPricingInfoFromAdPage(
   controller: PricingShippingController,

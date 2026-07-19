@@ -4,7 +4,7 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import { OPTION_NAME_BY_CARRIER_CODE } from "../model/ad-model.js";
-import { By, TimeoutError, } from "../web-primitives.js";
+import { By, TimeoutError } from "../web-primitives.js";
 import { parseGermanDecimal, parsePriceAmount, shippingOptionsFromResponse, } from "./page-data.js";
 const SHIPPING_OPTIONS_URL = "https://gateway.kleinanzeigen.de/postad/api/v1/" +
     "shipping-options?posterType=PRIVATE";
