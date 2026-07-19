@@ -28,11 +28,13 @@ jobs:
 
       - run: npm ci --ignore-scripts
 
-      - run: npm run build:miniclaw
+      - run: npm run build
 
-      - run: npm test
+      - run: npm run generated:check
 
-      - run: npm run coverage
+      - run: npm run test:built
+
+      - run: npm run coverage:built
 
       - uses: codecov/codecov-action@v5
         with:
