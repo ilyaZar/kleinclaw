@@ -11,43 +11,24 @@ import {
   textAttribute,
   visibleText,
 } from "./page-data.js";
+import { type WebReadController } from "./controller.js";
 import {
   By,
   TimeoutError,
   type WebElement,
-  type WebLocator,
 } from "../web-primitives.js";
+import { CONDITION_TO_API } from "../condition.js";
 
 const BREADCRUMB_MIN_DEPTH = 2;
 const BREADCRUMB_RE = /\/c(\d+)/g;
-const CONDITION_DISPLAY_TO_API: Record<string, string> = {
-  defekt: "defect",
-  "gut": "ok",
-  "in ordnung": "alright",
-  neu: "new",
-  "sehr gut": "like_new",
-};
 const LABEL_TO_KEY: Record<string, string> = {
   zustand: "condition_s",
 };
 
-interface ClassificationController {
-  webFind(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | WebElement | null; timeout?: number },
-  ): Promise<WebLocator>;
-  webFindAll(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | WebElement | null; timeout?: number },
-  ): Promise<WebElement[]>;
-  webText(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | WebElement | null; timeout?: number },
-  ): Promise<string>;
-}
+type ClassificationController = Pick<
+  WebReadController,
+  "webFind" | "webFindAll" | "webText"
+>;
 
 export async function extractCategoryFromAdPage(
   controller: ClassificationController,
@@ -174,7 +155,7 @@ export async function extractSpecialAttributesFromDom(
       continue;
     }
     if (attrKey === "condition_s") {
-      const apiValue = CONDITION_DISPLAY_TO_API[valueText];
+      const apiValue = CONDITION_TO_API[valueText];
       if (apiValue) {
         attributes[attrKey] = apiValue;
       }

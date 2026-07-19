@@ -8,12 +8,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { elementAttribute } from "./browser-elements.js";
-import {
-  By,
-  TimeoutError,
-  type WebElement,
-  type WebLocator,
-} from "../web-primitives.js";
+import { type WebReadController } from "./controller.js";
+import { By, TimeoutError } from "../web-primitives.js";
 
 export type DownloadImage = (
   url: string,
@@ -31,18 +27,10 @@ export interface DownloadImagesFromAdPageOptions {
   imageDownloadTimeout?: number;
 }
 
-interface DownloadImagesController {
-  webFind(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | WebElement | null; timeout?: number },
-  ): Promise<WebLocator>;
-  webFindAll(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | WebElement | null; timeout?: number },
-  ): Promise<WebElement[]>;
-}
+type DownloadImagesController = Pick<
+  WebReadController,
+  "webFind" | "webFindAll"
+>;
 
 const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT = 60;
 

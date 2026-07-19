@@ -25,4 +25,4 @@ export declare const VISIBILITY_UPSELL_SKIP_BUTTON_XPATH = "//button[contains(.,
 export declare const PAYMENT_FORM_ID = "myftr-shppngcrt-frm";
 export declare const CONFIRMATION_URL_FRAGMENT = "p-anzeige-aufgeben-bestaetigung.html?adId=";
 export declare const TRACKING_SCRIPT_TEXT_JS = "[...document.querySelectorAll('script')].map(s => s.textContent).join('\\n')";
-export declare const CONDITION_GERMAN_TO_API: Record<string, string>;
+export { CONDITION_TO_API as CONDITION_GERMAN_TO_API } from "../condition.js";

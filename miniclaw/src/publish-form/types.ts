@@ -5,12 +5,7 @@
  */
 
 import { type Ad, type AdUpdateStrategy } from "../model/ad-model.js";
-import {
-  type By,
-  type Is,
-  type WebElement,
-  type WebLocator,
-} from "../web-primitives.js";
+import { type WebController } from "../web-primitives.js";
 
 export type PriceType = Ad["priceType"];
 export type ShippingType = Ad["shippingType"];
@@ -49,44 +44,21 @@ export type PublishAdFormAd = Pick<
   | "type"
 >;
 
-export interface PublishingFormController {
-  webCheck(type: By, value: string, attr: Is, timeout?: number): Promise<boolean>;
-  webClick(type: By, value: string, timeout?: number): Promise<WebLocator>;
-  webExecute(jscode: string): Promise<unknown>;
-  webFind(
-    type: By,
-    value: string,
-    options?: { timeout?: number },
-  ): Promise<WebLocator>;
-  webFindAll(
-    type: By,
-    value: string,
-    options?: { timeout?: number },
-  ): Promise<WebElement[]>;
-  webInput(type: By, value: string, text: string, timeout?: number): Promise<WebLocator>;
-  webOpen(
-    url: string,
-    options?: { timeout?: number; reloadIfAlreadyOpen?: boolean },
-  ): Promise<void>;
-  webProbe(
-    type: By,
-    value: string,
-    options?: { timeout?: number },
-  ): Promise<WebLocator | null>;
-  webSelect(type: By, value: string, selectedValue: string, timeout?: number): Promise<WebLocator>;
-  webSelectButtonCombobox(
-    elementId: string,
-    selectedValue: string,
-    timeout?: number,
-  ): Promise<WebElement>;
-  webSelectCombobox(
-    type: By,
-    value: string,
-    selectedValue: string,
-    timeout?: number,
-  ): Promise<WebElement>;
-  webSleep(minMs?: number, maxMs?: number): Promise<void>;
-}
+export type PublishingFormController = Pick<
+  WebController,
+  | "webCheck"
+  | "webClick"
+  | "webExecute"
+  | "webFind"
+  | "webFindAll"
+  | "webInput"
+  | "webOpen"
+  | "webProbe"
+  | "webSelect"
+  | "webSelectButtonCombobox"
+  | "webSelectCombobox"
+  | "webSleep"
+>;
 
 export interface PublishingFormOptions {
   quickDomTimeout?: number;

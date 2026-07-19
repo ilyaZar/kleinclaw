@@ -8,25 +8,12 @@ import { type TimingRecorder } from "./timing-collector.js";
 import { type PublishAdFormOptions, type PublishAdFormResult, type PublishingFormController } from "./publish-form.js";
 import { type PublishedAd } from "./published-ads.js";
 import { type CapturePublishError, type DeleteAdHook, type PublishAttemptContext } from "./publish-orchestration.js";
-import { WebController, type By, type WebElement, type WebLocator, type WebResponse } from "./web-primitives.js";
-export interface BrowserPublishController extends PublishingFormController {
+import { WebController } from "./web-primitives.js";
+export type BrowserPublishController = PublishingFormController & Pick<WebController, "webRequest" | "webText"> & {
     readonly page?: {
         url?: string;
     };
-    webFind(type: By, value: string, options?: {
-        parent?: WebLocator | null;
-        timeout?: number;
-    }): Promise<WebLocator>;
-    webFindAll(type: By, value: string, options?: {
-        parent?: WebLocator | null;
-        timeout?: number;
-    }): Promise<WebElement[]>;
-    webText(type: By, value: string, options?: {
-        parent?: WebLocator | null;
-        timeout?: number;
-    }): Promise<string>;
-    webRequest(url: string, method?: string, validResponseCodes?: number | Iterable<number>, headers?: Record<string, string> | null): Promise<WebResponse>;
-}
+};
 export type BrowserPublishFormOptions = Pick<PublishAdFormOptions, "autoRestart" | "captchaDetectionTimeout" | "confirmationTimeout" | "dismissConsentBanner" | "imageUploadTimeout" | "onManualCaptcha" | "onPaymentForm" | "quickDomTimeout" | "restartDelaySeconds" | "scrollPageDown" | "waitForConfirmation" | "waitForImageUpload">;
 export interface BrowserPublishUpdateSideEffects {
     captureError?: CapturePublishError;

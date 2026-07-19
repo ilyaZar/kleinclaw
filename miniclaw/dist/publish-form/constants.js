@@ -33,11 +33,4 @@ export const VISIBILITY_UPSELL_SKIP_BUTTON_XPATH = '//button[contains(., "Ohne H
 export const PAYMENT_FORM_ID = "myftr-shppngcrt-frm";
 export const CONFIRMATION_URL_FRAGMENT = "p-anzeige-aufgeben-bestaetigung.html?adId=";
 export const TRACKING_SCRIPT_TEXT_JS = "[...document.querySelectorAll('script')].map(s => s.textContent).join('\\n')";
-export const CONDITION_GERMAN_TO_API = {
-    neu: "new",
-    wie_neu: "like_new",
-    sehr_gut: "like_new",
-    gut: "ok",
-    in_ordnung: "alright",
-    defekt: "defect",
-};
+export { CONDITION_TO_API as CONDITION_GERMAN_TO_API } from "../condition.js";

@@ -93,15 +93,3 @@ export async function publishAdForm(controller, ad, { adConfig, adFile, autoRest
     }
     return { adConfig, adId, removedImageCount };
 }
-export async function fillCorePublishFormFields(controller, ad, options = {}) {
-    if (ad.type === "WANTED") {
-        await controller.webClick(By.ID, "ad-type-WANTED");
-        await selectWantedShipping(controller, ad.shippingType, options);
-    }
-    else {
-        await setShipping(controller, ad, options);
-    }
-    await configurePriceFields(controller, ad);
-    await configureSellDirectly(controller, ad, options);
-    await setDescriptionField(controller, ad);
-}

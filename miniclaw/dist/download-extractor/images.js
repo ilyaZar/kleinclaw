@@ -6,7 +6,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { elementAttribute } from "./browser-elements.js";
-import { By, TimeoutError, } from "../web-primitives.js";
+import { By, TimeoutError } from "../web-primitives.js";
 const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT = 60;
 function contentTypeExtension(contentType) {
     const normalized = (contentType ?? "").split(";", 1)[0]?.trim().toLowerCase();

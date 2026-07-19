@@ -65,37 +65,15 @@ import {
 import {
   TimeoutError,
   WebController,
-  type By,
-  type WebElement,
-  type WebLocator,
   type WebPage,
-  type WebResponse,
 } from "./web-primitives.js";
 
-export interface BrowserPublishController extends PublishingFormController {
+export type BrowserPublishController = PublishingFormController & Pick<
+  WebController,
+  "webRequest" | "webText"
+> & {
   readonly page?: { url?: string };
-  webFind(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | null; timeout?: number },
-  ): Promise<WebLocator>;
-  webFindAll(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | null; timeout?: number },
-  ): Promise<WebElement[]>;
-  webText(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | null; timeout?: number },
-  ): Promise<string>;
-  webRequest(
-    url: string,
-    method?: string,
-    validResponseCodes?: number | Iterable<number>,
-    headers?: Record<string, string> | null,
-  ): Promise<WebResponse>;
-}
+};
 
 export type BrowserPublishFormOptions = Pick<
   PublishAdFormOptions,

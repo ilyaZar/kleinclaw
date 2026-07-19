@@ -1,27 +1,14 @@
 import { type DownloadImage, type DownloadImageOptions } from "./download-extractor/images.js";
+import { type WebReadController } from "./download-extractor/controller.js";
 import { type AdInput, type ContactInput } from "./model/ad-model.js";
 import { type Config } from "./model/config-model.js";
-import { By, type WebElement, type WebLocator, type WebRequestOptions, type WebResponse } from "./web-primitives.js";
 export { sanitizeFolderName, } from "./download-extractor/naming.js";
 export { AD_SCHEMA_HEADER, FileExistsError, } from "./download-extractor/persistence.js";
-export interface DownloadExtractorController {
+export interface DownloadExtractorController extends WebReadController {
     readonly page?: {
         url?: string;
     };
     webExecute(jscode: string): Promise<unknown>;
-    webFind(type: By, value: string, options?: {
-        parent?: WebLocator | WebElement | null;
-        timeout?: number;
-    }): Promise<WebLocator>;
-    webFindAll(type: By, value: string, options?: {
-        parent?: WebLocator | WebElement | null;
-        timeout?: number;
-    }): Promise<WebElement[]>;
-    webText(type: By, value: string, options?: {
-        parent?: WebLocator | WebElement | null;
-        timeout?: number;
-    }): Promise<string>;
-    webRequest(url: string, method?: string, validResponseCodes?: number | Iterable<number>, headers?: Record<string, string> | null, options?: WebRequestOptions): Promise<WebResponse>;
 }
 export interface ExtractAdPageInfoResult {
     adConfig: AdInput;
