@@ -1,15 +1,64 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import { describe, it } from "node:test";
 
 import {
   fillLoginDataAndSend,
   getLoginState,
+  IpRangeBlockedError,
+  login,
   LoginDetectionReason,
+  ManualActionRequiredError,
 } from "../miniclaw/dist/auth.js";
 import { Config } from "../miniclaw/dist/model/config-model.js";
 import { By } from "../miniclaw/dist/web-primitives.js";
 
 describe("miniclaw auth", () => {
+  it("stops before login actions when the IP range is blocked", async () => {
+    const pageText = await fs.readFile(
+      new URL("fixtures/ip-range-blocked-page.txt", import.meta.url),
+      "utf8",
+    );
+    let openCalls = 0;
+    const controller = {
+      page: { url: "about:blank" },
+      async webOpen(url) {
+        openCalls += 1;
+        this.page.url = url;
+      },
+      async webExecute() {
+        return pageText;
+      },
+      async webClick() {
+        assert.fail("blocked page must stop before clicks");
+      },
+      async webInput() {
+        assert.fail("blocked page must stop before credential input");
+      },
+      async webProbe() {
+        assert.fail("blocked page must stop before login probes");
+      },
+      async webSleep() {},
+      async webText() {
+        assert.fail("blocked page must stop before login text lookup");
+      },
+    };
+
+    await assert.rejects(
+      () => login(
+        controller,
+        { username: "user@example.invalid", password: "secret" },
+        { quickDomTimeout: 0.1 },
+      ),
+      (error) => {
+        assert.ok(error instanceof IpRangeBlockedError);
+        assert.match(error.message, /temporarily blocked this network or IP range/i);
+        return true;
+      },
+    );
+    assert.equal(openCalls, 1);
+  });
+
   it("uses the single-attempt selector-group helper for login probes", async () => {
     const helperCalls = [];
     const controller = {
@@ -75,6 +124,14 @@ describe("miniclaw auth", () => {
         },
       ),
       expected,
+    );
+    await assert.rejects(
+      () => fillLoginDataAndSend(
+        controller,
+        { username: "user@example.invalid", password: "secret" },
+        { captchaDetectionTimeout: 0.1 },
+      ),
+      (error) => error instanceof ManualActionRequiredError,
     );
 
     assert.equal(manualCaptchaCalls, 1);

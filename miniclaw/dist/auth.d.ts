@@ -17,6 +17,7 @@ export interface LoginController {
         url?: string;
     };
     webClick(type: By, value: string, timeout?: number): Promise<WebLocator>;
+    webExecute(jscode: string): Promise<unknown>;
     webInput(type: By, value: string, text: string, timeout?: number): Promise<WebLocator>;
     webOpen(url: string, options?: {
         timeout?: number;
@@ -50,6 +51,13 @@ export interface VerificationPromptContext {
     kind: "sms" | "email";
     message: string;
 }
+export declare const IP_RANGE_BLOCK_MESSAGE = "Kleinanzeigen temporarily blocked this network or IP range.";
+export declare class IpRangeBlockedError extends Error {
+    constructor();
+}
+export declare class ManualActionRequiredError extends Error {
+    constructor(message: string);
+}
 export interface LoginOptions {
     captchaDetectionTimeout?: number;
     captureDiagnostics?: (context: LoginDiagnosticsContext) => Promise<void> | void;
@@ -74,6 +82,5 @@ export declare function waitForAuth0PasswordStep(controller: LoginController, op
 export declare function waitForPostAuth0SubmitTransition(controller: LoginController, credentials: LoginConfig, options?: LoginOptions): Promise<void>;
 export declare function fillLoginDataAndSend(controller: LoginController, credentials: LoginConfig, options?: LoginOptions): Promise<void>;
 export declare function clickGdprBanner(controller: LoginController, timeout: number): Promise<void>;
-export declare function dismissConsentBanner(controller: LoginController, options?: LoginOptions): Promise<void>;
 export declare function handleAfterLoginLogic(controller: LoginController, options?: LoginOptions): Promise<void>;
 export declare function login(controller: LoginController, credentials: LoginConfig, options?: LoginOptions): Promise<LoginDetectionResult>;

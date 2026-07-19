@@ -37,6 +37,19 @@ export class LoginDetectionResult {
         this.reason = reason;
     }
 }
+export const IP_RANGE_BLOCK_MESSAGE = "Kleinanzeigen temporarily blocked this network or IP range.";
+export class IpRangeBlockedError extends Error {
+    constructor() {
+        super(IP_RANGE_BLOCK_MESSAGE);
+        this.name = "IpRangeBlockedError";
+    }
+}
+export class ManualActionRequiredError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "ManualActionRequiredError";
+    }
+}
 function isTimeoutLike(error) {
     return error instanceof TimeoutError ||
         hasErrorName(error, "TimeoutError");
@@ -59,6 +72,19 @@ function loginOptionsWithDefaults(options) {
 function requireLoginCredentials(credentials) {
     if (!credentials.username.trim() || !credentials.password) {
         throw new Error("login.username and login.password must be configured before browser login");
+    }
+}
+function isIpRangeBlockedPageText(text) {
+    const normalized = String(text ?? "").replace(/\s+/g, " ").toLowerCase();
+    return normalized.includes("ip-bereich vorübergehend gesperrt") ||
+        (normalized.includes("ip-bereich") &&
+            normalized.includes("vorbeugung von betrug") &&
+            normalized.includes("von der nutzung von kleinanzeigen ausgeschlossen"));
+}
+async function assertIpRangeAvailable(controller) {
+    const text = await controller.webExecute("document.body ? document.body.innerText.slice(0, 4000) : ''");
+    if (isIpRangeBlockedPageText(text)) {
+        throw new IpRangeBlockedError();
     }
 }
 export function currentPageUrl(controller) {
@@ -222,7 +248,7 @@ export async function isLoggedIn(controller, credentials, options = {}) {
 }
 async function promptForManualAction(message) {
     if (!input.isTTY || !output.isTTY) {
-        throw new Error(`${message} Manual browser action requires an interactive run.`);
+        throw new ManualActionRequiredError(`${message} Manual browser action requires an interactive run.`);
     }
     console.error("############################################");
     console.error(message);
@@ -343,10 +369,6 @@ export async function clickGdprBanner(controller, timeout) {
         await controller.webSleep();
     }
 }
-export async function dismissConsentBanner(controller, options = {}) {
-    const resolvedOptions = loginOptionsWithDefaults(options);
-    await clickGdprBanner(controller, resolvedOptions.quickDomTimeout);
-}
 async function checkVerificationPrompt(controller, { kind, message, onVerificationPrompt, timeout, }) {
     const element = await controller.webProbe(By.TEXT, message, { timeout });
     if (!element) {
@@ -374,6 +396,7 @@ export async function login(controller, credentials, options = {}) {
     requireLoginCredentials(credentials);
     const resolvedOptions = loginOptionsWithDefaults(options);
     await controller.webOpen(resolvedOptions.rootUrl);
+    await assertIpRangeAvailable(controller);
     await clickGdprBanner(controller, resolvedOptions.quickDomTimeout);
     let detectionResult = await getLoginState(controller, credentials, {
         ...resolvedOptions,
@@ -386,6 +409,7 @@ export async function login(controller, credentials, options = {}) {
         await controller.webOpen(`${resolvedOptions.rootUrl}/m-einloggen-sso.html`, {
             timeout: resolvedOptions.pageLoadTimeout,
         });
+        await assertIpRangeAvailable(controller);
     }
     catch (error) {
         if (isTimeoutLike(error)) {
@@ -409,7 +433,7 @@ export async function login(controller, credentials, options = {}) {
         }
         throw error;
     }
-    await dismissConsentBanner(controller, resolvedOptions);
+    await clickGdprBanner(controller, resolvedOptions.quickDomTimeout);
     detectionResult = await getLoginState(controller, credentials, {
         ...resolvedOptions,
         captureSelectorDiagnostics: false,
