@@ -17,7 +17,10 @@
    `kleinanzeigen_publish`, `kleinanzeigen_update`, `kleinanzeigen_delete`,
    `kleinanzeigen_download`, or `kleinanzeigen_extend`.
 7. Report only the sanitized result returned by the tool. If the result has
-   `needsUserAction`, tell the user to handle the account step outside chat in
-   a terminal/browser, then retry `kleinanzeigen_status` or
-   `kleinanzeigen_verify`. If the result says configuration or credentials need
-   attention, ask the user to fix that outside the chat and rerun verification.
+   an `ip_range_blocked` diagnostic, stop automatic retries, explain the
+   temporary network block, and tell the user to try again later. Do not treat
+   it as a credential or browser configuration failure. For other
+   `needsUserAction` results, tell the user to handle the account step outside
+   chat in a terminal/browser before retrying. If the result says configuration
+   or credentials need attention, ask the user to fix that outside the chat and
+   rerun verification.
