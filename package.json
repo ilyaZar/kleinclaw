@@ -42,7 +42,7 @@
     "coverage:built": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info",
     "generated:check": "test -z \"$(git status --short --untracked-files=all -- dist miniclaw/dist)\"",
     "package:check": "npm run build && npm run package:check:built",
-    "package:check:built": "node --test test/package.test.js",
+    "package:check:built": "node --test test/package/*.test.js",
     "test": "npm run build && npm run test:built",
     "test:built": "node --test",
     "verify": "npm run build && npm run generated:check && npm run test:built"
