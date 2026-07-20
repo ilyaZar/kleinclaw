@@ -9,41 +9,28 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { VERSION, usage } from "./cli/help.js";
+import { VERSION, usage } from "./cli/cli-help.js";
 import {
   createDefaultConfig,
   runDiagnose,
   updateContentHashes,
   verifyConfig,
-} from "./cli/local-commands.js";
-import { parseArgs, prepareCommand } from "./cli/parser.js";
+} from "./cli/cli-local-commands.js";
+import { parseArgs, prepareCommand } from "./cli/cli-parser.js";
 import {
   setCommandResult,
   SUPPORTED_COMMANDS,
   writeCommandResult,
-} from "./cli/messages.js";
-import { runSideEffectCommand } from "./cli/side-effect-dispatch.js";
-import { resolveCommandWorkspace } from "./cli/workspace-resolution.js";
+} from "./cli/cli-messages.js";
+import { runSideEffectCommand } from "./cli/cli-side-effect-dispatch.js";
+import {
+  resolveCommandWorkspace,
+} from "./cli/cli-workspace-resolution.js";
 import {
   type ParsedArgs,
   type RunOptions,
-} from "./cli/types.js";
+} from "./cli/cli-types.js";
 import { errorMessage, hasErrorName } from "./value-guards.js";
-
-export { isValidAdsSelector, parseArgs, prepareCommand } from "./cli/parser.js";
-export { planCommand } from "./cli/planning.js";
-export type {
-  CloseableSideEffectHandlers,
-  Command,
-  CommandPlan,
-  CommandPreparation,
-  CreateLiveSideEffects,
-  ParsedArgs,
-  PlannedAd,
-  RunOptions,
-  SideEffectCommandContext,
-  SideEffectHandlers,
-} from "./cli/types.js";
 
 async function executeCommand(
   parsed: ParsedArgs,
