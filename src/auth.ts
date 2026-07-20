@@ -5,166 +5,50 @@
  */
 
 import assert from "node:assert";
-import { stdin as input, stdout as output } from "node:process";
-import { createInterface } from "node:readline/promises";
 
-import { type LoginConfig, type TimeoutKey } from "./model/config-model.js";
-import { checkAndWaitForCaptcha } from "./publish-form.js";
-import { hasErrorName } from "./value-guards.js";
+import { fillLoginDataAndSend } from "./auth-auth0-flow.js";
 import {
-  By,
-  TimeoutError,
-  type WebSelector,
-  type WebLocator,
-} from "./web-primitives.js";
+  captureLoginDiagnostics,
+  currentPageUrl,
+  getLoginState,
+  type LoginDetectionResult,
+} from "./auth-login-state.js";
+import {
+  clickGdprBanner,
+  handleAfterLoginLogic,
+  ManualActionRequiredError,
+} from "./auth-manual-verification.js";
+import {
+  assertIpRangeAvailable,
+  IP_RANGE_BLOCK_MESSAGE,
+  IpRangeBlockedError,
+} from "./auth-network-gate.js";
+import {
+  isTimeoutLike,
+  type LoginController,
+  type LoginDiagnosticsContext,
+  LoginDetectionReason,
+  type LoginOptions,
+  resolveLoginOptions,
+  type VerificationPromptContext,
+} from "./auth-types.js";
+import { type LoginConfig } from "./model/browser-login-config.js";
 
-export const LOGIN_DETECTION_SELECTORS: readonly [By, string][] = [
-  [By.CLASS_NAME, "mr-medium"],
-  [By.ID, "user-email"],
-];
-
-export const LOGGED_OUT_CTA_SELECTORS: readonly [By, string][] = [
-  [By.CSS_SELECTOR, 'a[href*="einloggen"]'],
-  [By.CSS_SELECTOR, 'a[href*="/m-einloggen"]'],
-];
-
-export enum LoginDetectionReason {
-  USER_INFO_MATCH = "USER_INFO_MATCH",
-  CTA_MATCH = "CTA_MATCH",
-  SELECTOR_TIMEOUT = "SELECTOR_TIMEOUT",
-}
-
-export class LoginDetectionResult {
-  readonly isLoggedIn: boolean;
-  readonly reason: LoginDetectionReason;
-
-  constructor(isLoggedIn: boolean, reason: LoginDetectionReason) {
-    if (isLoggedIn && reason !== LoginDetectionReason.USER_INFO_MATCH) {
-      throw new Error("isLoggedIn=true requires reason=USER_INFO_MATCH");
-    }
-    if (!isLoggedIn && reason === LoginDetectionReason.USER_INFO_MATCH) {
-      throw new Error(
-        "isLoggedIn=false requires reason=CTA_MATCH or SELECTOR_TIMEOUT",
-      );
-    }
-    this.isLoggedIn = isLoggedIn;
-    this.reason = reason;
-  }
-}
-
-export interface LoginController {
-  readonly page?: { url?: string };
-  webClick(type: By, value: string, timeout?: number): Promise<WebLocator>;
-  webExecute(jscode: string): Promise<unknown>;
-  webInput(type: By, value: string, text: string, timeout?: number): Promise<WebLocator>;
-  webOpen(
-    url: string,
-    options?: { timeout?: number; reloadIfAlreadyOpen?: boolean },
-  ): Promise<void>;
-  webProbe(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | null; timeout?: number },
-  ): Promise<WebLocator | null>;
-  webSleep(minMs?: number, maxMs?: number): Promise<void>;
-  webText(
-    type: By,
-    value: string,
-    options?: { parent?: WebLocator | null; timeout?: number },
-  ): Promise<string>;
-  webTextFirstAvailable?(
-    selectors: readonly [By, string][],
-    options?: { parent?: WebLocator | null; timeout?: number },
-  ): Promise<[string, number]>;
-  webTextFirstAvailableOnce?(
-    selectors: readonly WebSelector[],
-    options?: { parent?: WebLocator | null; key?: TimeoutKey; timeout?: number },
-  ): Promise<[string, number]>;
-}
-
-export interface LoginDiagnosticsContext {
-  basePrefix: string;
-  error?: unknown;
-  reason?: LoginDetectionReason;
-}
-
-export interface VerificationPromptContext {
-  kind: "sms" | "email";
-  message: string;
-}
-
-export const IP_RANGE_BLOCK_MESSAGE =
-  "Kleinanzeigen temporarily blocked this network or IP range.";
-
-export class IpRangeBlockedError extends Error {
-  constructor() {
-    super(IP_RANGE_BLOCK_MESSAGE);
-    this.name = "IpRangeBlockedError";
-  }
-}
-
-export class ManualActionRequiredError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ManualActionRequiredError";
-  }
-}
-
-export interface LoginOptions {
-  captchaDetectionTimeout?: number;
-  captureDiagnostics?: (
-    context: LoginDiagnosticsContext,
-  ) => Promise<void> | void;
-  emailVerificationTimeout?: number;
-  loginDetectionTimeout?: number;
-  onManualCaptcha?: () => Promise<void> | void;
-  onVerificationPrompt?: (
-    context: VerificationPromptContext,
-  ) => Promise<void> | void;
-  pageLoadTimeout?: number;
-  pollIntervalMs?: number;
-  quickDomTimeout?: number;
-  rootUrl?: string;
-  smsVerificationTimeout?: number;
-}
-
-interface TextMatch {
-  index: number;
-  text: string;
-}
-
-function isTimeoutLike(error: unknown): boolean {
-  return error instanceof TimeoutError ||
-    hasErrorName(error, "TimeoutError");
-}
-
-function loginOptionsWithDefaults(options: LoginOptions): Required<
-  Pick<
-    LoginOptions,
-    | "captchaDetectionTimeout"
-    | "emailVerificationTimeout"
-    | "loginDetectionTimeout"
-    | "pageLoadTimeout"
-    | "pollIntervalMs"
-    | "quickDomTimeout"
-    | "rootUrl"
-    | "smsVerificationTimeout"
-  >
-> & LoginOptions {
-  return {
-    captchaDetectionTimeout: options.captchaDetectionTimeout ?? 2,
-    captureDiagnostics: options.captureDiagnostics,
-    emailVerificationTimeout: options.emailVerificationTimeout ?? 5,
-    loginDetectionTimeout: options.loginDetectionTimeout ?? 12,
-    onManualCaptcha: options.onManualCaptcha,
-    onVerificationPrompt: options.onVerificationPrompt,
-    pageLoadTimeout: options.pageLoadTimeout ?? 15,
-    pollIntervalMs: options.pollIntervalMs ?? 250,
-    quickDomTimeout: options.quickDomTimeout ?? 2,
-    rootUrl: options.rootUrl ?? "https://www.kleinanzeigen.de",
-    smsVerificationTimeout: options.smsVerificationTimeout ?? 5,
-  };
-}
+export {
+  fillLoginDataAndSend,
+  getLoginState,
+  IP_RANGE_BLOCK_MESSAGE,
+  IpRangeBlockedError,
+  LoginDetectionReason,
+  ManualActionRequiredError,
+};
+export {
+  type LoginController,
+  type LoginDetectionResult,
+  type LoginDiagnosticsContext,
+  type LoginOptions,
+  type VerificationPromptContext,
+};
 
 function requireLoginCredentials(credentials: LoginConfig): void {
   if (!credentials.username.trim() || !credentials.password) {
@@ -174,486 +58,13 @@ function requireLoginCredentials(credentials: LoginConfig): void {
   }
 }
 
-function isIpRangeBlockedPageText(text: unknown): boolean {
-  const normalized = String(text ?? "").replace(/\s+/g, " ").toLowerCase();
-  return normalized.includes("ip-bereich vorübergehend gesperrt") ||
-    (
-      normalized.includes("ip-bereich") &&
-      normalized.includes("vorbeugung von betrug") &&
-      normalized.includes("von der nutzung von kleinanzeigen ausgeschlossen")
-    );
-}
-
-async function assertIpRangeAvailable(controller: LoginController): Promise<void> {
-  const text = await controller.webExecute(
-    "document.body ? document.body.innerText.slice(0, 4000) : ''",
-  );
-  if (isIpRangeBlockedPageText(text)) {
-    throw new IpRangeBlockedError();
-  }
-}
-
-export function currentPageUrl(controller: LoginController): string {
-  const url = controller.page?.url;
-  if (!url) {
-    return "unknown";
-  }
-
-  try {
-    const parsed = new URL(url);
-    const netloc = parsed.port
-      ? `${parsed.hostname}:${parsed.port}`
-      : parsed.hostname;
-    return `${parsed.protocol}//${netloc}${parsed.pathname}` || "unknown";
-  } catch {
-    return "unknown";
-  }
-}
-
-export function isValidPostAuth0Destination(url: string): boolean {
-  if (!url || url === "unknown" || url === "about:blank") {
-    return false;
-  }
-
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return false;
-  }
-
-  const host = parsed.hostname.toLowerCase();
-  const path = parsed.pathname.toLowerCase();
-
-  if (host !== "kleinanzeigen.de" && !host.endsWith(".kleinanzeigen.de")) {
-    return false;
-  }
-  if (host === "login.kleinanzeigen.de") {
-    return false;
-  }
-  if (path.startsWith("/u/login")) {
-    return false;
-  }
-  return !path.includes("error");
-}
-
-async function captureLoginDiagnostics(
-  options: LoginOptions,
-  context: LoginDiagnosticsContext,
-): Promise<void> {
-  if (!options.captureDiagnostics) {
-    return;
-  }
-  try {
-    await options.captureDiagnostics(context);
-  } catch {
-    // Diagnostics must not hide the original login boundary failure.
-  }
-}
-
-async function waitForCondition(
-  controller: LoginController,
-  condition: () => boolean | Promise<boolean>,
-  {
-    pollIntervalMs,
-    timeout,
-    timeoutErrorMessage,
-  }: {
-    pollIntervalMs: number;
-    timeout: number;
-    timeoutErrorMessage: string;
-  },
-): Promise<void> {
-  const deadline = Date.now() + timeout * 1000;
-  while (true) {
-    if (await condition()) {
-      return;
-    }
-    if (Date.now() >= deadline) {
-      throw new TimeoutError(timeoutErrorMessage);
-    }
-    await controller.webSleep(pollIntervalMs, pollIntervalMs);
-  }
-}
-
-async function textFirstAvailable(
-  controller: LoginController,
-  selectors: readonly [By, string][],
-  timeout: number,
-  key: "quickDom" | "loginDetection",
-): Promise<TextMatch> {
-  if (controller.webTextFirstAvailableOnce) {
-    const [text, index] = await controller.webTextFirstAvailableOnce(selectors, {
-      key,
-      timeout,
-    });
-    return { index, text };
-  }
-
-  if (controller.webTextFirstAvailable) {
-    const [text, index] = await controller.webTextFirstAvailable(selectors, {
-      timeout,
-    });
-    return { index, text };
-  }
-
-  let lastError: unknown = null;
-  for (let index = 0; index < selectors.length; index += 1) {
-    const selector = selectors[index];
-    if (!selector) {
-      continue;
-    }
-    const [type, value] = selector;
-    try {
-      return {
-        index,
-        text: await controller.webText(type, value, { timeout }),
-      };
-    } catch (error) {
-      if (!isTimeoutLike(error)) {
-        throw error;
-      }
-      lastError = error;
-    }
-  }
-  throw new TimeoutError(
-    `No login selector matched within ${timeout} seconds: ${String(lastError)}`,
-  );
-}
-
-async function hasLoggedInMarker(
-  controller: LoginController,
-  credentials: LoginConfig,
-  options: LoginOptions,
-): Promise<boolean> {
-  const username = credentials.username.trim().toLowerCase();
-  if (!username) {
-    return false;
-  }
-  const {
-    loginDetectionTimeout = 12,
-    quickDomTimeout = 2,
-  } = options;
-
-  try {
-    const quickMatch = await textFirstAvailable(
-      controller,
-      LOGIN_DETECTION_SELECTORS,
-      quickDomTimeout,
-      "quickDom",
-    );
-    if (quickMatch.text.toLowerCase().includes(username)) {
-      return true;
-    }
-  } catch (error) {
-    if (!isTimeoutLike(error)) {
-      throw error;
-    }
-  }
-
-  try {
-    const match = await textFirstAvailable(
-      controller,
-      LOGIN_DETECTION_SELECTORS,
-      loginDetectionTimeout,
-      "loginDetection",
-    );
-    return match.text.toLowerCase().includes(username);
-  } catch (error) {
-    if (isTimeoutLike(error)) {
-      return false;
-    }
-    throw error;
-  }
-}
-
-async function hasLoggedOutCta(
-  controller: LoginController,
-  options: LoginOptions,
-): Promise<boolean> {
-  const { quickDomTimeout = 2 } = options;
-  try {
-    const match = await textFirstAvailable(
-      controller,
-      LOGGED_OUT_CTA_SELECTORS,
-      quickDomTimeout,
-      "quickDom",
-    );
-    return match.text.trim().length > 0;
-  } catch (error) {
-    if (isTimeoutLike(error)) {
-      return false;
-    }
-    throw error;
-  }
-}
-
-export async function getLoginState(
-  controller: LoginController,
-  credentials: LoginConfig,
-  {
-    captureSelectorDiagnostics = true,
-    ...options
-  }: LoginOptions & { captureSelectorDiagnostics?: boolean } = {},
-): Promise<LoginDetectionResult> {
-  const resolvedOptions = loginOptionsWithDefaults(options);
-  if (await hasLoggedInMarker(controller, credentials, resolvedOptions)) {
-    return new LoginDetectionResult(true, LoginDetectionReason.USER_INFO_MATCH);
-  }
-  if (await hasLoggedOutCta(controller, resolvedOptions)) {
-    return new LoginDetectionResult(false, LoginDetectionReason.CTA_MATCH);
-  }
-
-  if (captureSelectorDiagnostics) {
-    await captureLoginDiagnostics(resolvedOptions, {
-      basePrefix: "login_detection_selector_timeout",
-      reason: LoginDetectionReason.SELECTOR_TIMEOUT,
-    });
-  }
-  return new LoginDetectionResult(false, LoginDetectionReason.SELECTOR_TIMEOUT);
-}
-
-export async function isLoggedIn(
-  controller: LoginController,
-  credentials: LoginConfig,
-  options: LoginOptions = {},
-): Promise<boolean> {
-  return hasLoggedInMarker(
-    controller,
-    credentials,
-    loginOptionsWithDefaults(options),
-  );
-}
-
-async function promptForManualAction(message: string): Promise<void> {
-  if (!input.isTTY || !output.isTTY) {
-    throw new ManualActionRequiredError(
-      `${message} Manual browser action requires an interactive run.`,
-    );
-  }
-
-  console.error("############################################");
-  console.error(message);
-  console.error("############################################");
-  const readline = createInterface({ input, output });
-  try {
-    await readline.question("Press ENTER when done...");
-  } finally {
-    readline.close();
-  }
-}
-
-async function defaultManualCaptchaPrompt(): Promise<void> {
-  await promptForManualAction("# Captcha present! Please solve the captcha.");
-}
-
-async function defaultVerificationPrompt(
-  context: VerificationPromptContext,
-): Promise<void> {
-  await promptForManualAction(
-    `# Device verification message detected (${context.kind}). ` +
-      "Please follow the instruction displayed in the browser.",
-  );
-}
-
-export async function waitForAuth0LoginContext(
-  controller: LoginController,
-  options: LoginOptions = {},
-): Promise<void> {
-  const resolvedOptions = loginOptionsWithDefaults(options);
-  try {
-    await waitForCondition(
-      controller,
-      () => currentPageUrl(controller).includes("login.kleinanzeigen.de") ||
-        currentPageUrl(controller).includes("/u/login"),
-      {
-        pollIntervalMs: resolvedOptions.pollIntervalMs,
-        timeout: resolvedOptions.loginDetectionTimeout,
-        timeoutErrorMessage:
-          `Auth0 redirect did not start within ${resolvedOptions.loginDetectionTimeout} seconds`,
-      },
-    );
-  } catch (error) {
-    if (isTimeoutLike(error)) {
-      throw new assert.AssertionError({
-        message: `Auth0 redirect not detected (url=${currentPageUrl(controller)})`,
-      });
-    }
-    throw error;
-  }
-}
-
-export async function waitForAuth0PasswordStep(
-  controller: LoginController,
-  options: LoginOptions = {},
-): Promise<void> {
-  const resolvedOptions = loginOptionsWithDefaults(options);
-  try {
-    await waitForCondition(
-      controller,
-      () => currentPageUrl(controller).includes("/u/login/password"),
-      {
-        pollIntervalMs: resolvedOptions.pollIntervalMs,
-        timeout: resolvedOptions.loginDetectionTimeout,
-        timeoutErrorMessage:
-          `Auth0 password page not reached within ${resolvedOptions.loginDetectionTimeout} seconds`,
-      },
-    );
-  } catch (error) {
-    if (isTimeoutLike(error)) {
-      throw new assert.AssertionError({
-        message: `Auth0 password step not reached (url=${currentPageUrl(controller)})`,
-      });
-    }
-    throw error;
-  }
-}
-
-export async function waitForPostAuth0SubmitTransition(
-  controller: LoginController,
-  credentials: LoginConfig,
-  options: LoginOptions = {},
-): Promise<void> {
-  const resolvedOptions = loginOptionsWithDefaults(options);
-  try {
-    await waitForCondition(
-      controller,
-      () => isValidPostAuth0Destination(currentPageUrl(controller)),
-      {
-        pollIntervalMs: resolvedOptions.pollIntervalMs,
-        timeout: resolvedOptions.loginDetectionTimeout,
-        timeoutErrorMessage:
-          `Auth0 post-submit transition did not complete within ${resolvedOptions.loginDetectionTimeout} seconds`,
-      },
-    );
-    return;
-  } catch (error) {
-    if (!isTimeoutLike(error)) {
-      throw error;
-    }
-  }
-
-  if (await isLoggedIn(controller, credentials, resolvedOptions)) {
-    return;
-  }
-
-  const fallbackMaxMs = Math.max(700, Math.trunc(resolvedOptions.quickDomTimeout * 1000));
-  const fallbackMinMs = Math.max(300, Math.trunc(fallbackMaxMs / 2));
-  await controller.webSleep(fallbackMinMs, fallbackMaxMs);
-
-  if (await hasLoggedInMarker(controller, credentials, {
-    ...resolvedOptions,
-    loginDetectionTimeout: resolvedOptions.quickDomTimeout,
-  })) {
-    return;
-  }
-
-  throw new TimeoutError(
-    `Auth0 post-submit verification remained inconclusive (url=${currentPageUrl(controller)})`,
-  );
-}
-
-export async function fillLoginDataAndSend(
-  controller: LoginController,
-  credentials: LoginConfig,
-  options: LoginOptions = {},
-): Promise<void> {
-  const resolvedOptions = loginOptionsWithDefaults(options);
-  await waitForAuth0LoginContext(controller, resolvedOptions);
-  await controller.webInput(By.ID, "username", credentials.username);
-  await checkAndWaitForCaptcha(controller, {
-    captchaDetectionTimeout: resolvedOptions.captchaDetectionTimeout,
-    isLoginPage: true,
-    onManualCaptcha: async () => {
-      await (resolvedOptions.onManualCaptcha ?? defaultManualCaptchaPrompt)();
-    },
-  });
-  if (!currentPageUrl(controller).includes("/u/login/password")) {
-    await controller.webClick(By.CSS_SELECTOR, "button[type='submit']");
-  }
-
-  await waitForAuth0PasswordStep(controller, resolvedOptions);
-  await controller.webInput(
-    By.CSS_SELECTOR,
-    "input[type='password']",
-    credentials.password,
-  );
-  await checkAndWaitForCaptcha(controller, {
-    captchaDetectionTimeout: resolvedOptions.captchaDetectionTimeout,
-    isLoginPage: true,
-    onManualCaptcha: async () => {
-      await (resolvedOptions.onManualCaptcha ?? defaultManualCaptchaPrompt)();
-    },
-  });
-  await controller.webClick(By.CSS_SELECTOR, "button[type='submit']");
-  await waitForPostAuth0SubmitTransition(
-    controller,
-    credentials,
-    resolvedOptions,
-  );
-}
-
-export async function clickGdprBanner(
-  controller: LoginController,
-  timeout: number,
-): Promise<void> {
-  const element = await controller.webProbe(By.ID, "gdpr-banner-accept", {
-    timeout,
-  });
-  if (element) {
-    await element.click?.();
-    await controller.webSleep();
-  }
-}
-
-async function checkVerificationPrompt(
-  controller: LoginController,
-  {
-    kind,
-    message,
-    onVerificationPrompt,
-    timeout,
-  }: {
-    kind: VerificationPromptContext["kind"];
-    message: string;
-    onVerificationPrompt?: LoginOptions["onVerificationPrompt"];
-    timeout: number;
-  },
-): Promise<void> {
-  const element = await controller.webProbe(By.TEXT, message, { timeout });
-  if (!element) {
-    return;
-  }
-  await (onVerificationPrompt ?? defaultVerificationPrompt)({ kind, message });
-}
-
-export async function handleAfterLoginLogic(
-  controller: LoginController,
-  options: LoginOptions = {},
-): Promise<void> {
-  const resolvedOptions = loginOptionsWithDefaults(options);
-  await checkVerificationPrompt(controller, {
-    kind: "sms",
-    message: "Wir haben dir gerade einen 6-stelligen Code für die Telefonnummer",
-    onVerificationPrompt: resolvedOptions.onVerificationPrompt,
-    timeout: resolvedOptions.smsVerificationTimeout,
-  });
-  await checkVerificationPrompt(controller, {
-    kind: "email",
-    message: "Um dein Konto zu schützen haben wir dir eine E-Mail geschickt",
-    onVerificationPrompt: resolvedOptions.onVerificationPrompt,
-    timeout: resolvedOptions.emailVerificationTimeout,
-  });
-  await clickGdprBanner(controller, resolvedOptions.quickDomTimeout);
-}
-
 export async function login(
   controller: LoginController,
   credentials: LoginConfig,
   options: LoginOptions = {},
 ): Promise<LoginDetectionResult> {
   requireLoginCredentials(credentials);
-  const resolvedOptions = loginOptionsWithDefaults(options);
+  const resolvedOptions = resolveLoginOptions(options);
 
   await controller.webOpen(resolvedOptions.rootUrl);
   await assertIpRangeAvailable(controller);
@@ -668,9 +79,10 @@ export async function login(
   }
 
   try {
-    await controller.webOpen(`${resolvedOptions.rootUrl}/m-einloggen-sso.html`, {
-      timeout: resolvedOptions.pageLoadTimeout,
-    });
+    await controller.webOpen(
+      `${resolvedOptions.rootUrl}/m-einloggen-sso.html`,
+      { timeout: resolvedOptions.pageLoadTimeout },
+    );
     await assertIpRangeAvailable(controller);
   } catch (error) {
     if (isTimeoutLike(error)) {
