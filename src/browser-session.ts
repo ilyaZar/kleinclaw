@@ -10,12 +10,13 @@ import {
   buildBrowserSessionPlan,
   writeInitialPrefs,
   type BrowserSessionPlan,
-} from "./browser.js";
+} from "./browser/browser-session-plan.js";
 import {
   connectCdpBrowser,
   launchCdpBrowser,
 } from "./browser/cdp-adapter.js";
-import { BrowserConfig, Config } from "./model/config-model.js";
+import { BrowserConfig } from "./model/browser-login-config.js";
+import { Config } from "./model/config-model.js";
 
 export interface BrowserSessionPage {
   close?: () => Promise<void>;
@@ -119,18 +120,9 @@ function ensureProfilePrefs(plan: BrowserSessionPlan): void {
 }
 
 async function closeBrowserSession(
-  mode: BrowserSessionPlan["mode"],
   browser: BrowserSessionBrowser | null,
   context: BrowserSessionContext,
 ): Promise<void> {
-  if (mode === "launch") {
-    if (browser) {
-      await browser.close();
-    } else {
-      await context.close();
-    }
-    return;
-  }
   if (browser) {
     await browser.close();
   } else {
@@ -186,6 +178,6 @@ export async function createBrowserSession(
     context,
     page,
     plan,
-    close: () => closeBrowserSession(plan.mode, browser, context),
+    close: () => closeBrowserSession(browser, context),
   };
 }

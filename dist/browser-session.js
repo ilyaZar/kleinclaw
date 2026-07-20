@@ -4,7 +4,7 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import fs from "node:fs";
-import { buildBrowserSessionPlan, writeInitialPrefs, } from "./browser.js";
+import { buildBrowserSessionPlan, writeInitialPrefs, } from "./browser/browser-session-plan.js";
 import { connectCdpBrowser, launchCdpBrowser, } from "./browser/cdp-adapter.js";
 export class LiveBrowserSessionDisabledError extends Error {
     constructor() {
@@ -50,16 +50,7 @@ function ensureProfilePrefs(plan) {
         writeInitialPrefs(plan.preferencesFile);
     }
 }
-async function closeBrowserSession(mode, browser, context) {
-    if (mode === "launch") {
-        if (browser) {
-            await browser.close();
-        }
-        else {
-            await context.close();
-        }
-        return;
-    }
+async function closeBrowserSession(browser, context) {
     if (browser) {
         await browser.close();
     }
@@ -97,6 +88,6 @@ export async function createBrowserSession(source, { allowLiveBrowser = false, c
         context,
         page,
         plan,
-        close: () => closeBrowserSession(plan.mode, browser, context),
+        close: () => closeBrowserSession(browser, context),
     };
 }
