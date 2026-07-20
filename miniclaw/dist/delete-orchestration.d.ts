@@ -1,5 +1,5 @@
 import { type AdInput, type Ad } from "./model/ad-model.js";
-import { type AfterDeletePolicy } from "./model/config-model.js";
+import { type AfterDeletePolicy } from "./model/publishing-config.js";
 import { type DeleteAdHook, type PublishedAdState } from "./publish-orchestration.js";
 import { type LoadedAd } from "./selection.js";
 export type DeleteBatchEventStatus = "cleanup" | "deleted" | "not-attempted" | "not-found";
