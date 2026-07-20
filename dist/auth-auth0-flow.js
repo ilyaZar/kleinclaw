@@ -7,7 +7,7 @@ import assert from "node:assert";
 import { currentPageUrl, hasLoggedInMarker, } from "./auth-login-state.js";
 import { defaultManualCaptchaPrompt } from "./auth-manual-verification.js";
 import { isTimeoutLike, resolveLoginOptions, } from "./auth-types.js";
-import { checkAndWaitForCaptcha, } from "./publish-form/submit-flow.js";
+import { checkAndWaitForCaptcha, } from "./publish-form/publish-form-submit-flow.js";
 import { By, TimeoutError } from "./web-primitives.js";
 async function waitForCondition(controller, condition, { pollIntervalMs, timeout, timeoutErrorMessage, }) {
     const deadline = Date.now() + timeout * 1000;

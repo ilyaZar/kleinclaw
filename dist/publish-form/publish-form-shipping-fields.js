@@ -5,9 +5,9 @@
  */
 import { AdUpdateStrategy, CARRIER_CODE_BY_OPTION, CARRIER_CODES_BY_SIZE, SIZE_INFO_BY_CARRIER_CODE, } from "../model/ad-model.js";
 import { By, Is, TimeoutError } from "../web-primitives.js";
-import { SHIPPING_BACK_BUTTON_XPATH, SHIPPING_DIALOG_DONE_BUTTON_XPATH, SHIPPING_DIALOG_NEXT_BUTTON_XPATH, SHIPPING_DIALOG_XPATH, SHIPPING_DONE_BUTTON_XPATH, SHIPPING_OTHER_METHODS_BUTTON_XPATH, } from "./constants.js";
-import { setFrameworkInputValue } from "./core-fields.js";
-import { elementHasAttribute, xpathLiteral } from "./element-helpers.js";
+import { SHIPPING_BACK_BUTTON_XPATH, SHIPPING_DIALOG_DONE_BUTTON_XPATH, SHIPPING_DIALOG_NEXT_BUTTON_XPATH, SHIPPING_DIALOG_XPATH, SHIPPING_DONE_BUTTON_XPATH, SHIPPING_OTHER_METHODS_BUTTON_XPATH, } from "./publish-form-constants.js";
+import { setFrameworkInputValue, } from "./publish-form-core-fields.js";
+import { elementHasAttribute, xpathLiteral, } from "./publish-form-element-helpers.js";
 export function shippingCostInputValue(value) {
     return String(value).replace(".", ",");
 }

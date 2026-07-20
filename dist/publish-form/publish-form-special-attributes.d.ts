@@ -1,6 +1,6 @@
 import { type WebElement } from "../web-primitives.js";
-import { type SpecialAttributeElementInfo } from "./element-helpers.js";
-import { type PublishingFormController, type PublishingFormOptions, type SetSpecialAttributesOptions } from "./types.js";
+import { type SpecialAttributeElementInfo } from "./publish-form-element-helpers.js";
+import { type PublishingFormController, type PublishingFormOptions, type SetSpecialAttributesOptions } from "./publish-form-types.js";
 export declare function normalizeSpecialAttributeKey(key: string): string;
 export declare function conditionCandidateValues(conditionValue: string): string[];
 export declare function specialAttributeXPath(key: string): string;

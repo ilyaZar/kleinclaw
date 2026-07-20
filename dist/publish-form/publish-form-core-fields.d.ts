@@ -1,5 +1,5 @@
 import { type Ad } from "../model/ad-model.js";
-import { type PublishingFormController, type PublishingFormOptions, type ShippingType } from "./types.js";
+import { type PublishingFormController, type PublishingFormOptions, type ShippingType } from "./publish-form-types.js";
 export declare function publishingDescription(ad: Pick<Ad, "description" | "descriptionPrefix" | "descriptionSuffix">, { withAffixes }?: {
     withAffixes?: boolean;
 }): string;

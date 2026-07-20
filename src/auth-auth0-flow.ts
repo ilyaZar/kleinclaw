@@ -21,7 +21,7 @@ import {
 import { type LoginConfig } from "./model/browser-login-config.js";
 import {
   checkAndWaitForCaptcha,
-} from "./publish-form/submit-flow.js";
+} from "./publish-form/publish-form-submit-flow.js";
 import { By, TimeoutError } from "./web-primitives.js";
 
 async function waitForCondition(

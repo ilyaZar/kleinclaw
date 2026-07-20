@@ -14,8 +14,8 @@ import {
 import {
   CITY_LISTBOX_ID_FALLBACK,
   CITY_SELECTED_OPTION_ID,
-} from "./constants.js";
-import { setFrameworkInputValue } from "./core-fields.js";
+} from "./publish-form-constants.js";
+import { setFrameworkInputValue } from "./publish-form-core-fields.js";
 import {
   clickElement,
   elementAttribute,
@@ -23,12 +23,12 @@ import {
   elementLocalName,
   inspectSpecialAttributeElement,
   visibleElementText,
-} from "./element-helpers.js";
+} from "./publish-form-element-helpers.js";
 import {
   type PublishingContact,
   type PublishingFormController,
   type PublishingFormOptions,
-} from "./types.js";
+} from "./publish-form-types.js";
 
 function normalizeLocationText(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase();

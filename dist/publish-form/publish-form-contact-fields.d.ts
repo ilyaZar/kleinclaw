@@ -1,4 +1,4 @@
-import { type PublishingContact, type PublishingFormController, type PublishingFormOptions } from "./types.js";
+import { type PublishingContact, type PublishingFormController, type PublishingFormOptions } from "./publish-form-types.js";
 export declare function locationMatchesTarget(target: string, candidate: string | null | undefined): boolean;
 export declare function cityListboxOptionSelector(listboxId: string): string;
 export declare function readCitySelectionText(controller: Pick<PublishingFormController, "webFind">, { quickDomTimeout }?: PublishingFormOptions): Promise<string | null>;

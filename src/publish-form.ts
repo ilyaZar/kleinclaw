@@ -10,46 +10,46 @@ import {
 import { By } from "./web-primitives.js";
 import {
   setCategory,
-} from "./publish-form/category-selection.js";
+} from "./publish-form/publish-form-category-selection.js";
 import {
   configurePriceFields,
   configureSellDirectly,
   selectWantedShipping,
   setDeferredTitleField,
   setDescriptionField,
-} from "./publish-form/core-fields.js";
+} from "./publish-form/publish-form-core-fields.js";
 import {
   setContactFields,
-} from "./publish-form/contact-fields.js";
+} from "./publish-form/publish-form-contact-fields.js";
 import {
   cleanupExistingImages,
   uploadImages,
-} from "./publish-form/image-upload.js";
+} from "./publish-form/publish-form-image-upload.js";
 import {
   updateAdConfigAfterPublish,
-} from "./publish-form/metadata.js";
+} from "./publish-form/publish-form-metadata.js";
 import {
   setSpecialAttributes,
-} from "./publish-form/special-attributes.js";
+} from "./publish-form/publish-form-special-attributes.js";
 import {
   setShipping,
-} from "./publish-form/shipping-fields.js";
+} from "./publish-form/publish-form-shipping-fields.js";
 import {
   checkAndWaitForCaptcha,
   submitAdForm,
-} from "./publish-form/submit-flow.js";
+} from "./publish-form/publish-form-submit-flow.js";
 import {
   type PublishAdFormAd,
   type PublishAdFormOptions,
   type PublishAdFormResult,
   type PublishingFormController,
-} from "./publish-form/types.js";
+} from "./publish-form/publish-form-types.js";
 
 export {
   CaptchaEncountered,
   CategoryResolutionError,
   PublishSubmissionUncertainError,
-} from "./publish-form/errors.js";
+} from "./publish-form/publish-form-errors.js";
 export {
   CAPTCHA_IFRAME_SELECTOR,
   CATEGORY_CHANGE_CONTROL_XPATH,
@@ -75,7 +75,7 @@ export {
   SUBMIT_BUTTON_XPATH,
   TRACKING_SCRIPT_TEXT_JS,
   WANTED_SHIPPING_LABELS,
-} from "./publish-form/constants.js";
+} from "./publish-form/publish-form-constants.js";
 export {
   configurePriceFields,
   configureSellDirectly,
@@ -84,17 +84,17 @@ export {
   setDeferredTitleField,
   setDescriptionField,
   setFrameworkInputValue,
-} from "./publish-form/core-fields.js";
+} from "./publish-form/publish-form-core-fields.js";
 export {
   setShipping,
   setShippingOptions,
   shippingCostInputValue,
   shippingOptionCarrierCodes,
-} from "./publish-form/shipping-fields.js";
+} from "./publish-form/publish-form-shipping-fields.js";
 export {
   resolveCategorySuggestions,
   setCategory,
-} from "./publish-form/category-selection.js";
+} from "./publish-form/publish-form-category-selection.js";
 export {
   cityListboxOptionSelector,
   locationMatchesTarget,
@@ -102,12 +102,12 @@ export {
   selectCityComboboxOption,
   setContactFields,
   setContactLocation,
-} from "./publish-form/contact-fields.js";
+} from "./publish-form/publish-form-contact-fields.js";
 export {
   inspectSpecialAttributeElement,
   type SpecialAttributeElementInfo,
   xpathLiteral,
-} from "./publish-form/element-helpers.js";
+} from "./publish-form/publish-form-element-helpers.js";
 export {
   conditionCandidateValues,
   normalizeSpecialAttributeKey,
@@ -116,22 +116,22 @@ export {
   setSpecialAttributes,
   specialAttributeCandidatePriority,
   specialAttributeXPath,
-} from "./publish-form/special-attributes.js";
+} from "./publish-form/publish-form-special-attributes.js";
 export {
   cleanupExistingImages,
   imageMarkerValue,
   uploadImages,
-} from "./publish-form/image-upload.js";
+} from "./publish-form/publish-form-image-upload.js";
 export {
   updateAdConfigAfterPublish,
-} from "./publish-form/metadata.js";
+} from "./publish-form/publish-form-metadata.js";
 export {
   checkAndWaitForCaptcha,
   checkPublishingResult,
   parseConfirmationAdId,
   recoverAdIdFromRedirect,
   submitAdForm,
-} from "./publish-form/submit-flow.js";
+} from "./publish-form/publish-form-submit-flow.js";
 export {
   type CaptchaOptions,
   type PriceType,
@@ -149,7 +149,7 @@ export {
   type ShippingType,
   type SubmitAdOptions,
   type UploadImagesOptions,
-} from "./publish-form/types.js";
+} from "./publish-form/publish-form-types.js";
 
 function publishFormUrl(
   rootUrl: string,

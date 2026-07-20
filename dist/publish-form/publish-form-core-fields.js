@@ -5,7 +5,7 @@
  */
 import { MAX_DESCRIPTION_LENGTH } from "../model/ad-model.js";
 import { By, Is, TimeoutError } from "../web-primitives.js";
-import { WANTED_SHIPPING_LABELS } from "./constants.js";
+import { WANTED_SHIPPING_LABELS } from "./publish-form-constants.js";
 const PRICE_TYPE_OPTION_INDEX = {
     FIXED: 0,
     NEGOTIABLE: 1,

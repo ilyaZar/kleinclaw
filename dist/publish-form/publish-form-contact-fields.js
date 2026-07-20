@@ -4,9 +4,9 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import { By, Is, TimeoutError, } from "../web-primitives.js";
-import { CITY_LISTBOX_ID_FALLBACK, CITY_SELECTED_OPTION_ID, } from "./constants.js";
-import { setFrameworkInputValue } from "./core-fields.js";
-import { clickElement, elementAttribute, elementInputValue, elementLocalName, inspectSpecialAttributeElement, visibleElementText, } from "./element-helpers.js";
+import { CITY_LISTBOX_ID_FALLBACK, CITY_SELECTED_OPTION_ID, } from "./publish-form-constants.js";
+import { setFrameworkInputValue } from "./publish-form-core-fields.js";
+import { clickElement, elementAttribute, elementInputValue, elementLocalName, inspectSpecialAttributeElement, visibleElementText, } from "./publish-form-element-helpers.js";
 function normalizeLocationText(value) {
     return value.trim().replace(/\s+/g, " ").toLowerCase();
 }

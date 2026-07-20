@@ -4,8 +4,8 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import { By, TimeoutError } from "../web-primitives.js";
-import { IMAGE_FILE_INPUT_SELECTOR, IMAGE_MARKER_SELECTOR, IMAGE_REMOVE_BUTTON_SELECTOR, } from "./constants.js";
-import { clickElement, elementAttribute } from "./element-helpers.js";
+import { IMAGE_FILE_INPUT_SELECTOR, IMAGE_MARKER_SELECTOR, IMAGE_REMOVE_BUTTON_SELECTOR, } from "./publish-form-constants.js";
+import { clickElement, elementAttribute, } from "./publish-form-element-helpers.js";
 export async function imageMarkerValue(marker) {
     const value = await elementAttribute(marker, "value");
     return String(value ?? "").trim();

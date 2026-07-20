@@ -5,7 +5,7 @@
  */
 import { idsMatch } from "./ad-identity.js";
 import { AdUpdateStrategy } from "./model/ad-model.js";
-import { CategoryResolutionError, PublishSubmissionUncertainError, } from "./publish-form.js";
+import { CategoryResolutionError, PublishSubmissionUncertainError, } from "./publish-form/publish-form-errors.js";
 import { errorMessage, errorName, hasErrorName, } from "./value-guards.js";
 import { TimeoutError } from "./web-primitives.js";
 export const SUBMISSION_MAX_RETRIES = 3;

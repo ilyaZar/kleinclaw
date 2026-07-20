@@ -6,13 +6,13 @@
 
 import { MAX_DESCRIPTION_LENGTH, type Ad } from "../model/ad-model.js";
 import { By, Is, TimeoutError } from "../web-primitives.js";
-import { WANTED_SHIPPING_LABELS } from "./constants.js";
+import { WANTED_SHIPPING_LABELS } from "./publish-form-constants.js";
 import {
   type PriceType,
   type PublishingFormController,
   type PublishingFormOptions,
   type ShippingType,
-} from "./types.js";
+} from "./publish-form-types.js";
 
 const PRICE_TYPE_OPTION_INDEX: Record<
   Exclude<PriceType, "NOT_APPLICABLE">,

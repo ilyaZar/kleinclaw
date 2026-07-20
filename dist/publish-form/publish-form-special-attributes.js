@@ -4,8 +4,8 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import { By, TimeoutError, } from "../web-primitives.js";
-import { CONDITION_GERMAN_TO_API, CONDITION_TRIGGER_XPATH, } from "./constants.js";
-import { clickElement, elementAttribute, inspectSpecialAttributeElement, stringOrNull, xpathLiteral, } from "./element-helpers.js";
+import { CONDITION_GERMAN_TO_API, CONDITION_TRIGGER_XPATH, } from "./publish-form-constants.js";
+import { clickElement, elementAttribute, inspectSpecialAttributeElement, stringOrNull, xpathLiteral, } from "./publish-form-element-helpers.js";
 const SPECIAL_ATTRIBUTE_TOKEN_RE = /^[A-Za-z0-9_]+$/;
 const CHECKBOX_TRUTHY_VALUES = new Set([
     "1",

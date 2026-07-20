@@ -9,20 +9,20 @@ import {
   CATEGORY_CHANGE_CONTROL_XPATH,
   CATEGORY_NEXT_BUTTON_XPATH,
   CATEGORY_PICKER_RADIO_SELECTOR,
-} from "./constants.js";
-import { CategoryResolutionError } from "./errors.js";
+} from "./publish-form-constants.js";
+import { CategoryResolutionError } from "./publish-form-errors.js";
 import {
   clickElement,
   elementAttribute,
   stringOrNull,
   visibleElementText,
   xpathLiteral,
-} from "./element-helpers.js";
+} from "./publish-form-element-helpers.js";
 import {
   type PublishingFormController,
   type PublishingFormOptions,
   type SetCategoryOptions,
-} from "./types.js";
+} from "./publish-form-types.js";
 
 export async function resolveCategorySuggestions(
   controller: Pick<
