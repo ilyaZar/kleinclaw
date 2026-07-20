@@ -33,12 +33,16 @@ import {
   type TimingRecorder,
 } from "./timing-collector.js";
 import {
-  checkPublishingResult,
   publishAdForm,
+} from "./publish-form.js";
+import {
+  checkPublishingResult,
+} from "./publish-form/publish-form-submit-flow.js";
+import {
   type PublishAdFormOptions,
   type PublishAdFormResult,
   type PublishingFormController,
-} from "./publish-form.js";
+} from "./publish-form/publish-form-types.js";
 import {
   fetchPublishedAds,
   type PublishedAd,
@@ -50,18 +54,22 @@ import {
 } from "./publish-orchestration.js";
 import {
   extractOwnAdUrls,
-} from "./publish-side-effects/ad-overview.js";
-import { deletePublishedAd } from "./publish-side-effects/delete-hook.js";
+} from "./publish-side-effects/publish-side-effects-ad-overview.js";
+import {
+  deletePublishedAd,
+} from "./publish-side-effects/publish-side-effects-delete-hook.js";
 import {
   downloadAdWithBrowser,
   navigateToDownloadedAdPage,
-} from "./publish-side-effects/download-hook.js";
-import { extendPublishedAd } from "./publish-side-effects/extend-hook.js";
+} from "./publish-side-effects/publish-side-effects-download-hook.js";
+import {
+  extendPublishedAd,
+} from "./publish-side-effects/publish-side-effects-extend-hook.js";
 import {
   createLoginDiagnosticsCapture,
   createPublishDiagnosticsCapture,
   createTimingCollector,
-} from "./publish-side-effects/factory-support.js";
+} from "./publish-side-effects/publish-side-effects-factory-support.js";
 import {
   TimeoutError,
   WebController,

@@ -4,7 +4,7 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import { By } from "../web-primitives.js";
-import { csrfTokenFromElement } from "./browser-elements.js";
+import { csrfTokenFromElement, } from "./publish-side-effects-browser-elements.js";
 function publishedAdId(value) {
     if (typeof value === "number" && Number.isInteger(value)) {
         return value;

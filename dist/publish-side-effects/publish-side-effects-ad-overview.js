@@ -4,7 +4,7 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import { By, TimeoutError } from "../web-primitives.js";
-import { elementAttribute } from "./browser-elements.js";
+import { elementAttribute, } from "./publish-side-effects-browser-elements.js";
 async function isEnabledNextButton(button) {
     const disabled = button.getAttribute
         ? await button.getAttribute("disabled")

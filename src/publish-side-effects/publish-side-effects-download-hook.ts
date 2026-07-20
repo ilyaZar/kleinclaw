@@ -19,7 +19,8 @@ import {
   type WebLocator,
 } from "../web-primitives.js";
 
-interface DownloadBrowserController extends DownloadExtractorController {
+interface DownloadBrowserController
+  extends DownloadExtractorController {
   webClick(type: By, value: string, timeout?: number): Promise<WebLocator>;
   webOpen(
     url: string,

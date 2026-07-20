@@ -7,7 +7,9 @@
 import { type Ad } from "../model/ad-model.js";
 import { type DeleteAdHook } from "../publish-orchestration.js";
 import { By, type WebElement, type WebResponse } from "../web-primitives.js";
-import { csrfTokenFromElement } from "./browser-elements.js";
+import {
+  csrfTokenFromElement,
+} from "./publish-side-effects-browser-elements.js";
 
 interface DeletePublishedAdController {
   webFind(type: By, value: string): Promise<WebElement>;

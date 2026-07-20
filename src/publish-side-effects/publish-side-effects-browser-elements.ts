@@ -4,7 +4,9 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 
-import { type WebElement } from "../web-primitives.js";
+import {
+  type WebElement,
+} from "../web-primitives.js";
 
 function hasAttributeGetter(
   value: unknown,
