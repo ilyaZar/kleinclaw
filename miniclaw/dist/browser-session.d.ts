@@ -1,5 +1,6 @@
-import { type BrowserSessionPlan } from "./browser.js";
-import { BrowserConfig, Config } from "./model/config-model.js";
+import { type BrowserSessionPlan } from "./browser/browser-session-plan.js";
+import { BrowserConfig } from "./model/browser-login-config.js";
+import { Config } from "./model/config-model.js";
 export interface BrowserSessionPage {
     close?: () => Promise<void>;
 }
