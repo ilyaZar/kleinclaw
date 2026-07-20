@@ -2,11 +2,17 @@
 
 - When `adRoots` are configured and the user asks for a specific listing, run
   `kleinanzeigen_list_ads` before publishing, updating, deleting, downloading,
-  or extending. Use its returned `adDirectory` or `adPath` handle with the
-  title, ID, and active state to scope the next tool call.
+  or extending. Use its returned title, ID, and active state to verify the
+  intended listing.
+- For local-ad operations, use the returned `adDirectory` or `adPath` handle to
+  scope the next tool call.
 - Prefer scoped operations with `adDirectories` or `adConfigPaths` after
   discovery. Avoid broad selectors like `all` unless the user explicitly wants a
   broad operation.
+- For download, use the discovered numeric ID in explicit `adIds` to select the
+  remote listing. Local `adDirectories` and `adConfigPaths` do not restrict the
+  remote target set; with selector `new`, they only affect comparison against
+  saved local ads.
 - For a single listing request such as "publish the sample listing", first list
   with a query, then verify or publish only the matching relative handle.
 - `kleinanzeigen_delete` still requires explicit `adIds`, even when the

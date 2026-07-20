@@ -365,11 +365,11 @@ It does not infer success from human log text or ad file changes.
 
 When the miniclaw config contains many ads, one invalid unrelated ad can make
 the runtime reject the whole run before it applies `--ads` filtering. To operate
-on one known source folder, configure `adRoots`, use `kleinanzeigen_list_ads` to
-find the folder, then pass its relative `adDirectory` or `adPath` handle to
-`adDirectories` or `adConfigPaths` on `kleinanzeigen_verify`,
-`kleinanzeigen_publish`, or the other operation tools. A copyable payload is
-under [Scoped-operation tool-call JSON](#scoped-operation-tool-call-json).
+on one known local ad, configure `adRoots`, use `kleinanzeigen_list_ads` to find
+it, then pass its relative `adDirectory` or `adPath` handle to `adDirectories`
+or `adConfigPaths` on commands that act on local ad inputs. A copyable payload
+is under
+[Scoped-operation tool-call JSON](#scoped-operation-tool-call-json).
 
 For publishing that one folder only, combine the scoped directory with
 `selector: "all"` or an explicit `adIds` list plus `confirm: true`. The scoped
@@ -383,6 +383,11 @@ When miniclaw reports validation failures, KleinClaw returns structured
 scan unrelated ad files or expose local paths. Use a scoped operation when the
 intended listing is already known.
 
+Download selection is remote-listing based. Explicit `adIds` select the remote
+ads to download. Local `adDirectories` and `adConfigPaths` do not restrict that
+remote target set; with selector `new`, they only affect comparison against
+already saved local ads.
+
 Operation tool fields:
 
 - `confirm`: required for account-changing tools: publish, update, delete,
@@ -392,9 +397,10 @@ Operation tool fields:
   extend accepts `all`.
 - `selectors`: publish-only list for combinations such as `["changed", "due"]`.
 - `adIds`: explicit numeric Kleinanzeigen IDs. Required for delete.
-- `adDirectories`: ad folders under `adRoots` used to scope the run.
-- `adConfigPaths`: exact ad YAML/JSON files under `adRoots` used to scope the
-  run.
+- `adDirectories`: ad folders under `adRoots` used to scope local ad inputs.
+- `adConfigPaths`: exact ad YAML/JSON files under `adRoots` used to scope local
+  ad inputs. For download, these fields only affect saved-local comparison for
+  selector `new`; use `adIds` to select remote downloads.
 - `keepOld`: publish-only `true`/`false`; keeps old ads during republication.
 
 Do not mix selectors with explicit ad IDs.
@@ -595,8 +601,9 @@ To check a supported browser without changing the real config:
 
 ### Scoped-operation tool-call JSON
 
-The agent can pass a relative ad-directory handle to verify, publish, or other
-operation tools without creating a second config file:
+The agent can pass a relative ad-directory handle to commands that operate on
+local ad inputs, such as verify or publish, without creating a second config
+file:
 
 ```json
 {

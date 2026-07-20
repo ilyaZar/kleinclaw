@@ -35,7 +35,9 @@ or browser profiles.
 Browser-backed commands are `publish`, `update`, `delete`, `download`, and
 `extend`; all require the explicit `--allow-live-browser` gate. Publish,
 update, delete, and extend can change live listings. Use `--ad-file <PATH>`
-more than once to limit a command to selected listing files.
+more than once to limit commands that operate on local listing files. Download
+targets remote listings with `--ads`; `--ad-file` only affects saved-local
+comparison for selector `new` and does not select remote downloads.
 
 Run `miniclaw help` for the complete command and option reference.
 
