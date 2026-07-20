@@ -18,14 +18,19 @@ import {
   SHIPPING_DIALOG_XPATH,
   SHIPPING_DONE_BUTTON_XPATH,
   SHIPPING_OTHER_METHODS_BUTTON_XPATH,
-} from "./constants.js";
-import { setFrameworkInputValue } from "./core-fields.js";
-import { elementHasAttribute, xpathLiteral } from "./element-helpers.js";
+} from "./publish-form-constants.js";
+import {
+  setFrameworkInputValue,
+} from "./publish-form-core-fields.js";
+import {
+  elementHasAttribute,
+  xpathLiteral,
+} from "./publish-form-element-helpers.js";
 import {
   type PublishingFormController,
   type PublishingShippingAd,
   type SetShippingOptions,
-} from "./types.js";
+} from "./publish-form-types.js";
 
 export function shippingCostInputValue(value: number | string): string {
   return String(value).replace(".", ",");

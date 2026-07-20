@@ -91,7 +91,6 @@ export interface CaptchaOptions {
   captchaDetectionTimeout?: number;
   isLoginPage?: boolean;
   onManualCaptcha?: () => Promise<void>;
-  pageContext?: string;
   restartDelaySeconds?: number | null;
   scrollPageDown?: () => Promise<void>;
 }

@@ -4,9 +4,9 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import { By, Is, TimeoutError } from "../web-primitives.js";
-import { CAPTCHA_IFRAME_SELECTOR, CONFIRMATION_URL_FRAGMENT, IMPRINT_GUIDANCE_SUBMIT_ID, NO_IMAGE_HINT_BUTTON_XPATH, PAYMENT_FORM_ID, SUBMIT_BUTTON_XPATH, TRACKING_SCRIPT_TEXT_JS, VISIBILITY_UPSELL_SKIP_BUTTON_XPATH, } from "./constants.js";
-import { CaptchaEncountered, PublishSubmissionUncertainError, } from "./errors.js";
-import { clickElement } from "./element-helpers.js";
+import { CAPTCHA_IFRAME_SELECTOR, CONFIRMATION_URL_FRAGMENT, IMPRINT_GUIDANCE_SUBMIT_ID, NO_IMAGE_HINT_BUTTON_XPATH, PAYMENT_FORM_ID, SUBMIT_BUTTON_XPATH, TRACKING_SCRIPT_TEXT_JS, VISIBILITY_UPSELL_SKIP_BUTTON_XPATH, } from "./publish-form-constants.js";
+import { CaptchaEncountered, PublishSubmissionUncertainError, } from "./publish-form-errors.js";
+import { clickElement, } from "./publish-form-element-helpers.js";
 export async function checkAndWaitForCaptcha(controller, { autoRestart = false, captchaDetectionTimeout, isLoginPage = true, onManualCaptcha, restartDelaySeconds = null, scrollPageDown, } = {}) {
     const captchaElement = await controller.webProbe(By.CSS_SELECTOR, CAPTCHA_IFRAME_SELECTOR, { timeout: captchaDetectionTimeout });
     if (captchaElement === null) {

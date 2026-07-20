@@ -9,36 +9,35 @@ import {
   SHIPPING_DIALOG_DONE_BUTTON_XPATH,
   SHIPPING_DIALOG_NEXT_BUTTON_XPATH,
   SHIPPING_DIALOG_XPATH,
-} from "../miniclaw/dist/publish-form/constants.js";
+} from "../../miniclaw/dist/publish-form/publish-form-constants.js";
 import {
   resolveCategorySuggestions,
-} from "../miniclaw/dist/publish-form/category-selection.js";
+} from "../../miniclaw/dist/publish-form/publish-form-category-selection.js";
 import {
   cityListboxOptionSelector,
   locationMatchesTarget,
   selectCityComboboxOption,
   setContactLocation,
-} from "../miniclaw/dist/publish-form/contact-fields.js";
+} from "../../miniclaw/dist/publish-form/publish-form-contact-fields.js";
 import {
   configurePriceFields,
   configureSellDirectly,
   publishingDescription,
   selectWantedShipping,
-} from "../miniclaw/dist/publish-form/core-fields.js";
+} from "../../miniclaw/dist/publish-form/publish-form-core-fields.js";
 import {
   cleanupExistingImages,
   uploadImages,
-} from "../miniclaw/dist/publish-form/image-upload.js";
+} from "../../miniclaw/dist/publish-form/publish-form-image-upload.js";
 import {
   setShippingOptions,
   shippingCostInputValue,
   shippingOptionCarrierCodes,
-} from "../miniclaw/dist/publish-form/shipping-fields.js";
+} from "../../miniclaw/dist/publish-form/publish-form-shipping-fields.js";
 import {
   By,
-  Is,
   TimeoutError,
-} from "../miniclaw/dist/web-primitives.js";
+} from "../../miniclaw/dist/web-primitives.js";
 
 function key(type, value) {
   return `${type}:${value}`;

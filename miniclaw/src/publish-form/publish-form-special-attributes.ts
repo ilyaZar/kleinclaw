@@ -13,7 +13,7 @@ import {
 import {
   CONDITION_GERMAN_TO_API,
   CONDITION_TRIGGER_XPATH,
-} from "./constants.js";
+} from "./publish-form-constants.js";
 import {
   clickElement,
   elementAttribute,
@@ -21,12 +21,12 @@ import {
   stringOrNull,
   xpathLiteral,
   type SpecialAttributeElementInfo,
-} from "./element-helpers.js";
+} from "./publish-form-element-helpers.js";
 import {
   type PublishingFormController,
   type PublishingFormOptions,
   type SetSpecialAttributesOptions,
-} from "./types.js";
+} from "./publish-form-types.js";
 
 const SPECIAL_ATTRIBUTE_TOKEN_RE = /^[A-Za-z0-9_]+$/;
 const CHECKBOX_TRUTHY_VALUES = new Set([

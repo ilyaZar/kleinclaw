@@ -1,4 +1,4 @@
-import { type PublishingFormController, type PublishingShippingAd, type SetShippingOptions } from "./types.js";
+import { type PublishingFormController, type PublishingShippingAd, type SetShippingOptions } from "./publish-form-types.js";
 export declare function shippingCostInputValue(value: number | string): string;
 export declare function shippingOptionCarrierCodes(options: string[]): string[];
 export declare function setShippingOptions(controller: Pick<PublishingFormController, "webClick" | "webFind" | "webSleep">, ad: Pick<PublishingShippingAd, "shippingOptions">, { quickDomTimeout }?: SetShippingOptions): Promise<void>;

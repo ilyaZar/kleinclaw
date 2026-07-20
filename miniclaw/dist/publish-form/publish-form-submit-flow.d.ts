@@ -1,4 +1,4 @@
-import { type CaptchaOptions, type PublishingFormController, type PublishingImagesAd, type SubmitAdOptions } from "./types.js";
+import { type CaptchaOptions, type PublishingFormController, type PublishingImagesAd, type SubmitAdOptions } from "./publish-form-types.js";
 export declare function checkAndWaitForCaptcha(controller: Pick<PublishingFormController, "webProbe">, { autoRestart, captchaDetectionTimeout, isLoginPage, onManualCaptcha, restartDelaySeconds, scrollPageDown, }?: CaptchaOptions): Promise<boolean>;
 export declare function parseConfirmationAdId(url: string): number | null;
 export declare function recoverAdIdFromRedirect(controller: Pick<PublishingFormController, "webExecute">): Promise<number | null>;

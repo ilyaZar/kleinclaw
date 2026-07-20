@@ -14,18 +14,20 @@ import {
   SUBMIT_BUTTON_XPATH,
   TRACKING_SCRIPT_TEXT_JS,
   VISIBILITY_UPSELL_SKIP_BUTTON_XPATH,
-} from "./constants.js";
+} from "./publish-form-constants.js";
 import {
   CaptchaEncountered,
   PublishSubmissionUncertainError,
-} from "./errors.js";
-import { clickElement } from "./element-helpers.js";
+} from "./publish-form-errors.js";
+import {
+  clickElement,
+} from "./publish-form-element-helpers.js";
 import {
   type CaptchaOptions,
   type PublishingFormController,
   type PublishingImagesAd,
   type SubmitAdOptions,
-} from "./types.js";
+} from "./publish-form-types.js";
 
 export async function checkAndWaitForCaptcha(
   controller: Pick<PublishingFormController, "webProbe">,

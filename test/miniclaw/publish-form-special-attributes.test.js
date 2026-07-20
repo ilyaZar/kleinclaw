@@ -1,8 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { setSpecialAttributes } from "../miniclaw/dist/publish-form.js";
-import { By, TimeoutError } from "../miniclaw/dist/web-primitives.js";
+import {
+  setSpecialAttributes,
+} from "../../miniclaw/dist/publish-form/publish-form-special-attributes.js";
+import { By, TimeoutError } from "../../miniclaw/dist/web-primitives.js";
 
 function buttonComboboxElement(id) {
   return {

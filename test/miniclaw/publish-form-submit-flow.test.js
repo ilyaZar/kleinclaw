@@ -1,8 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { submitAdForm } from "../miniclaw/dist/publish-form.js";
-import { By } from "../miniclaw/dist/web-primitives.js";
+import {
+  submitAdForm,
+} from "../../miniclaw/dist/publish-form/publish-form-submit-flow.js";
+import { By } from "../../miniclaw/dist/web-primitives.js";
 
 describe("miniclaw submit flow", () => {
   it("declines the paid visibility upsell before waiting for confirmation", async () => {

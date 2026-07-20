@@ -10,7 +10,7 @@ import {
   type Ad,
 } from "../model/ad-model.js";
 
-function formatUtcIsoSeconds(date: Date): string {
+function formatUtcIsoSeconds(date: Readonly<Date>): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "+00:00");
 }
 

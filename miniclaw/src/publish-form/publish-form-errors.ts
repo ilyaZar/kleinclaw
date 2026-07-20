@@ -19,7 +19,7 @@ export class CaptchaEncountered extends Error {
 }
 
 export class PublishSubmissionUncertainError extends Error {
-  constructor(message = "submission may have succeeded before failure") {
+  constructor(message: string = "submission may have succeeded before failure") {
     super(message);
     this.name = "PublishSubmissionUncertainError";
   }

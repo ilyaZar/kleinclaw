@@ -9,14 +9,17 @@ import {
   IMAGE_FILE_INPUT_SELECTOR,
   IMAGE_MARKER_SELECTOR,
   IMAGE_REMOVE_BUTTON_SELECTOR,
-} from "./constants.js";
-import { clickElement, elementAttribute } from "./element-helpers.js";
+} from "./publish-form-constants.js";
+import {
+  clickElement,
+  elementAttribute,
+} from "./publish-form-element-helpers.js";
 import {
   type PublishingFormController,
   type PublishingFormOptions,
   type PublishingImagesAd,
   type UploadImagesOptions,
-} from "./types.js";
+} from "./publish-form-types.js";
 
 export async function imageMarkerValue(marker: WebElement): Promise<string> {
   const value = await elementAttribute(marker, "value");

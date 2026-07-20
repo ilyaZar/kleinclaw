@@ -9,7 +9,7 @@ import { AdUpdateStrategy, type Ad } from "./model/ad-model.js";
 import {
   CategoryResolutionError,
   PublishSubmissionUncertainError,
-} from "./publish-form.js";
+} from "./publish-form/publish-form-errors.js";
 import { type LoadedAd } from "./selection.js";
 import {
   errorMessage,
