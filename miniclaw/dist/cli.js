@@ -7,15 +7,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { VERSION, usage } from "./cli/help.js";
-import { createDefaultConfig, runDiagnose, updateContentHashes, verifyConfig, } from "./cli/local-commands.js";
-import { parseArgs, prepareCommand } from "./cli/parser.js";
-import { setCommandResult, SUPPORTED_COMMANDS, writeCommandResult, } from "./cli/messages.js";
-import { runSideEffectCommand } from "./cli/side-effect-dispatch.js";
-import { resolveCommandWorkspace } from "./cli/workspace-resolution.js";
+import { VERSION, usage } from "./cli/cli-help.js";
+import { createDefaultConfig, runDiagnose, updateContentHashes, verifyConfig, } from "./cli/cli-local-commands.js";
+import { parseArgs, prepareCommand } from "./cli/cli-parser.js";
+import { setCommandResult, SUPPORTED_COMMANDS, writeCommandResult, } from "./cli/cli-messages.js";
+import { runSideEffectCommand } from "./cli/cli-side-effect-dispatch.js";
+import { resolveCommandWorkspace, } from "./cli/cli-workspace-resolution.js";
 import { errorMessage, hasErrorName } from "./value-guards.js";
-export { isValidAdsSelector, parseArgs, prepareCommand } from "./cli/parser.js";
-export { planCommand } from "./cli/planning.js";
 async function executeCommand(parsed, options) {
     const commandPreparation = prepareCommand(parsed);
     if (!commandPreparation.ok) {
