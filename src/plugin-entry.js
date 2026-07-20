@@ -1,8 +1,8 @@
 import {
-  buildKleinanzeigenApprovalDescription,
   createKleinanzeigenTools,
   resolveApprovalToolNames,
 } from "./tools.js";
+import { buildKleinanzeigenApprovalDescription } from "./tools-approval.js";
 
 export function createCommandRunner(runtime) {
   const runCommandWithTimeout = runtime?.system?.runCommandWithTimeout;

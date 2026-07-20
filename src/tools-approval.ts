@@ -3,6 +3,29 @@ import path from "node:path";
 type Config = Record<string, unknown>;
 type Params = Record<string, unknown>;
 
+export const SIDE_EFFECT_TOOL_NAMES = new Set<string>([
+  "kleinanzeigen_publish",
+  "kleinanzeigen_update",
+  "kleinanzeigen_delete",
+  "kleinanzeigen_download",
+  "kleinanzeigen_extend",
+  "kleinanzeigen_browser_configure",
+  "kleinanzeigen_draft_ad",
+  "kleinanzeigen_set_ad_active",
+]);
+
+export function resolveApprovalToolNames(
+  tools: readonly { name: string }[],
+  config: Config = {},
+): Set<string> {
+  const mode = typeof config.approvalMode === "string"
+    ? config.approvalMode
+    : "all";
+  if (mode === "none") return new Set();
+  if (mode === "mutating") return new Set(SIDE_EFFECT_TOOL_NAMES);
+  return new Set(tools.map((tool) => tool.name));
+}
+
 function relativeConfiguredPath(value: unknown, config: Config): string | null {
   if (typeof value !== "string" || !value.trim()) {
     return null;

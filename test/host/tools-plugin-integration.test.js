@@ -6,16 +6,18 @@ import path from "node:path";
 import {
   createCommandRunner,
   createKleinClawPluginEntry,
-} from "../dist/plugin-entry.js";
+} from "../../dist/plugin-entry.js";
 import {
-  buildKleinanzeigenApprovalDescription,
   createKleinanzeigenTools,
   resolveApprovalToolNames,
   SIDE_EFFECT_TOOL_NAMES,
-} from "../dist/tools.js";
+} from "../../dist/tools.js";
+import {
+  buildKleinanzeigenApprovalDescription,
+} from "../../dist/tools-approval.js";
 import {
   withMockMiniclawScript,
-} from "./helpers/command-runner.js";
+} from "../../test-support/host/command-runner.js";
 
 describe("kleinanzeigen plugin tools", () => {
   it("registers tools and persists an always-allow choice", async () => {
