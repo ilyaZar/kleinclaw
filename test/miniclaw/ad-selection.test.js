@@ -4,8 +4,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { Config } from "../miniclaw/dist/model/config-model.js";
-import { loadSelectedAds } from "../miniclaw/dist/selection.js";
+import { Config } from "../../miniclaw/dist/model/config-model.js";
+import { loadSelectedAds } from "../../miniclaw/dist/selection.js";
 
 describe("miniclaw ad selection", () => {
   it("expands ad image globs to concrete absolute image files", async () => {
