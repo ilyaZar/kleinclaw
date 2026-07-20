@@ -4,13 +4,6 @@ import { DiagnosticsConfig, type DiagnosticsConfigInput } from "./diagnostics-co
 import { DownloadConfig, type DownloadConfigInput } from "./download-config.js";
 import { DeletingConfig, type DeletingConfigInput, PublishingConfig, type PublishingConfigInput } from "./publishing-config.js";
 import { TimeoutConfig, type TimeoutConfigInput } from "./timeout-config.js";
-export { AdDefaults, AutoPriceReductionConfig, ContactDefaults, type AdDefaultsInput, type AutoPriceReductionConfigInput, type AutoPriceReductionStrategy, type ContactDefaultsInput, } from "./ad-defaults-config.js";
-export { BrowserConfig, LoginConfig, type BrowserConfigInput, type LoginConfigInput, } from "./browser-login-config.js";
-export { CaptureOnConfig, DiagnosticsConfig, type CaptureOnConfigInput, type DiagnosticsConfigInput, } from "./diagnostics-config.js";
-export { DownloadConfig, type DownloadConfigInput, } from "./download-config.js";
-export { DeletingConfig, PublishingConfig, type AfterDeletePolicy, type DeletingConfigInput, type PublishingConfigInput, type PublishingDeleteOldAdsPolicy, } from "./publishing-config.js";
-export { TimeoutConfig, type TimeoutConfigInput, type TimeoutKey, } from "./timeout-config.js";
-export { ValidationError } from "./validation-error.js";
 export interface ConfigInput {
     adFiles?: string[];
     ad_files?: string[];
@@ -37,5 +30,4 @@ export declare class Config {
     readonly diagnostics: DiagnosticsConfig;
     readonly timeouts: TimeoutConfig;
     constructor(input?: ConfigInput);
-    withValues(values: ConfigInput): Config;
 }
