@@ -9,14 +9,14 @@ import {
   login,
   LoginDetectionReason,
   ManualActionRequiredError,
-} from "../miniclaw/dist/auth.js";
-import { Config } from "../miniclaw/dist/model/config-model.js";
-import { By } from "../miniclaw/dist/web-primitives.js";
+} from "../../miniclaw/dist/auth.js";
+import { Config } from "../../miniclaw/dist/model/config-model.js";
+import { By } from "../../miniclaw/dist/web-primitives.js";
 
 describe("miniclaw auth", () => {
   it("stops before login actions when the IP range is blocked", async () => {
     const pageText = await fs.readFile(
-      new URL("fixtures/ip-range-blocked-page.txt", import.meta.url),
+      new URL("fixtures/auth-ip-range-blocked-page.txt", import.meta.url),
       "utf8",
     );
     let openCalls = 0;
