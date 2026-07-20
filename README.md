@@ -122,9 +122,10 @@ on the machine running the plugin. This creates the local session state that
 later browser runs reuse; see [Browser settings](#browser-settings).
 
 For both install methods, tool exposure depends on the active profile and
-sandbox policy, not the install source. See [Configure](#configure) for the
-conditional grants. Those steps use `openclaw config file`, so they also work on
-the other supported platforms.
+sandbox policy, not the install source. See
+[OpenClaw JSON configuration](#openclaw-json-configuration) for the conditional
+grants. Those steps use `openclaw config file`, so they also work on the other
+supported platforms.
 
 ### Built-in skill
 
