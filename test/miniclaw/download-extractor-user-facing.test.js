@@ -4,25 +4,25 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { Config } from "../miniclaw/dist/model/config-model.js";
+import { Config } from "../../miniclaw/dist/model/config-model.js";
 import {
   extractCategoryFromAdPage,
   extractSpecialAttributesFromAdPage,
-} from "../miniclaw/dist/download-extractor/classification.js";
+} from "../../miniclaw/dist/download-extractor/download-extractor-classification.js";
 import {
   extractContactFromAdPage,
   extractSellDirectlyFromAdPage,
-} from "../miniclaw/dist/download-extractor/contact.js";
+} from "../../miniclaw/dist/download-extractor/download-extractor-contact.js";
 import {
   downloadAndSaveImage,
   downloadImagesFromAdPage,
-} from "../miniclaw/dist/download-extractor/images.js";
+} from "../../miniclaw/dist/download-extractor/download-extractor-images.js";
 import {
   renderDownloadAdFileStem,
   renderDownloadFolderName,
   renderDownloadNameWithBudget,
   sanitizeFolderName,
-} from "../miniclaw/dist/download-extractor/naming.js";
+} from "../../miniclaw/dist/download-extractor/download-extractor-naming.js";
 import {
   dimensionsFromBelenConf,
   parseGermanCreationDate,
@@ -31,20 +31,20 @@ import {
   shippingOptionsFromResponse,
   textAttribute,
   translateDamageAttribute,
-} from "../miniclaw/dist/download-extractor/page-data.js";
+} from "../../miniclaw/dist/download-extractor/download-extractor-page-data.js";
 import {
   extractPricingInfoFromAdPage,
   extractShippingInfoFromAdPage,
-} from "../miniclaw/dist/download-extractor/pricing-shipping.js";
+} from "../../miniclaw/dist/download-extractor/download-extractor-pricing-shipping.js";
 import {
   fileExists,
   FileExistsError,
   saveDownloadedAd,
-} from "../miniclaw/dist/download-extractor/persistence.js";
+} from "../../miniclaw/dist/download-extractor/download-extractor-persistence.js";
 import {
   By,
   TimeoutError,
-} from "../miniclaw/dist/web-primitives.js";
+} from "../../miniclaw/dist/web-primitives.js";
 
 function key(type, value) {
   return `${type}:${value}`;
