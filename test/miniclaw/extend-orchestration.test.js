@@ -5,9 +5,11 @@ import {
   daysUntilEndDate,
   parseGermanDate,
   runExtendAdsBatch,
-} from "../miniclaw/dist/extend-orchestration.js";
-import { extendPublishedAd } from "../miniclaw/dist/publish-side-effects/extend-hook.js";
-import { By, TimeoutError } from "../miniclaw/dist/web-primitives.js";
+} from "../../miniclaw/dist/extend-orchestration.js";
+import {
+  extendPublishedAd,
+} from "../../miniclaw/dist/publish-side-effects/publish-side-effects-extend-hook.js";
+import { By, TimeoutError } from "../../miniclaw/dist/web-primitives.js";
 
 function loadedAd({ id = 12345, title = "Eligible ad" } = {}) {
   return {

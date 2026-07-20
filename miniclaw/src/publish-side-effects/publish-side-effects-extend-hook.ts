@@ -6,7 +6,9 @@
 
 import { type ExtendAdContext } from "../extend-orchestration.js";
 import { By, TimeoutError, type WebElement, type WebLocator } from "../web-primitives.js";
-import { navigatePaginatedAdOverview } from "./ad-overview.js";
+import {
+  navigatePaginatedAdOverview,
+} from "./publish-side-effects-ad-overview.js";
 
 interface ExtendPublishedAdController {
   webClick(type: By, value: string, timeout?: number): Promise<WebLocator>;

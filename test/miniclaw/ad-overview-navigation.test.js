@@ -1,8 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { navigatePaginatedAdOverview } from "../miniclaw/dist/publish-side-effects/ad-overview.js";
-import { TimeoutError, WebController } from "../miniclaw/dist/web-primitives.js";
+import {
+  navigatePaginatedAdOverview,
+} from "../../miniclaw/dist/publish-side-effects/publish-side-effects-ad-overview.js";
+import { TimeoutError, WebController } from "../../miniclaw/dist/web-primitives.js";
 
 describe("miniclaw ad overview navigation", () => {
   it("scrolls pages with the same stepped browser script sequence as Python", async () => {

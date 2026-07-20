@@ -5,7 +5,9 @@
  */
 
 import { By, TimeoutError, type WebElement, type WebLocator } from "../web-primitives.js";
-import { elementAttribute } from "./browser-elements.js";
+import {
+  elementAttribute,
+} from "./publish-side-effects-browser-elements.js";
 
 interface AdOverviewController {
   webFind(

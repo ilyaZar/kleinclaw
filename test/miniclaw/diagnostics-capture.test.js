@@ -4,11 +4,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { Config } from "../miniclaw/dist/model/config-model.js";
+import { Config } from "../../miniclaw/dist/model/config-model.js";
 import {
   createLoginDiagnosticsCapture,
   createPublishDiagnosticsCapture,
-} from "../miniclaw/dist/publish-side-effects/factory-support.js";
+} from "../../miniclaw/dist/publish-side-effects/publish-side-effects-factory-support.js";
 
 describe("miniclaw diagnostics", () => {
   it("keeps login diagnostics disabled by default", () => {

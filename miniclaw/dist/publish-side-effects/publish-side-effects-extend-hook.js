@@ -4,7 +4,7 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import { By, TimeoutError } from "../web-primitives.js";
-import { navigatePaginatedAdOverview } from "./ad-overview.js";
+import { navigatePaginatedAdOverview, } from "./publish-side-effects-ad-overview.js";
 export async function extendPublishedAd(controller, rootUrl, context, { paginationFollowUpTimeout, paginationInitialTimeout, quickDomTimeout, } = {}) {
     if (!context.ad.id) {
         return false;
