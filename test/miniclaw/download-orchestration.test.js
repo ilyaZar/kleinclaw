@@ -7,7 +7,7 @@ import {
   publishedAdsById,
   resolveDownloadAdActivity,
   runDownloadAdsBatch,
-} from "../miniclaw/dist/download-orchestration.js";
+} from "../../miniclaw/dist/download-orchestration.js";
 
 let adCounter = 0;
 
