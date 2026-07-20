@@ -9,7 +9,6 @@ import path from "node:path";
 
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
-import { type AdInput, toAd } from "./model/ad-model.js";
 import { Config, type ConfigInput } from "./model/config-model.js";
 
 export async function loadDataFile(filePath: string): Promise<unknown> {
@@ -43,12 +42,4 @@ function asRecord(value: unknown, label: string): Record<string, unknown> {
 
 export async function loadConfigFile(filePath: string): Promise<Config> {
   return new Config(asRecord(await loadDataFile(filePath), "config") as ConfigInput);
-}
-
-export async function loadAdFile(
-  filePath: string,
-  config: Config,
-): Promise<ReturnType<typeof toAd>> {
-  const raw = asRecord(await loadDataFile(filePath), "ad") as AdInput;
-  return toAd(raw, config.adDefaults);
 }

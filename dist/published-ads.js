@@ -58,7 +58,7 @@ function incomplete(strict, message) {
 function jsonParseErrorMessage(error) {
     return error instanceof Error ? error.message : String(error);
 }
-export function coercePageNumber(value) {
+function coercePageNumber(value) {
     if (value === null || value === undefined || typeof value === "boolean") {
         return null;
     }
