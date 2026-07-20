@@ -5,20 +5,15 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
-import { extractAdIdFromAdUrl as parseAdIdFromAdUrl } from "./ad-identity.js";
-import { extractCategoryFromAdPage as extractPageCategory, extractSpecialAttributesFromAdPage as extractPageSpecialAttributes, extractSpecialAttributesFromDom as extractPageSpecialAttributesFromDom, } from "./download-extractor/classification.js";
-import { extractContactFromAdPage as extractPageContact, extractSellDirectlyFromAdPage as extractPageSellDirectly, } from "./download-extractor/contact.js";
-import { downloadAndSaveImage as downloadImageFile, downloadImagesFromAdPage as downloadPageImages, } from "./download-extractor/images.js";
-import { dimensionsFromBelenConf, parseGermanCreationDate, textAttribute, translateDamageAttribute, } from "./download-extractor/page-data.js";
-import { extractPricingInfoFromAdPage as extractPagePricingInfo, extractShippingInfoFromAdPage as extractPageShippingInfo, } from "./download-extractor/pricing-shipping.js";
-import { renderDownloadAdFileStem as renderConfiguredDownloadAdFileStem, renderDownloadFolderName as renderConfiguredDownloadFolderName, renderDownloadNameWithBudget as renderConfiguredDownloadNameWithBudget, } from "./download-extractor/naming.js";
-import { fileExists, removeTreeWithRetries, saveDownloadedAd, STAGING_DIR_PREFIX, } from "./download-extractor/persistence.js";
+import { extractCategoryFromAdPage as extractPageCategory, extractSpecialAttributesFromAdPage as extractPageSpecialAttributes, } from "./download-extractor/download-extractor-classification.js";
+import { extractContactFromAdPage as extractPageContact, extractSellDirectlyFromAdPage as extractPageSellDirectly, } from "./download-extractor/download-extractor-contact.js";
+import { downloadAndSaveImage as downloadImageFile, downloadImagesFromAdPage as downloadPageImages, } from "./download-extractor/download-extractor-images.js";
+import { dimensionsFromBelenConf, parseGermanCreationDate, textAttribute, translateDamageAttribute, } from "./download-extractor/download-extractor-page-data.js";
+import { extractPricingInfoFromAdPage as extractPagePricingInfo, extractShippingInfoFromAdPage as extractPageShippingInfo, } from "./download-extractor/download-extractor-pricing-shipping.js";
+import { renderDownloadAdFileStem as renderConfiguredDownloadAdFileStem, renderDownloadFolderName as renderConfiguredDownloadFolderName, } from "./download-extractor/download-extractor-naming.js";
+import { fileExists, removeTreeWithRetries, saveDownloadedAd, STAGING_DIR_PREFIX, } from "./download-extractor/download-extractor-persistence.js";
 import { contentHashForLoadedAd, toAd, } from "./model/ad-model.js";
 import { By, TimeoutError, } from "./web-primitives.js";
-export { sanitizeFolderName, } from "./download-extractor/naming.js";
-export { AD_SCHEMA_HEADER, FileExistsError, } from "./download-extractor/persistence.js";
-const LOG_SNIPPET_LIMIT = 120;
-const ELLIPSIS = "...";
 export class DownloadAdExtractor {
     controller;
     config;
@@ -32,23 +27,8 @@ export class DownloadAdExtractor {
         this.downloadImage = downloadImage;
         this.publishedAdsById = publishedAdsById;
     }
-    static truncateLogSnippet(value, maxLength = LOG_SNIPPET_LIMIT) {
-        if (maxLength <= 0) {
-            return "";
-        }
-        if (value.length <= maxLength) {
-            return value;
-        }
-        if (maxLength <= ELLIPSIS.length) {
-            return ELLIPSIS.slice(0, maxLength);
-        }
-        return value.slice(0, maxLength - ELLIPSIS.length) + ELLIPSIS;
-    }
     static async downloadAndSaveImage(url, directory, filenamePrefix, imageNumber, options) {
         return downloadImageFile(url, directory, filenamePrefix, imageNumber, options);
-    }
-    renderDownloadNameWithBudget(template, adId, title, maxLength) {
-        return renderConfiguredDownloadNameWithBudget(template, adId, title, maxLength);
     }
     renderDownloadAdFileStem(adId, title) {
         return renderConfiguredDownloadAdFileStem(this.config, adId, title);
@@ -62,17 +42,11 @@ export class DownloadAdExtractor {
     async extractTitleFromAdPage() {
         return this.controller.webText(By.ID, "viewad-title");
     }
-    extractAdIdFromAdUrl(url) {
-        return parseAdIdFromAdUrl(url);
-    }
     async extractCategoryFromAdPage() {
         return extractPageCategory(this.controller);
     }
     async extractSpecialAttributesFromAdPage(belenConf) {
         return extractPageSpecialAttributes(this.controller, belenConf);
-    }
-    async extractSpecialAttributesFromDom() {
-        return extractPageSpecialAttributesFromDom(this.controller);
     }
     async extractPricingInfoFromAdPage() {
         return extractPagePricingInfo(this.controller);

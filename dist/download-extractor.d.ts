@@ -1,9 +1,7 @@
-import { type DownloadImage, type DownloadImageOptions } from "./download-extractor/images.js";
-import { type WebReadController } from "./download-extractor/controller.js";
+import { type DownloadImage, type DownloadImageOptions } from "./download-extractor/download-extractor-images.js";
+import { type WebReadController } from "./download-extractor/download-extractor-controller.js";
 import { type AdInput, type ContactInput } from "./model/ad-model.js";
 import { type Config } from "./model/config-model.js";
-export { sanitizeFolderName, } from "./download-extractor/naming.js";
-export { AD_SCHEMA_HEADER, FileExistsError, } from "./download-extractor/persistence.js";
 export interface DownloadExtractorController extends WebReadController {
     readonly page?: {
         url?: string;
@@ -33,17 +31,13 @@ export declare class DownloadAdExtractor {
     downloadDir: string;
     private readonly downloadImage;
     constructor({ controller, config, downloadDir, downloadImage, publishedAdsById, }: DownloadAdExtractorOptions);
-    static truncateLogSnippet(value: string, maxLength?: number): string;
     static downloadAndSaveImage(url: string, directory: string, filenamePrefix: string, imageNumber: number, options?: DownloadImageOptions): Promise<string | null>;
-    renderDownloadNameWithBudget(template: string, adId: number, title: string, maxLength: number): string;
     renderDownloadAdFileStem(adId: number, title: string): string;
     renderDownloadFolderName(adId: number, title: string): string;
     downloadImagesFromAdPage(directory: string, adFileStem: string): Promise<string[]>;
     extractTitleFromAdPage(): Promise<string>;
-    extractAdIdFromAdUrl(url: string): number;
     extractCategoryFromAdPage(): Promise<string>;
     extractSpecialAttributesFromAdPage(belenConf: unknown): Promise<Record<string, string>>;
-    extractSpecialAttributesFromDom(): Promise<Record<string, string>>;
     extractPricingInfoFromAdPage(): Promise<[
         AdInput["price"],
         NonNullable<AdInput["price_type"]>
