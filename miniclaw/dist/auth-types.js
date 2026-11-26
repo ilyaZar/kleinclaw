@@ -5,6 +5,7 @@
  */
 import { hasErrorName } from "./value-guards.js";
 import { TimeoutError, } from "./web-primitives.js";
+export const DEFAULT_MANUAL_ACTION_TIMEOUT = 300;
 export var LoginDetectionReason;
 (function (LoginDetectionReason) {
     LoginDetectionReason["USER_INFO_MATCH"] = "USER_INFO_MATCH";
@@ -17,6 +18,7 @@ export function resolveLoginOptions(options) {
         captureDiagnostics: options.captureDiagnostics,
         emailVerificationTimeout: options.emailVerificationTimeout ?? 5,
         loginDetectionTimeout: options.loginDetectionTimeout ?? 12,
+        manualActionTimeout: options.manualActionTimeout ?? DEFAULT_MANUAL_ACTION_TIMEOUT,
         onManualCaptcha: options.onManualCaptcha,
         onVerificationPrompt: options.onVerificationPrompt,
         pageLoadTimeout: options.pageLoadTimeout ?? 15,

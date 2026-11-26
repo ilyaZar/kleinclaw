@@ -1,5 +1,5 @@
 import { normalizeOptionalString, normalizeWorkspaceMode } from "./input.js";
-import { OPERATIONS } from "./miniclaw-runtime.js";
+import { manualActionTimeoutSeconds, OPERATIONS } from "./miniclaw-runtime.js";
 function normalizeSelector(value, allowed, fallback) {
     const selector = normalizeOptionalString(value) ?? fallback;
     if (selector && !allowed.includes(selector)) {
@@ -94,6 +94,7 @@ export function buildKleinanzeigenArgs(operation, params = {}, config = {}) {
     }
     if (spec.sideEffect) {
         args.push("--allow-live-browser");
+        args.push(`--manual-action-timeout=${manualActionTimeoutSeconds(config)}`);
     }
     args.push(operation);
     if (["verify", "diagnose"].includes(operation)) {

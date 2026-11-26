@@ -5,8 +5,11 @@
  */
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
-import { resolveLoginOptions, } from "./auth-types.js";
+import { DEFAULT_MANUAL_ACTION_TIMEOUT, resolveLoginOptions, } from "./auth-types.js";
+import { CAPTCHA_IFRAME_SELECTOR } from "./publish-form/publish-form-constants.js";
 import { By } from "./web-primitives.js";
+const CAPTCHA_TOKEN_PRESENT_JS = "Boolean(document.querySelector(\"input[name='captcha']\")?.value || " +
+    "document.querySelector(\"textarea[name='g-recaptcha-response']\")?.value)";
 export class ManualActionRequiredError extends Error {
     constructor(message) {
         super(message);
@@ -14,9 +17,6 @@ export class ManualActionRequiredError extends Error {
     }
 }
 async function promptForManualAction(message) {
-    if (!input.isTTY || !output.isTTY) {
-        throw new ManualActionRequiredError(`${message} Manual browser action requires an interactive run.`);
-    }
     console.error("############################################");
     console.error(message);
     console.error("############################################");
@@ -28,12 +28,54 @@ async function promptForManualAction(message) {
         readline.close();
     }
 }
-export async function defaultManualCaptchaPrompt() {
-    await promptForManualAction("# Captcha present! Please solve the captcha.");
+const MANUAL_ACTION_POLL_MS = 2000;
+// Hand a step to the user. With a terminal, wait for ENTER; without one (e.g.
+// under KleinClaw), poll the page until `resolved` holds, so the user can
+// finish the step in the browser window at their own pace.
+export async function waitForManualAction(controller, message, resolved, { interactive = Boolean(input.isTTY && output.isTTY), timeoutSeconds = DEFAULT_MANUAL_ACTION_TIMEOUT, } = {}) {
+    if (interactive) {
+        await promptForManualAction(message);
+        return;
+    }
+    if (timeoutSeconds <= 0) {
+        throw new ManualActionRequiredError(`${message} Manual browser action requires an interactive run.`);
+    }
+    console.error(`${message} Waiting up to ${timeoutSeconds} s for it to be done in the browser window.`);
+    const deadline = Date.now() + timeoutSeconds * 1000;
+    while (Date.now() < deadline) {
+        if (await resolved()) {
+            return;
+        }
+        await controller.webSleep(MANUAL_ACTION_POLL_MS, MANUAL_ACTION_POLL_MS);
+    }
+    if (await resolved()) {
+        return;
+    }
+    throw new ManualActionRequiredError(`${message} It was not done within ${timeoutSeconds} s.`);
 }
-async function defaultVerificationPrompt(context) {
-    await promptForManualAction(`# Device verification message detected (${context.kind}). ` +
-        "Please follow the instruction displayed in the browser.");
+export const CAPTCHA_PROMPT = "# Captcha present! Please solve the captcha.";
+// A solved captcha leaves a token, or the captcha disappears.
+export async function captchaResolved(controller) {
+    try {
+        if (await controller.webExecute(CAPTCHA_TOKEN_PRESENT_JS) === true) {
+            return true;
+        }
+    }
+    catch {
+        // keep polling
+    }
+    return await controller.webProbe(By.CSS_SELECTOR, CAPTCHA_IFRAME_SELECTOR, {
+        timeout: 0,
+    }) === null;
+}
+export async function waitForManualCaptcha(controller, options, resolved = () => captchaResolved(controller)) {
+    if (options.onManualCaptcha) {
+        await options.onManualCaptcha();
+        return;
+    }
+    await waitForManualAction(controller, CAPTCHA_PROMPT, resolved, {
+        timeoutSeconds: options.manualActionTimeout,
+    });
 }
 export async function clickGdprBanner(controller, timeout) {
     const element = await controller.webProbe(By.ID, "gdpr-banner-accept", {
@@ -44,25 +86,36 @@ export async function clickGdprBanner(controller, timeout) {
         await controller.webSleep();
     }
 }
-async function checkVerificationPrompt(controller, { kind, message, onVerificationPrompt, timeout, }) {
-    const element = await controller.webProbe(By.TEXT, message, { timeout });
-    if (!element) {
+// Both the request-code screen ("Wir senden dir ... Code") and the
+// code-sent screen ("Wir haben dir gerade ... Telefonnummer") need the user.
+// The user requests and types the code in the browser; miniclaw never does.
+export const SMS_VERIFICATION_XPATH = "//*[not(self::script or self::style)]" +
+    "[(text()[contains(., 'Wir haben dir gerade')] and contains(., 'Telefonnummer')) " +
+    "or (text()[contains(., 'Wir senden dir')] and contains(., 'Code'))]";
+const EMAIL_VERIFICATION_TEXT = "Um dein Konto zu schützen haben wir dir eine E-Mail geschickt";
+async function checkVerificationPrompt(controller, options, { kind, selector, timeout, }) {
+    const [type, value] = selector;
+    if (!await controller.webProbe(type, value, { timeout })) {
         return;
     }
-    await (onVerificationPrompt ?? defaultVerificationPrompt)({ kind, message });
+    const message = `# Device verification message detected (${kind}). ` +
+        "Please follow the instruction displayed in the browser.";
+    if (options.onVerificationPrompt) {
+        await options.onVerificationPrompt({ kind, message });
+        return;
+    }
+    await waitForManualAction(controller, message, async () => await controller.webProbe(type, value, { timeout: 0 }) === null, { timeoutSeconds: options.manualActionTimeout });
 }
 export async function handleAfterLoginLogic(controller, options = {}) {
     const resolvedOptions = resolveLoginOptions(options);
-    await checkVerificationPrompt(controller, {
+    await checkVerificationPrompt(controller, resolvedOptions, {
         kind: "sms",
-        message: "Wir haben dir gerade einen 6-stelligen Code für die Telefonnummer",
-        onVerificationPrompt: resolvedOptions.onVerificationPrompt,
+        selector: [By.XPATH, SMS_VERIFICATION_XPATH],
         timeout: resolvedOptions.smsVerificationTimeout,
     });
-    await checkVerificationPrompt(controller, {
+    await checkVerificationPrompt(controller, resolvedOptions, {
         kind: "email",
-        message: "Um dein Konto zu schützen haben wir dir eine E-Mail geschickt",
-        onVerificationPrompt: resolvedOptions.onVerificationPrompt,
+        selector: [By.TEXT, EMAIL_VERIFICATION_TEXT],
         timeout: resolvedOptions.emailVerificationTimeout,
     });
     await clickGdprBanner(controller, resolvedOptions.quickDomTimeout);

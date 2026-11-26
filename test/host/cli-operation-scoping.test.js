@@ -96,6 +96,7 @@ describe("scoped operation selection", () => {
       "--output=json",
       `--ad-file=${selectedPath}`,
       "--allow-live-browser",
+      "--manual-action-timeout=300",
       "publish",
       "--ads=2923858274",
     ]);
@@ -107,6 +108,7 @@ describe("scoped operation selection", () => {
       "--output=json",
       "--ad-file=[redacted]",
       "--allow-live-browser",
+      "--manual-action-timeout=300",
       "publish",
       "--ads=2923858274",
     ]);
@@ -152,6 +154,7 @@ describe("scoped operation selection", () => {
       "--workspace-mode=portable",
       "--output=json",
       "--allow-live-browser",
+      "--manual-action-timeout=300",
       "download",
       "--ads=2923858274",
     ]);
@@ -198,6 +201,7 @@ describe("scoped operation selection", () => {
       "--workspace-mode=portable",
       "--output=json",
       "--allow-live-browser",
+      "--manual-action-timeout=300",
       "update",
       "--ads=2923858274,1111111111",
     ]);

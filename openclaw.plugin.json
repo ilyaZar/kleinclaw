@@ -63,6 +63,13 @@
         "maximum": 600000,
         "description": "Maximum runtime for one miniclaw command."
       },
+      "manualActionTimeoutSeconds": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 1800,
+        "default": 300,
+        "description": "Seconds a live browser run waits for you to solve a captcha or device verification in the browser window. 0 stops at once."
+      },
       "maxOutputChars": {
         "type": "integer",
         "minimum": 0,

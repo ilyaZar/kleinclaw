@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- give you time to solve a captcha or a device verification during live runs:
+  without a terminal, miniclaw now polls the browser for up to
+  `manualActionTimeoutSeconds` (default 300, new plugin setting and
+  `--manual-action-timeout`) instead of stopping at once; live runs get that
+  wait on top of `timeoutMs`
+- miniclaw: recognize both SMS verification screens (code request and code
+  sent) and a captcha after the password step; the code is always typed by
+  you in the browser
 - miniclaw: click the visible Auth0 submit, wait for an identifier-step captcha
   token before submitting, read the login marker even when the redesigned
   header is hidden on narrow windows, and treat stale page nodes as a miss

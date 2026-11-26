@@ -63,6 +63,8 @@ export interface LoginDiagnosticsContext {
   reason?: LoginDetectionReason;
 }
 
+export const DEFAULT_MANUAL_ACTION_TIMEOUT = 300;
+
 export interface VerificationPromptContext {
   kind: "sms" | "email";
   message: string;
@@ -81,6 +83,8 @@ export interface LoginOptions {
   ) => Promise<void> | void;
   emailVerificationTimeout?: number;
   loginDetectionTimeout?: number;
+  // seconds to wait for the user in the browser when no terminal is attached
+  manualActionTimeout?: number;
   onManualCaptcha?: () => Promise<void> | void;
   onVerificationPrompt?: (
     context: VerificationPromptContext,
@@ -98,6 +102,7 @@ export type ResolvedLoginOptions = Required<
     | "captchaDetectionTimeout"
     | "emailVerificationTimeout"
     | "loginDetectionTimeout"
+    | "manualActionTimeout"
     | "pageLoadTimeout"
     | "pollIntervalMs"
     | "quickDomTimeout"
@@ -114,6 +119,7 @@ export function resolveLoginOptions(
     captureDiagnostics: options.captureDiagnostics,
     emailVerificationTimeout: options.emailVerificationTimeout ?? 5,
     loginDetectionTimeout: options.loginDetectionTimeout ?? 12,
+    manualActionTimeout: options.manualActionTimeout ?? DEFAULT_MANUAL_ACTION_TIMEOUT,
     onManualCaptcha: options.onManualCaptcha,
     onVerificationPrompt: options.onVerificationPrompt,
     pageLoadTimeout: options.pageLoadTimeout ?? 15,
