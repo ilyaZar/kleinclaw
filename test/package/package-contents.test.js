@@ -104,6 +104,7 @@ describe("package contents", () => {
       "package-lock.json",
       "tsconfig.host.json",
       "tsconfig.miniclaw.json",
+      "miniclaw/tsconfig.json",
       "node_modules/.package-lock.json",
       "reports/plugin-inspector-report.json",
       "reports/plugin-inspector-report.md",
@@ -138,6 +139,8 @@ describe("package contents", () => {
       "miniclaw/node_modules/",
       "miniclaw/scripts/",
       "miniclaw/test/",
+      "miniclaw/test-support/",
+      "miniclaw/.github/",
     ];
     for (const file of files) {
       for (const prefix of forbiddenPrefixes) {

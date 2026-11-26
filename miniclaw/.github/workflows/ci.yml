@@ -1,0 +1,34 @@
+# Inert inside KleinClaw (lives under miniclaw/); this becomes the root CI of
+# the split ilyaZar/miniclaw repository.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - run: npm ci --ignore-scripts
+
+      - run: npm run build
+
+      - name: generated dist matches source
+        run: test -z "$(git status --short --untracked-files=all -- dist)"
+
+      - run: npm test
+
+      - run: npm pack --dry-run --ignore-scripts
