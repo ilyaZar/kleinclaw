@@ -3,8 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
-import { By } from "../web-primitives.js";
-import { csrfTokenFromElement, } from "./publish-side-effects-browser-elements.js";
+import { callPageScript, CSRF_TOKEN_SCRIPT } from "../web/page-scripts.js";
 function publishedAdId(value) {
     if (typeof value === "number" && Number.isInteger(value)) {
         return value;
@@ -15,23 +14,23 @@ function publishedAdId(value) {
     const parsed = Number.parseInt(value, 10);
     return Number.isSafeInteger(parsed) ? parsed : null;
 }
-function deletionTargetIds(ad, publishedAds, deleteOldAdsByTitle) {
+// An ad with an ID deletes exactly that ID. Title matching only applies to
+// ID-less ads and fails closed when the title matches several published ads.
+export function deletionTargetIds(ad, publishedAds, deleteOldAdsByTitle) {
+    if (ad.id !== null) {
+        return [ad.id];
+    }
+    if (!deleteOldAdsByTitle) {
+        return [];
+    }
     const ids = new Set();
-    if (deleteOldAdsByTitle) {
-        for (const publishedAd of publishedAds) {
-            const id = publishedAdId(publishedAd.id);
-            if (id === null) {
-                continue;
-            }
-            if (ad.id === id || publishedAd.title === ad.title) {
-                ids.add(id);
-            }
+    for (const publishedAd of publishedAds) {
+        const id = publishedAdId(publishedAd.id);
+        if (id !== null && publishedAd.title === ad.title) {
+            ids.add(id);
         }
     }
-    else if (ad.id !== null) {
-        ids.add(ad.id);
-    }
-    return [...ids].sort((left, right) => left - right);
+    return ids.size === 1 ? [...ids] : [];
 }
 export async function deletePublishedAd(controller, rootUrl, { ad, deleteOldAdsByTitle, publishedAds, }) {
     const targetIds = deletionTargetIds(ad, publishedAds, deleteOldAdsByTitle);
@@ -39,8 +38,10 @@ export async function deletePublishedAd(controller, rootUrl, { ad, deleteOldAdsB
         return false;
     }
     await controller.webOpen(`${rootUrl}/m-meine-anzeigen.html`);
-    const csrfElement = await controller.webFind(By.CSS_SELECTOR, "meta[name=_csrf]");
-    const csrfToken = await csrfTokenFromElement(csrfElement);
+    const csrfToken = await controller.webExecute(callPageScript(CSRF_TOKEN_SCRIPT));
+    if (typeof csrfToken !== "string" || !csrfToken.trim()) {
+        throw new Error("Expected CSRF Token not found in HTML content!");
+    }
     let deleted = false;
     for (const targetId of targetIds) {
         const response = await controller.webRequest(`${rootUrl}/m-anzeigen-loeschen.json?ids=${targetId}`, "POST", [200, 404], { "x-csrf-token": csrfToken });

@@ -78,7 +78,7 @@ import {
 
 export type BrowserPublishController = PublishingFormController & Pick<
   WebController,
-  "webRequest" | "webText"
+  "webAwait" | "webRequest" | "webText"
 > & {
   readonly page?: { url?: string };
 };
@@ -346,6 +346,7 @@ export async function createBrowserPublishUpdateSideEffects(
       rootUrl,
       context,
       {
+        confirmationTimeout: resolvedFormOptions.confirmationTimeout,
         paginationFollowUpTimeout: resolvedPaginationFollowUpTimeout,
         paginationInitialTimeout: resolvedPaginationInitialTimeout,
         quickDomTimeout: resolvedFormOptions.quickDomTimeout,
