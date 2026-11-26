@@ -254,3 +254,60 @@ export async function fetchPublishedAds(
 
   return ads;
 }
+
+const RECOVERY_DELAYS_MS = [0, 1_000, 2_000, 4_000];
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+// After a success page without an ad ID: the one exact-title ad that was not
+// published before the submit. Ambiguous or missing results return null.
+export async function recoverNewPublishedAdId(
+  fetchAds: () => Promise<PublishedAd[]>,
+  {
+    knownIds,
+    sleep,
+    title,
+  }: {
+    knownIds: ReadonlySet<number>;
+    sleep: (ms: number) => Promise<void>;
+    title: string;
+  },
+): Promise<number | null> {
+  for (const delay of RECOVERY_DELAYS_MS) {
+    if (delay > 0) {
+      await sleep(delay);
+    }
+    let ads: PublishedAd[];
+    try {
+      ads = await fetchAds();
+    } catch {
+      continue;
+    }
+    const candidates = new Set<number>();
+    for (const ad of ads) {
+      const adTitle = typeof ad.title === "string" ? ad.title : null;
+      if (adTitle === null || (adTitle !== title && decodeHtmlEntities(adTitle) !== title)) {
+        continue;
+      }
+      const id = Number(ad.id);
+      if (Number.isSafeInteger(id) && !knownIds.has(id)) {
+        candidates.add(id);
+      }
+    }
+    if (candidates.size === 1) {
+      return [...candidates][0]!;
+    }
+    if (candidates.size > 1) {
+      return null;
+    }
+  }
+  return null;
+}

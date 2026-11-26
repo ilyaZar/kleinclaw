@@ -177,3 +177,47 @@ export async function fetchPublishedAds(webRequest, { rootUrl = "https://www.kle
     }
     return ads;
 }
+const RECOVERY_DELAYS_MS = [0, 1_000, 2_000, 4_000];
+function decodeHtmlEntities(value) {
+    return value
+        .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
+        .replace(/&quot;/g, "\"")
+        .replace(/&#39;|&apos;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&");
+}
+// After a success page without an ad ID: the one exact-title ad that was not
+// published before the submit. Ambiguous or missing results return null.
+export async function recoverNewPublishedAdId(fetchAds, { knownIds, sleep, title, }) {
+    for (const delay of RECOVERY_DELAYS_MS) {
+        if (delay > 0) {
+            await sleep(delay);
+        }
+        let ads;
+        try {
+            ads = await fetchAds();
+        }
+        catch {
+            continue;
+        }
+        const candidates = new Set();
+        for (const ad of ads) {
+            const adTitle = typeof ad.title === "string" ? ad.title : null;
+            if (adTitle === null || (adTitle !== title && decodeHtmlEntities(adTitle) !== title)) {
+                continue;
+            }
+            const id = Number(ad.id);
+            if (Number.isSafeInteger(id) && !knownIds.has(id)) {
+                candidates.add(id);
+            }
+        }
+        if (candidates.size === 1) {
+            return [...candidates][0];
+        }
+        if (candidates.size > 1) {
+            return null;
+        }
+    }
+    return null;
+}

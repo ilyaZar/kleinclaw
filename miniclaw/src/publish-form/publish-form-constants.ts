@@ -45,8 +45,10 @@ export const SUBMIT_BUTTON_XPATH =
 export const IMPRINT_GUIDANCE_SUBMIT_ID = "imprint-guidance-submit";
 export const NO_IMAGE_HINT_BUTTON_XPATH =
   '//button[contains(., "Ohne Bild veröffentlichen")]';
+// "Effektiver verkaufen" upsell: the skip label depends on the offered
+// feature (top ad or bump-up).
 export const VISIBILITY_UPSELL_SKIP_BUTTON_XPATH =
-  '//button[contains(., "Ohne Hochschieben weiter")]';
+  '//button[contains(., "Ohne Top-Anzeige weiter") or contains(., "Ohne Hochschieben weiter")]';
 export const PAYMENT_FORM_ID = "myftr-shppngcrt-frm";
 export const CONFIRMATION_URL_FRAGMENT =
   "p-anzeige-aufgeben-bestaetigung.html?adId=";

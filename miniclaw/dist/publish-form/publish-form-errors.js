@@ -23,3 +23,10 @@ export class PublishSubmissionUncertainError extends Error {
         this.name = "PublishSubmissionUncertainError";
     }
 }
+// The form rejected the submitted values; retrying the same values cannot help.
+export class AdFormValidationError extends Error {
+    constructor(errors) {
+        super(`Ad form validation failed: ${errors.join("; ")}`);
+        this.name = "AdFormValidationError";
+    }
+}

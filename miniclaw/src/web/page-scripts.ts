@@ -280,6 +280,85 @@ export const CONDITION_DIALOG_TRIGGER_SCRIPT = String.raw`() => {
   return { found: false };
 }`;
 
+// The redesigned publish success page shows no ad ID.
+export const IDLESS_SUCCESS_PAGE_SCRIPT = String.raw`() => {
+  const text = (element) => (element.innerText ?? element.textContent ?? "").replace(/\s+/g, " ").trim();
+  const hasManageAdsControl = [...document.querySelectorAll("a, button")]
+    .some((element) => text(element).includes("Zu meinen Anzeigen"));
+  return Boolean(document.body) && text(document.body).includes("Geschafft!") && hasManageAdsControl;
+}`;
+
+// Visible field errors of the ad form, as "label: message", without reading
+// field values. Covers aria-invalid/:invalid fields with their
+// aria-errormessage/aria-describedby texts, adjacent statuses, and every
+// visible [id$="-error"] element.
+export const FORM_VALIDATION_ERRORS_SCRIPT = String.raw`() => {
+  const form = document.getElementById("ad-title")?.closest("form");
+  if (!form) return [];
+  const visible = (element) =>
+    element && element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden";
+  const text = (element) => ((element && (element.innerText ?? element.textContent)) || "").replace(/\s+/g, " ").trim();
+  const labels = [...form.querySelectorAll("label")];
+  const labelFor = (element) => {
+    let scope = element;
+    for (let depth = 0; depth < 6 && scope && scope !== form; depth += 1, scope = scope.parentElement) {
+      const controls = [scope, ...scope.querySelectorAll("input[id], select[id], textarea[id], button[id]")];
+      const matches = new Set();
+      for (const control of controls) {
+        const label = labels.find((candidate) => control.id && candidate.htmlFor === control.id);
+        if (label && text(label)) matches.add(text(label));
+      }
+      if (matches.size === 1) return [...matches][0];
+      if (matches.size > 1) break;
+      const localLabels = scope.querySelectorAll("label");
+      if (localLabels.length === 1) return text(localLabels[0]);
+    }
+    return element.matches("input, select, textarea, button") ? element.getAttribute("name") || element.id || "" : "";
+  };
+  const errors = new Set();
+  const reported = new Set();
+  const add = (element, message) => {
+    if (!message) return;
+    const label = labelFor(element);
+    errors.add(label ? label + ": " + message : message);
+  };
+  for (const field of form.querySelectorAll('[aria-invalid="true"], input:invalid, select:invalid, textarea:invalid')) {
+    if (!visible(field)) continue;
+    const errorReferences = field.getAttribute("aria-errormessage");
+    const references = errorReferences ||
+      (field.getAttribute("aria-invalid") === "true" ? field.getAttribute("aria-describedby") : "") || "";
+    const messages = references.trim().split(/\s+/).filter(Boolean).map((id) => document.getElementById(id))
+      .filter((element) => element && form.contains(element) && visible(element))
+      // descriptions can be hints; only error-like elements count
+      .filter((element) => errorReferences ||
+        element.matches('[id$="-error"], [role="alert"], [role="status"], .text-critical'))
+      .map((element) => {
+        reported.add(element);
+        return text(element);
+      }).filter(Boolean);
+    if (!messages.length && !field.validationMessage && field.getAttribute("aria-invalid") === "true") {
+      // an adjacent status without ARIA reference, inside a single-input container
+      for (let scope = field.parentElement; scope && scope !== form; scope = scope.parentElement) {
+        const controls = [...scope.querySelectorAll("input, select, textarea, button")].filter(visible);
+        if (controls.length !== 1) break;
+        const statuses = [...scope.querySelectorAll('[role="status"], [role="alert"]')].filter(visible);
+        if (statuses.some((status) => text(status))) {
+          for (const status of statuses) {
+            reported.add(status);
+            if (text(status)) messages.push(text(status));
+          }
+          break;
+        }
+      }
+    }
+    add(field, messages.join(" ") || field.validationMessage);
+  }
+  for (const error of form.querySelectorAll('[id$="-error"]')) {
+    if (visible(error) && !reported.has(error)) add(error, text(error));
+  }
+  return [...errors];
+}`;
+
 export function callPageScript(source: string, ...args: unknown[]): string {
   return `(${source})(${args.map((arg) => JSON.stringify(arg)).join(", ")})`;
 }

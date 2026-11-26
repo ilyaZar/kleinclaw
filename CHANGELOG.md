@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- miniclaw: after submit, decline either upsell ("Ohne Top-Anzeige weiter" or
+  "Ohne Hochschieben weiter"), accept the update success page for the
+  submitted ad, recover the ID when the publish success page shows none, and
+  stop without retry on form validation errors
 - miniclaw: shipping dialog variants (size pane shown directly, behind
   "Andere Versandmethoden", or nested), tick wanted carriers before unticking
   defaults, PRO "Versand" combobox; individual shipping (`shipping_costs`
