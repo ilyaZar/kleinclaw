@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- build against OpenClaw 2026.11.10 and document its capability consent step
+  for linked installs
 - persist an explicit **Always allow** choice in the existing `approvalMode`
 - keep approval descriptions within the supported OpenClaw request limit
 - package miniclaw as the standalone `@ilyazar/miniclaw` CLI package with

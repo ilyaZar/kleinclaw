@@ -94,6 +94,10 @@ openclaw plugins install clawhub:kleinclaw
 Managed installs enable KleinClaw automatically. Restart or reload the Gateway
 after installing plugin code.
 
+OpenClaw asks you to review KleinClaw's declared tools before it installs or
+enables a third-party plugin. Noninteractive installs need
+`--accept-capabilities` after you have reviewed them.
+
 ### Linked source checkout
 
 In a directory of your choice, run
@@ -114,6 +118,10 @@ openclaw plugins install -l "$PWD"
 openclaw plugins enable kleinclaw
 openclaw gateway restart
 ```
+
+OpenClaw asks you to confirm the local source and review the declared tools.
+Noninteractive runs need `--force --accept-capabilities` on install and
+`--accept-capabilities` on enable, after that review.
 
 ### First browser login
 
