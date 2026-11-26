@@ -1,0 +1,45 @@
+# Push every miniclaw change on main to ilyaZar/miniclaw. The split is
+# deterministic, so the push fast-forwards unless miniclaw main has commits
+# that were not pulled back yet (then miniclaw-pull runs first).
+name: miniclaw-mirror
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "miniclaw/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: miniclaw-sync
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    env:
+      SYNC_TOKEN: ${{ secrets.MINICLAW_SYNC_TOKEN }}
+    steps:
+      - name: require sync token
+        id: token
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::notice::MINICLAW_SYNC_TOKEN is not set; skipping mirror"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.skip != 'true'
+        with:
+          fetch-depth: 0
+
+      - name: split and push
+        if: steps.token.outputs.skip != 'true'
+        run: |
+          git subtree split --prefix=miniclaw -b miniclaw-split
+          git push "https://x-access-token:${SYNC_TOKEN}@github.com/ilyaZar/miniclaw.git" \
+            miniclaw-split:main

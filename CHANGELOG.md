@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- ci: keep the `miniclaw/` subtree and `ilyaZar/miniclaw` in sync in both
+  directions
 - miniclaw: build, test, and CI on its own (own tsconfig, scripts, lockfile,
   and tests under `miniclaw/`) so it can live as a standalone repository
 - miniclaw: extend handles the redesigned choice dialog, selects only the free
