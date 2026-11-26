@@ -26,7 +26,7 @@ export type DownloadAdHook = (context: DownloadAdContext) => Promise<void> | voi
 export type ExtractOwnAdsUrlsHook = (context: ExtractOwnAdsUrlsContext) => Promise<readonly string[]> | readonly string[];
 export type NavigateToAdPageHook = (context: DownloadNavigationContext) => Promise<boolean | void> | boolean | void;
 export type DownloadSelectorMode = "all" | "new" | "numeric";
-export type DownloadBatchEventStatus = "downloaded" | "skipped-invalid-id" | "skipped-navigation" | "skipped-saved";
+export type DownloadBatchEventStatus = "downloaded" | "failed" | "skipped-invalid-id" | "skipped-navigation" | "skipped-saved";
 export interface DownloadBatchEvent {
     adId: number | null;
     adUrl: string | null;

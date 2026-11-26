@@ -13,3 +13,8 @@ export declare function parseGermanCreationDate(value: string): string;
 export declare function parsePriceAmount(value: string): number;
 export declare function shippingOptionsFromResponse(response: WebResponse): ShippingOption[];
 export declare function translateDamageAttribute(value: string): string;
+export declare function parseAdDimensionsHtml(html: string): Record<string, unknown> | null;
+export declare function fetchAnonymousAdDimensions(adId: number, { fetchImpl, timeoutMs, }?: {
+    fetchImpl?: typeof fetch;
+    timeoutMs?: number;
+}): Promise<Record<string, unknown> | null>;

@@ -11,6 +11,7 @@ import {
 import { isNumericIdSelector } from "./ad-selector.js";
 import { type PublishedAdState } from "./publish-orchestration.js";
 import { type LoadedAd } from "./selection.js";
+import { hasErrorName } from "./value-guards.js";
 
 export { extractAdIdFromAdUrl } from "./ad-identity.js";
 
@@ -55,6 +56,7 @@ export type DownloadSelectorMode = "all" | "new" | "numeric";
 
 export type DownloadBatchEventStatus =
   | "downloaded"
+  | "failed"
   | "skipped-invalid-id"
   | "skipped-navigation"
   | "skipped-saved";
@@ -136,6 +138,14 @@ function savedAdIds(savedAds: readonly LoadedAd[]): Set<number> {
   return ids;
 }
 
+const BATCH_STOPPING_ERRORS = [
+  "AbortError",
+  "CaptchaEncountered",
+  "IpRangeBlockedError",
+  "LiveBrowserSessionDisabledError",
+  "ManualActionRequiredError",
+];
+
 function event(
   source: DownloadSelectorMode,
   status: DownloadBatchEventStatus,
@@ -175,13 +185,23 @@ async function downloadResolvedAd(
   }
 
   const resolved = resolveDownloadAdActivity(adId, adsById);
-  await downloadAd({
-    ...resolved,
-    adId,
-    adUrl,
-    downloadDir,
-    source,
-  });
+  try {
+    await downloadAd({
+      ...resolved,
+      adId,
+      adUrl,
+      downloadDir,
+      source,
+    });
+  } catch (error) {
+    // One unreadable ad page must not cost the rest of the batch; session
+    // boundaries (captcha, manual action, IP block, cancel) still stop it.
+    if (BATCH_STOPPING_ERRORS.some((name) => hasErrorName(error, name))) {
+      throw error;
+    }
+    result.events.push(event(source, "failed", adId, adUrl));
+    return;
+  }
   result.downloaded += 1;
   result.events.push(event(source, "downloaded", adId, adUrl));
 }

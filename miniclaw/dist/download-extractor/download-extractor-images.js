@@ -46,8 +46,19 @@ export async function downloadAndSaveImage(url, directory, filenamePrefix, image
         clearTimeout(timer);
     }
 }
-export async function downloadImagesFromAdPage(controller, downloadImage, directory, adFileStem, { imageDownloadTimeout } = {}) {
+// Island image URLs (redesigned pages) are complete and in order; the classic
+// gallery markup is the fallback.
+export async function downloadImagesFromAdPage(controller, downloadImage, directory, adFileStem, { imageDownloadTimeout, islandImageUrls = [] } = {}) {
     const imagePaths = [];
+    if (islandImageUrls.length > 0) {
+        for (const [index, url] of islandImageUrls.entries()) {
+            const imagePath = await downloadImage(url, directory, `${adFileStem}__img`, index + 1, { timeout: imageDownloadTimeout });
+            if (imagePath) {
+                imagePaths.push(path.basename(imagePath));
+            }
+        }
+        return imagePaths;
+    }
     try {
         const imageBox = await controller.webFind(By.CLASS_NAME, "galleryimage-large");
         const images = await controller.webFindAll(By.CSS_SELECTOR, ".galleryimage-element[data-ix] > img", { parent: imageBox });

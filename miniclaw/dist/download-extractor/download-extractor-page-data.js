@@ -109,3 +109,62 @@ export function translateDamageAttribute(value) {
         return char;
     }).join("");
 }
+const AD_DIMENSIONS_RE = /\{[^{}]*"ad_attributes"[^{}]*\}/;
+// A dimension value containing a brace truncates the object match; the
+// attributes alone are still usable then.
+const AD_ATTRIBUTES_RE = /"ad_attributes"\s*:\s*"([^"]*)"/;
+const AD_PAGE_URL_PREFIX = "https://www.kleinanzeigen.de/s-anzeige/";
+const MAX_REDIRECTS = 3;
+// The canonical ad dimensions embedded in an ad page's HTML (the object in
+// window.BelenConf that carries `ad_attributes`), or null.
+export function parseAdDimensionsHtml(html) {
+    const match = AD_DIMENSIONS_RE.exec(html);
+    if (match) {
+        try {
+            const dimensions = JSON.parse(match[0]);
+            if (isRecord(dimensions)) {
+                return dimensions;
+            }
+        }
+        catch {
+            // fall through to the attributes-only match
+        }
+    }
+    const attributes = AD_ATTRIBUTES_RE.exec(html);
+    return attributes ? { ad_attributes: attributes[1].replace(/&amp;/g, "&") } : null;
+}
+function isTrustedAdPageUrl(url) {
+    const host = url.hostname.toLowerCase();
+    return url.protocol === "https:" &&
+        (host === "kleinanzeigen.de" || host.endsWith(".kleinanzeigen.de"));
+}
+// Redesigned ad pages have no BelenConf, but the same ad served to an
+// anonymous visitor still embeds the dimensions. One request, no cookies,
+// redirects only within Kleinanzeigen hosts.
+export async function fetchAnonymousAdDimensions(adId, { fetchImpl = fetch, timeoutMs = 15_000, } = {}) {
+    let url = new URL(`${AD_PAGE_URL_PREFIX}${adId}`);
+    const signal = AbortSignal.timeout(timeoutMs);
+    try {
+        for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+            const response = await fetchImpl(url, {
+                headers: { "Accept-Language": "de-DE,de;q=0.9" },
+                redirect: "manual",
+                signal,
+            });
+            if (response.status >= 300 && response.status < 400) {
+                const location = response.headers.get("location");
+                const next = location ? new URL(location, url) : null;
+                if (!next || !isTrustedAdPageUrl(next)) {
+                    return null;
+                }
+                url = next;
+                continue;
+            }
+            return response.ok ? parseAdDimensionsHtml(await response.text()) : null;
+        }
+    }
+    catch {
+        return null;
+    }
+    return null;
+}
