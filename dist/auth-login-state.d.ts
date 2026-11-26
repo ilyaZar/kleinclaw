@@ -8,6 +8,7 @@ export declare class LoginDetectionResult {
     readonly reason: LoginDetectionReason;
     constructor(isLoggedIn: boolean, reason: LoginDetectionReason);
 }
+export declare function isStaleNodeError(error: unknown): boolean;
 export declare function currentPageUrl(controller: LoginController): string;
 export declare function captureLoginDiagnostics(options: LoginOptions, context: LoginDiagnosticsContext): Promise<void>;
 export declare function hasLoggedInMarker(controller: LoginController, credentials: LoginConfig, options: LoginOptions): Promise<boolean>;

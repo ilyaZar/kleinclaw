@@ -22,10 +22,12 @@ export interface LoginController {
         timeout?: number;
     }): Promise<string>;
     webTextFirstAvailable?(selectors: readonly [By, string][], options?: {
+        fallbackToTextContent?: boolean;
         parent?: WebLocator | null;
         timeout?: number;
     }): Promise<[string, number]>;
     webTextFirstAvailableOnce?(selectors: readonly WebSelector[], options?: {
+        fallbackToTextContent?: boolean;
         parent?: WebLocator | null;
         key?: TimeoutKey;
         timeout?: number;

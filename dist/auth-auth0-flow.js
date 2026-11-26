@@ -7,6 +7,7 @@ import assert from "node:assert";
 import { currentPageUrl, hasLoggedInMarker, } from "./auth-login-state.js";
 import { defaultManualCaptchaPrompt } from "./auth-manual-verification.js";
 import { isTimeoutLike, resolveLoginOptions, } from "./auth-types.js";
+import { CAPTCHA_IFRAME_SELECTOR } from "./publish-form/publish-form-constants.js";
 import { checkAndWaitForCaptcha, } from "./publish-form/publish-form-submit-flow.js";
 import { By, TimeoutError } from "./web-primitives.js";
 async function waitForCondition(controller, condition, { pollIntervalMs, timeout, timeoutErrorMessage, }) {
@@ -107,20 +108,76 @@ async function waitForPostAuth0SubmitTransition(controller, credentials, options
     throw new TimeoutError("Auth0 post-submit verification remained inconclusive " +
         `(url=${currentPageUrl(controller)})`);
 }
+// The visible Auth0 submit; a plain button[type=submit] can hit the hidden
+// form-submit button.
+export const AUTH0_SUBMIT_SELECTOR = "button[type='submit'][data-action-button-primary='true']" +
+    ":not([disabled]):not([aria-disabled='true'])";
+const AUTH0_CAPTCHA_TOKEN_JS = "document.querySelector(\"input[name='captcha']\")?.value?.length > 0";
+function onPasswordStep(controller) {
+    return currentPageUrl(controller).includes("/u/login/password");
+}
+async function clickAuth0Submit(controller, timeout) {
+    try {
+        await controller.webClick(By.CSS_SELECTOR, AUTH0_SUBMIT_SELECTOR, timeout);
+        await controller.webSleep();
+        return true;
+    }
+    catch (error) {
+        if (isTimeoutLike(error)) {
+            return false;
+        }
+        throw error;
+    }
+}
+// After the e-mail step a captcha may hold the identifier page: wait for its
+// token and submit; if the page still does not advance, hand over to the user.
+async function handleIdentifierCaptchaState(controller, options) {
+    if (onPasswordStep(controller)) {
+        return;
+    }
+    await controller.webSleep(1000, 2000);
+    if (onPasswordStep(controller)) {
+        return;
+    }
+    const captchaDetected = await controller.webProbe(By.CSS_SELECTOR, CAPTCHA_IFRAME_SELECTOR, { timeout: options.quickDomTimeout }) !== null;
+    if (onPasswordStep(controller)) {
+        return;
+    }
+    if (captchaDetected) {
+        try {
+            await waitForCondition(controller, async () => await controller.webExecute(AUTH0_CAPTCHA_TOKEN_JS) === true, {
+                pollIntervalMs: options.pollIntervalMs,
+                timeout: options.quickDomTimeout,
+                timeoutErrorMessage: "Captcha token did not appear",
+            });
+            if (onPasswordStep(controller)) {
+                return;
+            }
+            if (await clickAuth0Submit(controller) && onPasswordStep(controller)) {
+                return;
+            }
+        }
+        catch (error) {
+            if (!isTimeoutLike(error)) {
+                throw error;
+            }
+        }
+    }
+    else if (await clickAuth0Submit(controller, options.quickDomTimeout) &&
+        onPasswordStep(controller)) {
+        return;
+    }
+    await (options.onManualCaptcha ?? defaultManualCaptchaPrompt)();
+    if (!onPasswordStep(controller)) {
+        await clickAuth0Submit(controller, options.quickDomTimeout);
+    }
+}
 export async function fillLoginDataAndSend(controller, credentials, options = {}) {
     const resolvedOptions = resolveLoginOptions(options);
     await waitForAuth0LoginContext(controller, resolvedOptions);
     await controller.webInput(By.ID, "username", credentials.username);
-    await checkAndWaitForCaptcha(controller, {
-        captchaDetectionTimeout: resolvedOptions.captchaDetectionTimeout,
-        isLoginPage: true,
-        onManualCaptcha: async () => {
-            await (resolvedOptions.onManualCaptcha ?? defaultManualCaptchaPrompt)();
-        },
-    });
-    if (!currentPageUrl(controller).includes("/u/login/password")) {
-        await controller.webClick(By.CSS_SELECTOR, "button[type='submit']");
-    }
+    await clickAuth0Submit(controller);
+    await handleIdentifierCaptchaState(controller, resolvedOptions);
     await waitForAuth0PasswordStep(controller, resolvedOptions);
     await controller.webInput(By.CSS_SELECTOR, "input[type='password']", credentials.password);
     await checkAndWaitForCaptcha(controller, {
@@ -130,6 +187,8 @@ export async function fillLoginDataAndSend(controller, credentials, options = {}
             await (resolvedOptions.onManualCaptcha ?? defaultManualCaptchaPrompt)();
         },
     });
-    await controller.webClick(By.CSS_SELECTOR, "button[type='submit']");
+    if (!await clickAuth0Submit(controller)) {
+        throw new TimeoutError("Auth0 password submit button not found");
+    }
     await waitForPostAuth0SubmitTransition(controller, credentials, resolvedOptions);
 }

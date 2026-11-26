@@ -40,11 +40,16 @@ export interface LoginController {
   ): Promise<string>;
   webTextFirstAvailable?(
     selectors: readonly [By, string][],
-    options?: { parent?: WebLocator | null; timeout?: number },
+    options?: {
+      fallbackToTextContent?: boolean;
+      parent?: WebLocator | null;
+      timeout?: number;
+    },
   ): Promise<[string, number]>;
   webTextFirstAvailableOnce?(
     selectors: readonly WebSelector[],
     options?: {
+      fallbackToTextContent?: boolean;
       parent?: WebLocator | null;
       key?: TimeoutKey;
       timeout?: number;
