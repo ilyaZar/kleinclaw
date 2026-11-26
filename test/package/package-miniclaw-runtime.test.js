@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 
 import {
   allowedDependencies,
+  allowedDevDependencies,
   execFileAsync,
   linkRuntimeDependencies,
 } from "../../test-support/package/package-boundary-fixture.js";
@@ -192,8 +193,10 @@ describe("packaged miniclaw runtime", () => {
     );
 
     assert.equal(miniclawPkg.license, "AGPL-3.0-or-later");
-    assert.equal(miniclawPkg.scripts, undefined);
-    assert.equal(miniclawPkg.devDependencies, undefined);
+    for (const script of ["preinstall", "install", "postinstall", "prepare"]) {
+      assert.equal(miniclawPkg.scripts?.[script], undefined);
+    }
+    assert.deepEqual(miniclawPkg.devDependencies, allowedDevDependencies);
     assert.deepEqual(miniclawPkg.dependencies, allowedDependencies);
     assert.equal(
       Object.hasOwn(miniclawPkg.dependencies, "playwright-core"),

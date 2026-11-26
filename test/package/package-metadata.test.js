@@ -24,7 +24,7 @@ describe("package metadata", () => {
     assert.equal(pkg.scripts?.["build:host"], "tsc -p tsconfig.host.json");
     assert.equal(
       pkg.scripts?.["build:miniclaw"],
-      "tsc -p tsconfig.miniclaw.json",
+      "tsc -p miniclaw/tsconfig.json",
     );
     assert.equal(
       pkg.scripts?.["clean:generated"],

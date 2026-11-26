@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- miniclaw: build, test, and CI on its own (own tsconfig, scripts, lockfile,
+  and tests under `miniclaw/`) so it can live as a standalone repository
 - miniclaw: extend handles the redesigned choice dialog, selects only the free
   "Nur verlängern" option, and reports success only after the page confirms it
 - miniclaw: delete removes exactly the ad's own ID; title matching applies only
