@@ -4,7 +4,7 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 
-import { type TimeoutConfig } from "../model/config-model.js";
+import { type TimeoutConfig } from "../model/timeout-config.js";
 import { type TimingRecorder } from "../timing-collector.js";
 
 export enum Is {

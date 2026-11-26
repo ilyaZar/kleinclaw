@@ -6,7 +6,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { toAd } from "./model/ad-model.js";
 import { Config } from "./model/config-model.js";
 export async function loadDataFile(filePath) {
     const text = await fs.readFile(filePath, "utf8");
@@ -32,8 +31,4 @@ function asRecord(value, label) {
 }
 export async function loadConfigFile(filePath) {
     return new Config(asRecord(await loadDataFile(filePath), "config"));
-}
-export async function loadAdFile(filePath, config) {
-    const raw = asRecord(await loadDataFile(filePath), "ad");
-    return toAd(raw, config.adDefaults);
 }

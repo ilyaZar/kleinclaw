@@ -4,7 +4,6 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 
-import { isRecord } from "../value-guards.js";
 import {
   AdDefaults,
   type AdDefaultsInput,
@@ -27,57 +26,8 @@ import {
   type PublishingConfigInput,
 } from "./publishing-config.js";
 import { TimeoutConfig, type TimeoutConfigInput } from "./timeout-config.js";
-import {
-  UpdateCheckConfig,
-  type UpdateCheckConfigInput,
-} from "./update-check-config.js";
 import { ValidationError } from "./validation-error.js";
 import { BUILTIN_CATEGORIES } from "../resources/categories.js";
-
-export {
-  AdDefaults,
-  AutoPriceReductionConfig,
-  ContactDefaults,
-  type AdDefaultsInput,
-  type AutoPriceReductionConfigInput,
-  type AutoPriceReductionStrategy,
-  type ContactDefaultsInput,
-} from "./ad-defaults-config.js";
-export {
-  BrowserConfig,
-  LoginConfig,
-  type BrowserConfigInput,
-  type LoginConfigInput,
-} from "./browser-login-config.js";
-export {
-  CaptureOnConfig,
-  DiagnosticsConfig,
-  type CaptureOnConfigInput,
-  type DiagnosticsConfigInput,
-} from "./diagnostics-config.js";
-export {
-  DownloadConfig,
-  type DownloadConfigInput,
-} from "./download-config.js";
-export {
-  DeletingConfig,
-  PublishingConfig,
-  type AfterDeletePolicy,
-  type DeletingConfigInput,
-  type PublishingConfigInput,
-  type PublishingDeleteOldAdsPolicy,
-} from "./publishing-config.js";
-export {
-  TimeoutConfig,
-  type TimeoutConfigInput,
-  type TimeoutKey,
-} from "./timeout-config.js";
-export {
-  UpdateCheckConfig,
-  type UpdateCheckChannel,
-  type UpdateCheckConfigInput,
-} from "./update-check-config.js";
-export { ValidationError } from "./validation-error.js";
 
 export interface ConfigInput {
   adFiles?: string[];
@@ -92,8 +42,6 @@ export interface ConfigInput {
   login?: LoginConfigInput;
   diagnostics?: DiagnosticsConfigInput;
   timeouts?: TimeoutConfigInput;
-  updateCheck?: UpdateCheckConfigInput;
-  update_check?: UpdateCheckConfigInput;
 }
 
 export class Config {
@@ -107,7 +55,6 @@ export class Config {
   readonly login: LoginConfig;
   readonly diagnostics: DiagnosticsConfig;
   readonly timeouts: TimeoutConfig;
-  readonly updateCheck: UpdateCheckConfig;
 
   constructor(input: ConfigInput = {}) {
     this.adFiles = input.adFiles ?? input.ad_files ?? ["./**/ad_*.{json,yml,yaml}"];
@@ -123,56 +70,5 @@ export class Config {
     this.login = new LoginConfig(input.login ?? {});
     this.diagnostics = new DiagnosticsConfig(input.diagnostics ?? {});
     this.timeouts = new TimeoutConfig(input.timeouts ?? {});
-    this.updateCheck = new UpdateCheckConfig(
-      input.updateCheck ?? input.update_check ?? {},
-    );
   }
-
-  withValues(values: ConfigInput): Config {
-    return new Config(deepMerge(configToInput(this), values));
-  }
-}
-
-function configToInput(config: Config): ConfigInput {
-  return {
-    adFiles: config.adFiles,
-    adDefaults: {
-      active: config.adDefaults.active,
-      type: config.adDefaults.type,
-      descriptionPrefix: config.adDefaults.descriptionPrefix,
-      descriptionSuffix: config.adDefaults.descriptionSuffix,
-      priceType: config.adDefaults.priceType,
-      autoPriceReduction: config.adDefaults.autoPriceReduction,
-      shippingType: config.adDefaults.shippingType,
-      sellDirectly: config.adDefaults.sellDirectly,
-      images: config.adDefaults.images,
-      contact: config.adDefaults.contact,
-      republicationInterval: config.adDefaults.republicationInterval,
-    },
-    categories: config.categories,
-    download: config.download,
-    publishing: config.publishing,
-    deleting: config.deleting,
-    browser: config.browser,
-    login: config.login,
-    diagnostics: config.diagnostics,
-    timeouts: config.timeouts,
-    updateCheck: config.updateCheck,
-  };
-}
-
-function deepMerge<T extends object>(base: T, patch: unknown): T {
-  if (!isRecord(patch)) {
-    return base;
-  }
-  const result: Record<string, unknown> = {
-    ...(base as Record<string, unknown>),
-  };
-  for (const [key, value] of Object.entries(patch)) {
-    const current = result[key];
-    result[key] = isRecord(current) && isRecord(value)
-      ? deepMerge(current, value)
-      : value;
-  }
-  return result as T;
 }

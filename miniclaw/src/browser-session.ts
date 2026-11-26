@@ -5,18 +5,18 @@
  */
 
 import fs from "node:fs";
-import path from "node:path";
 
 import {
   buildBrowserSessionPlan,
   writeInitialPrefs,
   type BrowserSessionPlan,
-} from "./browser.js";
+} from "./browser/browser-session-plan.js";
 import {
   connectCdpBrowser,
   launchCdpBrowser,
 } from "./browser/cdp-adapter.js";
-import { BrowserConfig, Config } from "./model/config-model.js";
+import { BrowserConfig } from "./model/browser-login-config.js";
+import { Config } from "./model/config-model.js";
 
 export interface BrowserSessionPage {
   close?: () => Promise<void>;
@@ -96,14 +96,6 @@ function isBrowserSessionPlan(value: unknown): value is BrowserSessionPlan {
   );
 }
 
-export function browserSessionPlanFrom(
-  source: Config | BrowserConfig | BrowserSessionPlan,
-): BrowserSessionPlan {
-  return isBrowserSessionPlan(source)
-    ? source
-    : buildBrowserSessionPlan(source);
-}
-
 function firstContext(browser: BrowserSessionBrowser): BrowserSessionContext {
   const [context] = browser.contexts();
   if (!context) {
@@ -128,18 +120,9 @@ function ensureProfilePrefs(plan: BrowserSessionPlan): void {
 }
 
 async function closeBrowserSession(
-  mode: BrowserSessionPlan["mode"],
   browser: BrowserSessionBrowser | null,
   context: BrowserSessionContext,
 ): Promise<void> {
-  if (mode === "launch") {
-    if (browser) {
-      await browser.close();
-    } else {
-      await context.close();
-    }
-    return;
-  }
   if (browser) {
     await browser.close();
   } else {
@@ -195,10 +178,6 @@ export async function createBrowserSession(
     context,
     page,
     plan,
-    close: () => closeBrowserSession(plan.mode, browser, context),
+    close: () => closeBrowserSession(browser, context),
   };
-}
-
-export function preferencesFileForSession(plan: BrowserSessionPlan): string | null {
-  return plan.preferencesFile ? path.resolve(plan.preferencesFile) : null;
 }

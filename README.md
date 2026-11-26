@@ -105,9 +105,11 @@ npm ci --ignore-scripts
 ```
 
 OpenClaw does not install dependencies for linked local paths. After installing
-the checkout's locked dependencies, link and enable it:
+the checkout's locked dependencies, build the published runtime, then link and
+enable it:
 
 ```bash
+npm run build
 openclaw plugins install -l "$PWD"
 openclaw plugins enable kleinclaw
 openclaw gateway restart
@@ -120,9 +122,10 @@ on the machine running the plugin. This creates the local session state that
 later browser runs reuse; see [Browser settings](#browser-settings).
 
 For both install methods, tool exposure depends on the active profile and
-sandbox policy, not the install source. See [Configure](#configure) for the
-conditional grants. Those steps use `openclaw config file`, so they also work on
-the remaining inferior platforms :)
+sandbox policy, not the install source. See
+[OpenClaw JSON configuration](#openclaw-json-configuration) for the conditional
+grants. Those steps use `openclaw config file`, so they also work on the other
+supported platforms.
 
 ### Built-in skill
 
@@ -354,19 +357,19 @@ corresponding JSON payloads are grouped under
 
 ### Scoped operations
 
-After publishing or updating, operation tools return a structured `outcome` with
-success state, final `DONE:` counts, published or updated IDs when miniclaw
-prints them, and selected ad config changes observed after miniclaw exits. This
-lets agents distinguish a real failure from a successful browser run with noisy
-process cleanup.
+Operation tools return an authoritative structured `outcome` with a status and,
+when available, changed, failed, skipped, and total counts. KleinClaw fails
+closed when the matching miniclaw process times out, returns malformed
+structured output, or contradicts a successful status with a nonzero exit.
+It does not infer success from human log text or ad file changes.
 
 When the miniclaw config contains many ads, one invalid unrelated ad can make
 the runtime reject the whole run before it applies `--ads` filtering. To operate
-on one known source folder, configure `adRoots`, use `kleinanzeigen_list_ads` to
-find the folder, then pass its relative `adDirectory` or `adPath` handle to
-`adDirectories` or `adConfigPaths` on `kleinanzeigen_verify`,
-`kleinanzeigen_publish`, or the other operation tools. A copyable payload is
-under [Scoped-operation tool-call JSON](#scoped-operation-tool-call-json).
+on one known local ad, configure `adRoots`, use `kleinanzeigen_list_ads` to find
+it, then pass its relative `adDirectory` or `adPath` handle to `adDirectories`
+or `adConfigPaths` on commands that act on local ad inputs. A copyable payload
+is under
+[Scoped-operation tool-call JSON](#scoped-operation-tool-call-json).
 
 For publishing that one folder only, combine the scoped directory with
 `selector: "all"` or an explicit `adIds` list plus `confirm: true`. The scoped
@@ -376,10 +379,14 @@ scoped runtime override, without writing a scoped copy of the full miniclaw
 config.
 
 When miniclaw reports validation failures, KleinClaw returns structured
-`diagnostics` and `nextActions` alongside the sanitized stdout/stderr. For
-example, a full verify blocked by an unrelated overlong title can point the
-agent at the failing ad and suggest either fixing it or using a scoped operation
-for the intended listing.
+`diagnostics` and `nextActions` alongside sanitized stderr. Diagnostics do not
+scan unrelated ad files or expose local paths. Use a scoped operation when the
+intended listing is already known.
+
+Download selection is remote-listing based. Explicit `adIds` select the remote
+ads to download. Local `adDirectories` and `adConfigPaths` do not restrict that
+remote target set; with selector `new`, they only affect comparison against
+already saved local ads.
 
 Operation tool fields:
 
@@ -390,9 +397,10 @@ Operation tool fields:
   extend accepts `all`.
 - `selectors`: publish-only list for combinations such as `["changed", "due"]`.
 - `adIds`: explicit numeric Kleinanzeigen IDs. Required for delete.
-- `adDirectories`: ad folders under `adRoots` used to scope the run.
-- `adConfigPaths`: exact ad YAML/JSON files under `adRoots` used to scope the
-  run.
+- `adDirectories`: ad folders under `adRoots` used to scope local ad inputs.
+- `adConfigPaths`: exact ad YAML/JSON files under `adRoots` used to scope local
+  ad inputs. For download, these fields only affect saved-local comparison for
+  selector `new`; use `adIds` to select remote downloads.
 - `keepOld`: publish-only `true`/`false`; keeps old ads during republication.
 
 Do not mix selectors with explicit ad IDs.
@@ -428,7 +436,6 @@ instead of replacing the whole file:
           "configPath": "/home/me/kleinanzeigen/config.yaml",
           "adRoots": ["/home/me/kleinanzeigen-ads"],
           "workspaceMode": "portable",
-          "lang": "de",
           "timeoutMs": 120000,
           "maxOutputChars": 6000,
           "approvalMode": "all"
@@ -450,7 +457,6 @@ Plugin config fields:
 - `workspaceMode`: `portable` or `xdg`. `portable` is the default and keeps
   miniclaw workspace files beside `config.yaml`; `xdg` uses user config/cache
   directories.
-- `lang`: `de` or `en` for miniclaw display language.
 - `timeoutMs`: maximum runtime for one miniclaw command, from `1000` to `600000`
   milliseconds.
 - `maxOutputChars`: maximum sanitized stdout or stderr characters returned to
@@ -595,8 +601,9 @@ To check a supported browser without changing the real config:
 
 ### Scoped-operation tool-call JSON
 
-The agent can pass a relative ad-directory handle to verify, publish, or other
-operation tools without creating a second config file:
+The agent can pass a relative ad-directory handle to commands that operate on
+local ad inputs, such as verify or publish, without creating a second config
+file:
 
 ```json
 {

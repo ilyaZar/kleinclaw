@@ -57,14 +57,6 @@
         "default": "portable",
         "description": "miniclaw workspace mode. Defaults to portable."
       },
-      "lang": {
-        "type": "string",
-        "enum": [
-          "en",
-          "de"
-        ],
-        "description": "Optional miniclaw display language."
-      },
       "timeoutMs": {
         "type": "integer",
         "minimum": 1000,

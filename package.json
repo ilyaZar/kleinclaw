@@ -27,18 +27,25 @@
     "LICENSE",
     "README.md",
     "SECURITY.md",
+    "dist/",
     "index.js",
     "miniclaw/",
     "openclaw.plugin.json",
-    "skills/kleinanzeigen-helper-skill/",
-    "src/"
+    "skills/kleinanzeigen-helper-skill/"
   ],
   "scripts": {
-    "build": "npm run build:miniclaw",
+    "build": "npm run clean:generated && npm run build:miniclaw && npm run build:host",
+    "build:host": "tsc -p tsconfig.host.json",
     "build:miniclaw": "tsc -p tsconfig.miniclaw.json",
-    "coverage": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info",
-    "package:check": "node --test test/package.test.js",
-    "test": "node --test"
+    "clean:generated": "node scripts/clean-generated.mjs",
+    "coverage": "npm run build && npm run coverage:built",
+    "coverage:built": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info",
+    "generated:check": "test -z \"$(git status --short --untracked-files=all -- dist miniclaw/dist)\"",
+    "package:check": "npm run build && npm run package:check:built",
+    "package:check:built": "node --test test/package/*.test.js",
+    "test": "npm run build && npm run test:built",
+    "test:built": "node --test",
+    "verify": "npm run build && npm run generated:check && npm run test:built"
   },
   "dependencies": {
     "decimal.js": "^10.6.0",

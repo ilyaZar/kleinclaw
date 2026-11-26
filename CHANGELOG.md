@@ -4,6 +4,14 @@
 
 - persist an explicit **Always allow** choice in the existing `approvalMode`
 - keep approval descriptions within the supported OpenClaw request limit
+- package miniclaw as the standalone `@ilyazar/miniclaw` CLI package with
+  complete license, attribution, source, and installed-bin checks
+- narrow miniclaw 0.2's programmatic API to the non-injectable CLI runner
+- build and test the generated host and miniclaw artifacts before packaging
+- remove KleinClaw and miniclaw's inert language settings and verbosity options,
+  and remove the local-only update checker
+- document miniclaw's repeatable ad-file option
+- remove unreachable browser, diagnostics, and host YAML rendering helpers
 
 ## 0.2.2
 

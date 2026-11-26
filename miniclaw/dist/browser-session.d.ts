@@ -1,5 +1,6 @@
-import { type BrowserSessionPlan } from "./browser.js";
-import { BrowserConfig, Config } from "./model/config-model.js";
+import { type BrowserSessionPlan } from "./browser/browser-session-plan.js";
+import { BrowserConfig } from "./model/browser-login-config.js";
+import { Config } from "./model/config-model.js";
 export interface BrowserSessionPage {
     close?: () => Promise<void>;
 }
@@ -40,6 +41,4 @@ export interface BrowserSession {
 export declare class LiveBrowserSessionDisabledError extends Error {
     constructor();
 }
-export declare function browserSessionPlanFrom(source: Config | BrowserConfig | BrowserSessionPlan): BrowserSessionPlan;
 export declare function createBrowserSession(source: Config | BrowserConfig | BrowserSessionPlan, { allowLiveBrowser, cwd, defaultUserDataDir, driver, timeout, ensureProfilePrefs: shouldEnsureProfilePrefs, }?: CreateBrowserSessionOptions): Promise<BrowserSession>;
-export declare function preferencesFileForSession(plan: BrowserSessionPlan): string | null;

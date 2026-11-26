@@ -4,8 +4,7 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import fs from "node:fs";
-import path from "node:path";
-import { buildBrowserSessionPlan, writeInitialPrefs, } from "./browser.js";
+import { buildBrowserSessionPlan, writeInitialPrefs, } from "./browser/browser-session-plan.js";
 import { connectCdpBrowser, launchCdpBrowser, } from "./browser/cdp-adapter.js";
 export class LiveBrowserSessionDisabledError extends Error {
     constructor() {
@@ -31,11 +30,6 @@ function isBrowserSessionPlan(value) {
         "browserArgs" in value &&
         "remoteHost" in value);
 }
-export function browserSessionPlanFrom(source) {
-    return isBrowserSessionPlan(source)
-        ? source
-        : buildBrowserSessionPlan(source);
-}
 function firstContext(browser) {
     const [context] = browser.contexts();
     if (!context) {
@@ -56,16 +50,7 @@ function ensureProfilePrefs(plan) {
         writeInitialPrefs(plan.preferencesFile);
     }
 }
-async function closeBrowserSession(mode, browser, context) {
-    if (mode === "launch") {
-        if (browser) {
-            await browser.close();
-        }
-        else {
-            await context.close();
-        }
-        return;
-    }
+async function closeBrowserSession(browser, context) {
     if (browser) {
         await browser.close();
     }
@@ -103,9 +88,6 @@ export async function createBrowserSession(source, { allowLiveBrowser = false, c
         context,
         page,
         plan,
-        close: () => closeBrowserSession(plan.mode, browser, context),
+        close: () => closeBrowserSession(browser, context),
     };
-}
-export function preferencesFileForSession(plan) {
-    return plan.preferencesFile ? path.resolve(plan.preferencesFile) : null;
 }

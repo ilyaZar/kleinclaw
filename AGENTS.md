@@ -5,9 +5,10 @@ backed by the embedded TypeScript `miniclaw` runtime. Do not add code that
 installs external automation dependencies, reads the full config, stores
 Kleinanzeigen credentials, or tries to work around account checks.
 
-## For repeated OpenClaw testin
+## For repeated OpenClaw testing
 
 ```bash
+npm run build
 openclaw plugins install -l \
   /home/iz/Dropbox/projects/openclaw/own-plugins/kleinclaw
 openclaw plugins enable kleinclaw

@@ -81,7 +81,7 @@ function jsonParseErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function coercePageNumber(value: unknown): number | null {
+function coercePageNumber(value: unknown): number | null {
   if (value === null || value === undefined || typeof value === "boolean") {
     return null;
   }
