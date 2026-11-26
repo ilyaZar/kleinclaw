@@ -77,6 +77,8 @@ export interface ParsedArgs {
   workspaceMode: "portable" | "xdg" | null;
   keepOldAds: boolean;
   allowLiveBrowser: boolean;
+  // seconds to wait for captcha or device verification in the browser
+  manualActionTimeout: number;
   output: "text" | "json";
   result: CommandResult | null;
 }

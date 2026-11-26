@@ -61,6 +61,7 @@ Options:
   --keep-old
   --ad-file=<PATH> (repeatable)
   --allow-live-browser
+  --manual-action-timeout=<SECONDS> (0-1800, default 300)
   --config=<PATH>
   --workspace-mode=portable|xdg
   --logfile=<PATH>

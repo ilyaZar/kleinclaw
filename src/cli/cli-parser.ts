@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import { isNumericIdSelector } from "../ad-selector.js";
+import { DEFAULT_MANUAL_ACTION_TIMEOUT } from "../auth-types.js";
 import { type CommandPreparation, type ParsedArgs } from "./cli-types.js";
 
 function resolvePath(value: string): string {
@@ -38,6 +39,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     workspaceMode: null,
     keepOldAds: false,
     allowLiveBrowser: false,
+    manualActionTimeout: DEFAULT_MANUAL_ACTION_TIMEOUT,
     output: "text",
     result: null,
   };
@@ -60,6 +62,16 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
     if (arg === "--allow-live-browser") {
       parsed.allowLiveBrowser = true;
+      continue;
+    }
+    if (arg.startsWith("--manual-action-timeout")) {
+      const option = readOptionValue(argv, index, "--manual-action-timeout");
+      const seconds = Number(option.value);
+      if (!Number.isInteger(seconds) || seconds < 0 || seconds > 1800) {
+        throw new Error(`Invalid --manual-action-timeout '${option.value}'`);
+      }
+      parsed.manualActionTimeout = seconds;
+      index = option.nextIndex;
       continue;
     }
     if (arg.startsWith("--output")) {

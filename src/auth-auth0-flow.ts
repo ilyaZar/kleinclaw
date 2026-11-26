@@ -10,7 +10,10 @@ import {
   currentPageUrl,
   hasLoggedInMarker,
 } from "./auth-login-state.js";
-import { defaultManualCaptchaPrompt } from "./auth-manual-verification.js";
+import {
+  captchaResolved,
+  waitForManualCaptcha,
+} from "./auth-manual-verification.js";
 import {
   isTimeoutLike,
   type LoginController,
@@ -264,8 +267,37 @@ async function handleIdentifierCaptchaState(
     return;
   }
 
-  await (options.onManualCaptcha ?? defaultManualCaptchaPrompt)();
+  await waitForManualCaptcha(
+    controller,
+    options,
+    async () => onPasswordStep(controller) || await captchaResolved(controller),
+  );
   if (!onPasswordStep(controller)) {
+    await clickAuth0Submit(controller, options.quickDomTimeout);
+  }
+}
+
+// A captcha can also appear after the password was submitted; let the user
+// solve it and submit again if the page did not move on by itself.
+async function handlePostPasswordCaptcha(
+  controller: LoginController,
+  options: ResolvedLoginOptions,
+): Promise<void> {
+  if (!onPasswordStep(controller)) {
+    return;
+  }
+  const captcha = await controller.webProbe(By.CSS_SELECTOR, CAPTCHA_IFRAME_SELECTOR, {
+    timeout: options.captchaDetectionTimeout,
+  });
+  if (captcha === null || !onPasswordStep(controller)) {
+    return;
+  }
+  await waitForManualCaptcha(
+    controller,
+    options,
+    async () => !onPasswordStep(controller) || await captchaResolved(controller),
+  );
+  if (onPasswordStep(controller)) {
     await clickAuth0Submit(controller, options.quickDomTimeout);
   }
 }
@@ -290,13 +322,12 @@ export async function fillLoginDataAndSend(
   await checkAndWaitForCaptcha(controller, {
     captchaDetectionTimeout: resolvedOptions.captchaDetectionTimeout,
     isLoginPage: true,
-    onManualCaptcha: async () => {
-      await (resolvedOptions.onManualCaptcha ?? defaultManualCaptchaPrompt)();
-    },
+    onManualCaptcha: () => waitForManualCaptcha(controller, resolvedOptions),
   });
   if (!await clickAuth0Submit(controller)) {
     throw new TimeoutError("Auth0 password submit button not found");
   }
+  await handlePostPasswordCaptcha(controller, resolvedOptions);
   await waitForPostAuth0SubmitTransition(
     controller,
     credentials,

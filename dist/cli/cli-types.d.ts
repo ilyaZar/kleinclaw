@@ -39,6 +39,7 @@ export interface ParsedArgs {
     workspaceMode: "portable" | "xdg" | null;
     keepOldAds: boolean;
     allowLiveBrowser: boolean;
+    manualActionTimeout: number;
     output: "text" | "json";
     result: CommandResult | null;
 }

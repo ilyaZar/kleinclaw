@@ -149,7 +149,7 @@ describe("miniclaw auth", () => {
 
     const fresh = identifierController({ tokenAfter: Infinity });
     await assert.rejects(
-      () => fillLoginDataAndSend(fresh.controller, CREDENTIALS, FAST),
+      () => fillLoginDataAndSend(fresh.controller, CREDENTIALS, { ...FAST, manualActionTimeout: 0 }),
       (error) => error instanceof ManualActionRequiredError,
     );
   });
