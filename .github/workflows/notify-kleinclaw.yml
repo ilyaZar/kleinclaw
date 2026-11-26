@@ -1,0 +1,27 @@
+# Inert inside KleinClaw. In ilyaZar/miniclaw it asks KleinClaw to pull the
+# new main into its miniclaw/ subtree; a no-op when the push came from the
+# KleinClaw mirror.
+name: notify-kleinclaw
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    env:
+      SYNC_TOKEN: ${{ secrets.MINICLAW_SYNC_TOKEN }}
+    steps:
+      - name: dispatch miniclaw-updated
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::notice::MINICLAW_SYNC_TOKEN is not set; skipping notify"
+            exit 0
+          fi
+          GH_TOKEN="$SYNC_TOKEN" gh api repos/ilyaZar/kleinclaw/dispatches \
+            -f event_type=miniclaw-updated
