@@ -14,9 +14,17 @@ async function isEnabledNextButton(button) {
         : null;
     return disabled === null && String(ariaDisabled ?? "").toLowerCase() !== "true";
 }
-export async function navigatePaginatedAdOverview(controller, pageUrl, pageAction, { maxPages = 10, paginationFollowUpTimeout, paginationInitialTimeout, } = {}) {
+// The overview restores pageNumber and keyword from sessionStorage unless the
+// URL sets them, so a plain URL can open on a later page or a stale search.
+export function firstOverviewPageUrl(pageUrl) {
+    const url = new URL(pageUrl);
+    url.searchParams.set("pageNumber", "1");
+    url.searchParams.set("keyword", "");
+    return url.toString();
+}
+export async function navigatePaginatedAdOverview(controller, pageUrl, pageAction, { maxPages = 200, paginationFollowUpTimeout, paginationInitialTimeout, } = {}) {
     try {
-        await controller.webOpen(pageUrl);
+        await controller.webOpen(firstOverviewPageUrl(pageUrl));
     }
     catch (error) {
         if (error instanceof TimeoutError) {

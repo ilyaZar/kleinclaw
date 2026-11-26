@@ -67,7 +67,7 @@ describe("miniclaw ad overview navigation", () => {
 
     assert.equal(done, true);
     assert.deepEqual(events, [
-      "open:https://www.kleinanzeigen.de/m-meine-anzeigen.html",
+      "open:https://www.kleinanzeigen.de/m-meine-anzeigen.html?pageNumber=1&keyword=",
       "find-list",
       "find-next",
       "scroll",

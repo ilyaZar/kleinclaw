@@ -6,7 +6,8 @@
 
 import { isRecord } from "./value-guards.js";
 
-const MAX_PAGE_LIMIT = 100;
+// 25 ads per page, same safety limit as the HTML overview
+const MAX_PAGE_LIMIT = 200;
 const SNIPPET_LIMIT = 500;
 
 export type PublishedAd = Record<string, unknown> & {

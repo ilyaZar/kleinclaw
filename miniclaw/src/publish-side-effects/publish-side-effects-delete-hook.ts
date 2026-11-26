@@ -6,13 +6,11 @@
 
 import { type Ad } from "../model/ad-model.js";
 import { type DeleteAdHook } from "../publish-orchestration.js";
-import { By, type WebElement, type WebResponse } from "../web-primitives.js";
-import {
-  csrfTokenFromElement,
-} from "./publish-side-effects-browser-elements.js";
+import { type WebResponse } from "../web-primitives.js";
+import { callPageScript, CSRF_TOKEN_SCRIPT } from "../web/page-scripts.js";
 
 interface DeletePublishedAdController {
-  webFind(type: By, value: string): Promise<WebElement>;
+  webExecute(jscode: string): Promise<unknown>;
   webOpen(url: string): Promise<void>;
   webRequest(
     url: string,
@@ -34,26 +32,27 @@ function publishedAdId(value: unknown): number | null {
   return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
-function deletionTargetIds(
+// An ad with an ID deletes exactly that ID. Title matching only applies to
+// ID-less ads and fails closed when the title matches several published ads.
+export function deletionTargetIds(
   ad: Pick<Ad, "id" | "title">,
   publishedAds: readonly Record<string, unknown>[],
   deleteOldAdsByTitle: boolean,
 ): number[] {
-  const ids = new Set<number>();
-  if (deleteOldAdsByTitle) {
-    for (const publishedAd of publishedAds) {
-      const id = publishedAdId(publishedAd.id);
-      if (id === null) {
-        continue;
-      }
-      if (ad.id === id || publishedAd.title === ad.title) {
-        ids.add(id);
-      }
-    }
-  } else if (ad.id !== null) {
-    ids.add(ad.id);
+  if (ad.id !== null) {
+    return [ad.id];
   }
-  return [...ids].sort((left, right) => left - right);
+  if (!deleteOldAdsByTitle) {
+    return [];
+  }
+  const ids = new Set<number>();
+  for (const publishedAd of publishedAds) {
+    const id = publishedAdId(publishedAd.id);
+    if (id !== null && publishedAd.title === ad.title) {
+      ids.add(id);
+    }
+  }
+  return ids.size === 1 ? [...ids] : [];
 }
 
 export async function deletePublishedAd(
@@ -75,11 +74,10 @@ export async function deletePublishedAd(
   }
 
   await controller.webOpen(`${rootUrl}/m-meine-anzeigen.html`);
-  const csrfElement = await controller.webFind(
-    By.CSS_SELECTOR,
-    "meta[name=_csrf]",
-  );
-  const csrfToken = await csrfTokenFromElement(csrfElement);
+  const csrfToken = await controller.webExecute(callPageScript(CSRF_TOKEN_SCRIPT));
+  if (typeof csrfToken !== "string" || !csrfToken.trim()) {
+    throw new Error("Expected CSRF Token not found in HTML content!");
+  }
 
   let deleted = false;
   for (const targetId of targetIds) {

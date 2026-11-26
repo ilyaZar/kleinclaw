@@ -33,10 +33,3 @@ export async function elementAttribute(element, name) {
     }
     return null;
 }
-export async function csrfTokenFromElement(element) {
-    const content = await elementAttribute(element, "content");
-    if (content) {
-        return content;
-    }
-    throw new Error("Expected CSRF Token not found in HTML content!");
-}

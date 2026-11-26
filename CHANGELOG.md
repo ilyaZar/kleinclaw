@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- miniclaw: extend handles the redesigned choice dialog, selects only the free
+  "Nur verlängern" option, and reports success only after the page confirms it
+- miniclaw: delete removes exactly the ad's own ID; title matching applies only
+  to ads without an ID and skips ambiguous titles
+- miniclaw: read the CSRF token from the redesigned manage-ads page, open the
+  overview on its first unfiltered page, keep paging when an ad is not on the
+  current page, and raise the overview and published-ads page caps to 200
 - build against OpenClaw 2026.11.10 and document its capability consent step
   for linked installs
 - persist an explicit **Always allow** choice in the existing `approvalMode`

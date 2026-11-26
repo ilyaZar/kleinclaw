@@ -12,6 +12,7 @@ interface AdOverviewController {
     webScrollPageDown?(): Promise<void>;
     webSleep(minMs?: number, maxMs?: number): Promise<void>;
 }
+export declare function firstOverviewPageUrl(pageUrl: string): string;
 export declare function navigatePaginatedAdOverview(controller: AdOverviewController, pageUrl: string, pageAction: (pageNumber: number) => Promise<boolean>, { maxPages, paginationFollowUpTimeout, paginationInitialTimeout, }?: {
     maxPages?: number;
     paginationFollowUpTimeout?: number;
