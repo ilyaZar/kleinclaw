@@ -9,7 +9,7 @@ import { type PublishAdFormOptions, type PublishAdFormResult, type PublishingFor
 import { type PublishedAd } from "./published-ads.js";
 import { type CapturePublishError, type DeleteAdHook, type PublishAttemptContext } from "./publish-orchestration.js";
 import { WebController } from "./web-primitives.js";
-export type BrowserPublishController = PublishingFormController & Pick<WebController, "webRequest" | "webText"> & {
+export type BrowserPublishController = PublishingFormController & Pick<WebController, "webAwait" | "webRequest" | "webText"> & {
     readonly page?: {
         url?: string;
     };

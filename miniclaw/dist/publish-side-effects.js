@@ -133,6 +133,7 @@ export async function createBrowserPublishUpdateSideEffects(config, { allowLiveB
         deleteAd: (context) => deletePublishedAd(activeController, rootUrl, context),
         downloadAd: (context) => downloadAdWithBrowser(config, activeController, context),
         extendAd: (context) => extendPublishedAd(activeController, rootUrl, context, {
+            confirmationTimeout: resolvedFormOptions.confirmationTimeout,
             paginationFollowUpTimeout: resolvedPaginationFollowUpTimeout,
             paginationInitialTimeout: resolvedPaginationInitialTimeout,
             quickDomTimeout: resolvedFormOptions.quickDomTimeout,

@@ -24,6 +24,68 @@ function loadedAd({ id = 12345, title = "Eligible ad" } = {}) {
   };
 }
 
+// Fake manage-ads page: the choice-dialog script answers from scripted states.
+function extendController({ afterClick = [], afterConfirm = [], button = true } = {}) {
+  const events = [];
+  let states = ["none"];
+  const controller = {
+    async webAwait(condition, { timeout } = {}) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const result = await condition();
+        if (result) {
+          return result;
+        }
+      }
+      throw new TimeoutError(`condition not met within ${timeout}`);
+    },
+    async webClick(type, value) {
+      assert.equal(value, 'button[aria-label="Schlie\u00dfen"]');
+      events.push("close");
+    },
+    async webExecute(js) {
+      assert.match(js, /Nur verl\u00e4ngern/);
+      if (js.includes('("select"')) {
+        events.push("select");
+        return "selected";
+      }
+      if (js.includes('("confirm"')) {
+        events.push("confirm");
+        states = afterConfirm;
+        return "clicked";
+      }
+      const state = states[0] ?? "none";
+      if (events.at(-1) !== `state:${state}`) {
+        events.push(`state:${state}`);
+      }
+      return state;
+    },
+    async webFind(type, value, options = {}) {
+      events.push({ options, type, value });
+      if (type === By.ID && value === "my-manageitems-adlist") {
+        return {};
+      }
+      if (button && type === By.XPATH && value.includes("data-adid=\"12345\"")) {
+        return {
+          async click() {
+            events.push("clicked-extend");
+            states = afterClick;
+          },
+        };
+      }
+      throw new TimeoutError(`unexpected selector: ${type} ${value}`);
+    },
+    async webFindAll() {
+      return [];
+    },
+    async webOpen(url) {
+      events.push(`open:${url}`);
+    },
+    async webScrollPageDown() {},
+    async webSleep() {},
+  };
+  return { controller, events };
+}
+
 describe("miniclaw extend orchestration", () => {
   it("matches Python's UTC date comparison near local midnight", () => {
     const originalTz = process.env.TZ;
@@ -48,80 +110,76 @@ describe("miniclaw extend orchestration", () => {
     }
   });
 
-  it("clicks the Python extend button XPath and closes the dialog", async () => {
-    const events = [];
-    const context = {
-      ad: { id: 12345, title: "Eligible ad" },
-      adFile: "ads/eligible/ad.yaml",
-      publishedAd: { id: 12345, state: "active" },
-      raw: {},
-      relativePath: "ads/eligible/ad.yaml",
-    };
-    const controller = {
-      async webClick(type, value, timeout) {
-        events.push({ timeout, type, value });
-      },
-      async webFind(type, value, options = {}) {
-        events.push({ options, type, value });
-        if (type === By.ID && value === "my-manageitems-adlist") {
-          return {};
-        }
-        if (type === By.XPATH && value.includes("Verl\u00e4ngern")) {
-          assert.equal(
-            value,
-            '//li[@data-adid="12345"]//button[contains(., "Verl\u00e4ngern")]',
-          );
-          return {
-            async click() {
-              events.push("clicked-extend");
-            },
-          };
-        }
-        throw new TimeoutError(`unexpected selector: ${type} ${value}`);
-      },
-      async webFindAll() {
-        events.push("find-next");
-        return [];
-      },
-      async webOpen(url) {
-        events.push(`open:${url}`);
-      },
-      async webScrollPageDown() {
-        events.push("scroll");
-      },
-      async webSleep() {},
-    };
+  it("confirms only the free option in the extension choice dialog", async () => {
+    const { controller, events } = extendController({
+      afterClick: ["choice"],
+      afterConfirm: ["success"],
+    });
 
     const extended = await extendPublishedAd(
       controller,
       "https://www.kleinanzeigen.de",
-      context,
-      {
-        paginationFollowUpTimeout: 0.4,
-        paginationInitialTimeout: 0.5,
-        quickDomTimeout: 0.25,
-      },
+      loadedAd(),
+      { confirmationTimeout: 1, quickDomTimeout: 0.25 },
     );
 
     assert.equal(extended, true);
-    assert.deepEqual(events, [
-      "open:https://www.kleinanzeigen.de/m-meine-anzeigen.html",
-      { options: {}, type: By.ID, value: "my-manageitems-adlist" },
-      "find-next",
-      "scroll",
-      {
-        options: { timeout: 0.25 },
-        type: By.XPATH,
-        value:
-          '//li[@data-adid="12345"]//button[contains(., "Verl\u00e4ngern")]',
-      },
+    assert.deepEqual(events.filter((event) => typeof event === "string"), [
+      "open:https://www.kleinanzeigen.de/m-meine-anzeigen.html?pageNumber=1&keyword=",
+      "state:none",
       "clicked-extend",
-      {
-        timeout: 0.25,
-        type: By.CSS_SELECTOR,
-        value: 'button[aria-label="Schlie\u00dfen"]',
-      },
+      "state:choice",
+      "select",
+      "confirm",
+      "state:success",
+      "close",
     ]);
+  });
+
+  it("does not count a dialog that closes without a success message", async () => {
+    const { controller, events } = extendController({
+      afterClick: ["choice"],
+      afterConfirm: ["none"],
+    });
+
+    const extended = await extendPublishedAd(
+      controller,
+      "https://www.kleinanzeigen.de",
+      loadedAd(),
+      { confirmationTimeout: 1, quickDomTimeout: 0.25 },
+    );
+
+    assert.equal(extended, false);
+    assert.ok(events.includes("confirm"));
+    assert.ok(events.includes("close"));
+  });
+
+  it("accepts the classic direct extension success dialog", async () => {
+    const { controller, events } = extendController({ afterClick: ["success"] });
+
+    const extended = await extendPublishedAd(
+      controller,
+      "https://www.kleinanzeigen.de",
+      loadedAd(),
+      { confirmationTimeout: 1, quickDomTimeout: 0.25 },
+    );
+
+    assert.equal(extended, true);
+    assert.equal(events.includes("select"), false);
+  });
+
+  it("reports a missing extend button as not extended", async () => {
+    const { controller, events } = extendController({ button: false });
+
+    const extended = await extendPublishedAd(
+      controller,
+      "https://www.kleinanzeigen.de",
+      loadedAd(),
+      { confirmationTimeout: 1, quickDomTimeout: 0.25 },
+    );
+
+    assert.equal(extended, false);
+    assert.equal(events.includes("clicked-extend"), false);
   });
 
   it("treats metadata save failure as a failed extension", async () => {

@@ -11,6 +11,7 @@ export const allowedDependencies = {
 };
 export const allowedDevDependencies = {
   "@types/node": "^22.19.21",
+  jsdom: "^30.1.3",
   typescript: "^6.0.3",
 };
 
