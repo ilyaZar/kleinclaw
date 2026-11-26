@@ -4,6 +4,8 @@ export declare const WANTED_SHIPPING_LABELS: {
 };
 export declare const CONDITION_TRIGGER_XPATH: string;
 export declare const CATEGORY_CHANGE_CONTROL_XPATH = "//a[contains(., 'Kategorie')] | //button[contains(., 'Kategorie')]";
+export declare const CATEGORY_LINK_SELECTOR = "a[aria-describedby=\"ad-category-path\"]";
+export declare const CATEGORY_CHOOSE_TEXT_XPATH = "//*[normalize-space(text())='W\u00E4hle deine Kategorie']";
 export declare const CATEGORY_NEXT_BUTTON_XPATH = "//button[contains(., 'Weiter')]";
 export declare const CATEGORY_PICKER_RADIO_SELECTOR = "#ad-category-picker input[type='radio'][name='category-suggestions']";
 export declare const CITY_LISTBOX_ID_FALLBACK = "ad-city-menu";

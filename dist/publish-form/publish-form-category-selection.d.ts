@@ -1,3 +1,3 @@
 import { type PublishingFormController, type PublishingFormOptions, type SetCategoryOptions } from "./publish-form-types.js";
 export declare function resolveCategorySuggestions(controller: Pick<PublishingFormController, "webClick" | "webFindAll" | "webProbe" | "webSleep">, category: string, { quickDomTimeout }?: PublishingFormOptions): Promise<boolean>;
-export declare function setCategory(controller: Pick<PublishingFormController, "webClick" | "webFind" | "webFindAll" | "webOpen" | "webProbe" | "webSleep">, { adFile, category, rootUrl, quickDomTimeout }: SetCategoryOptions): Promise<void>;
+export declare function setCategory(controller: Pick<PublishingFormController, "webClick" | "webExecute" | "webFind" | "webFindAll" | "webProbe" | "webSleep">, { adFile, category, productTitle, quickDomTimeout }: SetCategoryOptions): Promise<void>;

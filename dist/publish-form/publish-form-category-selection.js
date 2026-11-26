@@ -4,7 +4,9 @@
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
 import { By, TimeoutError } from "../web-primitives.js";
-import { CATEGORY_CHANGE_CONTROL_XPATH, CATEGORY_NEXT_BUTTON_XPATH, CATEGORY_PICKER_RADIO_SELECTOR, } from "./publish-form-constants.js";
+import { BUILTIN_CATEGORIES } from "../resources/categories.js";
+import { categoryDialogOpen, setCategoryInDialog, } from "./publish-form-category-dialog.js";
+import { CATEGORY_CHANGE_CONTROL_XPATH, CATEGORY_CHOOSE_TEXT_XPATH, CATEGORY_LINK_SELECTOR, CATEGORY_NEXT_BUTTON_XPATH, CATEGORY_PICKER_RADIO_SELECTOR, } from "./publish-form-constants.js";
 import { CategoryResolutionError } from "./publish-form-errors.js";
 import { clickElement, elementAttribute, stringOrNull, visibleElementText, xpathLiteral, } from "./publish-form-element-helpers.js";
 export async function resolveCategorySuggestions(controller, category, { quickDomTimeout } = {}) {
@@ -76,7 +78,16 @@ export async function resolveCategorySuggestions(controller, category, { quickDo
         `'${category}' matched the offered suggestions [${offered}]. Update the ` +
         "ad's 'category' to an offered ID or a valid full path.");
 }
-export async function setCategory(controller, { adFile, category, rootUrl, quickDomTimeout }) {
+async function findCategoryLink(controller, quickDomTimeout) {
+    // The change link itself; a text search for "Kategorie" can hit the label.
+    const link = await controller.webProbe(By.CSS_SELECTOR, CATEGORY_LINK_SELECTOR, {
+        timeout: quickDomTimeout,
+    }) ?? await controller.webProbe(By.XPATH, CATEGORY_CHOOSE_TEXT_XPATH, {
+        timeout: quickDomTimeout,
+    });
+    return link ?? controller.webFind(By.XPATH, CATEGORY_CHANGE_CONTROL_XPATH);
+}
+export async function setCategory(controller, { adFile, category, productTitle = null, quickDomTimeout }) {
     await controller.webClick(By.ID, "ad-description");
     const categoryPathElement = await controller.webProbe(By.ID, "ad-category-path");
     const isCategoryAutoSelected = categoryPathElement !== null &&
@@ -88,9 +99,30 @@ export async function setCategory(controller, { adFile, category, rootUrl, quick
         return;
     }
     await controller.webSleep();
-    await controller.webClick(By.XPATH, CATEGORY_CHANGE_CONTROL_XPATH);
-    await controller.webFind(By.XPATH, CATEGORY_NEXT_BUTTON_XPATH);
-    await controller.webOpen(`${rootUrl}/p-kategorie-aendern.html#?path=${category}`);
+    await clickElement(await findCategoryLink(controller, quickDomTimeout), "Category link cannot be clicked");
+    await controller.webSleep();
+    if (await categoryDialogOpen(controller)) {
+        await setCategoryInDialog(controller, category, BUILTIN_CATEGORIES, productTitle);
+        return;
+    }
+    // Classic picker: stay in the form session opened by the link; reloading
+    // the category page loses the edit context (HTTP 400/403).
+    for (const segment of category.split("/").filter(Boolean)) {
+        try {
+            await controller.webClick(By.ID, `cat_${segment}`, quickDomTimeout);
+        }
+        catch (error) {
+            if (!(error instanceof TimeoutError)) {
+                throw error;
+            }
+            if (await resolveCategorySuggestions(controller, category, { quickDomTimeout })) {
+                return;
+            }
+            throw error;
+        }
+        await controller.webSleep();
+    }
     await controller.webClick(By.XPATH, CATEGORY_NEXT_BUTTON_XPATH);
+    await controller.webSleep();
     await resolveCategorySuggestions(controller, category, { quickDomTimeout });
 }

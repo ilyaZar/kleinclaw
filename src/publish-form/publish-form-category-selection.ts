@@ -5,8 +5,15 @@
  */
 
 import { By, TimeoutError, type WebElement } from "../web-primitives.js";
+import { BUILTIN_CATEGORIES } from "../resources/categories.js";
+import {
+  categoryDialogOpen,
+  setCategoryInDialog,
+} from "./publish-form-category-dialog.js";
 import {
   CATEGORY_CHANGE_CONTROL_XPATH,
+  CATEGORY_CHOOSE_TEXT_XPATH,
+  CATEGORY_LINK_SELECTOR,
   CATEGORY_NEXT_BUTTON_XPATH,
   CATEGORY_PICKER_RADIO_SELECTOR,
 } from "./publish-form-constants.js";
@@ -116,17 +123,30 @@ export async function resolveCategorySuggestions(
   );
 }
 
+async function findCategoryLink(
+  controller: Pick<PublishingFormController, "webFind" | "webProbe">,
+  quickDomTimeout: number | undefined,
+): Promise<WebElement> {
+  // The change link itself; a text search for "Kategorie" can hit the label.
+  const link = await controller.webProbe(By.CSS_SELECTOR, CATEGORY_LINK_SELECTOR, {
+    timeout: quickDomTimeout,
+  }) ?? await controller.webProbe(By.XPATH, CATEGORY_CHOOSE_TEXT_XPATH, {
+    timeout: quickDomTimeout,
+  });
+  return link ?? controller.webFind(By.XPATH, CATEGORY_CHANGE_CONTROL_XPATH);
+}
+
 export async function setCategory(
   controller: Pick<
     PublishingFormController,
     | "webClick"
+    | "webExecute"
     | "webFind"
     | "webFindAll"
-    | "webOpen"
     | "webProbe"
     | "webSleep"
   >,
-  { adFile, category, rootUrl, quickDomTimeout }: SetCategoryOptions,
+  { adFile, category, productTitle = null, quickDomTimeout }: SetCategoryOptions,
 ): Promise<void> {
   await controller.webClick(By.ID, "ad-description");
 
@@ -144,9 +164,34 @@ export async function setCategory(
   }
 
   await controller.webSleep();
-  await controller.webClick(By.XPATH, CATEGORY_CHANGE_CONTROL_XPATH);
-  await controller.webFind(By.XPATH, CATEGORY_NEXT_BUTTON_XPATH);
-  await controller.webOpen(`${rootUrl}/p-kategorie-aendern.html#?path=${category}`);
+  await clickElement(
+    await findCategoryLink(controller, quickDomTimeout),
+    "Category link cannot be clicked",
+  );
+  await controller.webSleep();
+
+  if (await categoryDialogOpen(controller)) {
+    await setCategoryInDialog(controller, category, BUILTIN_CATEGORIES, productTitle);
+    return;
+  }
+
+  // Classic picker: stay in the form session opened by the link; reloading
+  // the category page loses the edit context (HTTP 400/403).
+  for (const segment of category.split("/").filter(Boolean)) {
+    try {
+      await controller.webClick(By.ID, `cat_${segment}`, quickDomTimeout);
+    } catch (error) {
+      if (!(error instanceof TimeoutError)) {
+        throw error;
+      }
+      if (await resolveCategorySuggestions(controller, category, { quickDomTimeout })) {
+        return;
+      }
+      throw error;
+    }
+    await controller.webSleep();
+  }
   await controller.webClick(By.XPATH, CATEGORY_NEXT_BUTTON_XPATH);
+  await controller.webSleep();
   await resolveCategorySuggestions(controller, category, { quickDomTimeout });
 }

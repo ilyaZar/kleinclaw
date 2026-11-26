@@ -14,6 +14,9 @@ export const CONDITION_TRIGGER_XPATH =
   "[@aria-haspopup='dialog' or @aria-haspopup='true'][1]";
 export const CATEGORY_CHANGE_CONTROL_XPATH =
   "//a[contains(., 'Kategorie')] | //button[contains(., 'Kategorie')]";
+export const CATEGORY_LINK_SELECTOR = 'a[aria-describedby="ad-category-path"]';
+export const CATEGORY_CHOOSE_TEXT_XPATH =
+  "//*[normalize-space(text())='W\u00e4hle deine Kategorie']";
 export const CATEGORY_NEXT_BUTTON_XPATH = "//button[contains(., 'Weiter')]";
 export const CATEGORY_PICKER_RADIO_SELECTOR =
   "#ad-category-picker input[type='radio'][name='category-suggestions']";
