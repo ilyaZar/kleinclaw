@@ -59,7 +59,7 @@ export const draftAdProperties = {
     shippingType: field("string", "Shipping mode. Defaults to PICKUP for drafts.", {
         enum: ["PICKUP", "SHIPPING", "NOT_APPLICABLE"],
     }),
-    shippingCosts: field("number", "Custom shipping cost.", { minimum: 0 }),
+    shippingCosts: field("number", "Deprecated: Kleinanzeigen no longer offers individual shipping. Use shippingOptions.", { minimum: 0 }),
     shippingOptions: arrayField("Predefined package options. Use one size group.", 8, {
         type: "string",
         enum: [

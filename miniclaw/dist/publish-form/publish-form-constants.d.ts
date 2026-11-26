@@ -9,9 +9,9 @@ export declare const CATEGORY_NEXT_BUTTON_XPATH = "//button[contains(., 'Weiter'
 export declare const CATEGORY_PICKER_RADIO_SELECTOR = "#ad-category-picker input[type='radio'][name='category-suggestions']";
 export declare const CITY_LISTBOX_ID_FALLBACK = "ad-city-menu";
 export declare const CITY_SELECTED_OPTION_ID = "ad-city-selected-option";
-export declare const SHIPPING_OTHER_METHODS_BUTTON_XPATH = "//button[contains(., \"Andere Versandmethoden\")]";
-export declare const SHIPPING_BACK_BUTTON_XPATH = "//button[contains(., \"Zur\u00FCck\")]";
-export declare const SHIPPING_DONE_BUTTON_XPATH = "//button[contains(., \"Fertig\")]";
+export declare const SHIPPING_OTHER_METHODS_XPATH = "//*[normalize-space(text())='Andere Versandmethoden']";
+export declare const SHIPPING_BACK_BUTTON_XPATH = "//*[normalize-space(text())='Zur\u00FCck']";
+export declare const VERSAND_COMBOBOX_SELECTORS: string[];
 export declare const SHIPPING_DIALOG_XPATH = "//*[self::dialog or @role=\"dialog\"]";
 export declare const SHIPPING_DIALOG_DONE_BUTTON_XPATH = "//*[self::dialog or @role=\"dialog\"]//button[contains(., \"Fertig\")]";
 export declare const SHIPPING_DIALOG_NEXT_BUTTON_XPATH = "//*[self::dialog or @role=\"dialog\"]//button[contains(., \"Weiter\")]";

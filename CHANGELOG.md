@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- miniclaw: shipping dialog variants (size pane shown directly, behind
+  "Andere Versandmethoden", or nested), tick wanted carriers before unticking
+  defaults, PRO "Versand" combobox; individual shipping (`shipping_costs`
+  without `shipping_options`) now fails clearly because the site dropped it
 - miniclaw: select button-combobox attributes on the redesigned form (pointer
   open, portal listboxes, React/attribute/text matching), fall back from hidden
   `attributeMap` inputs to their combobox, and find the condition dialog
