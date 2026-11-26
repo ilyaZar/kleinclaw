@@ -8,23 +8,23 @@ import { ControllerFinding, } from "./controller-finding.js";
 import { requirePageMethod } from "./controller-support.js";
 import { Is } from "./types.js";
 export class ControllerElementInteraction extends ControllerFinding {
-    async webTextFirstAvailable(selectors, { description, key = "default", parent = null, timeout, } = {}) {
+    async webTextFirstAvailable(selectors, { description, fallbackToTextContent = false, key = "default", parent = null, timeout, } = {}) {
         const [element, index] = await this.webFindFirstAvailable(selectors, {
             description,
             key,
             parent,
             timeout,
         });
-        return [await this.extractVisibleText(element), index];
+        return [await this.textOf(element, fallbackToTextContent), index];
     }
-    async webTextFirstAvailableOnce(selectors, { description, key = "default", parent = null, timeout, } = {}) {
+    async webTextFirstAvailableOnce(selectors, { description, fallbackToTextContent = false, key = "default", parent = null, timeout, } = {}) {
         const [element, index] = await this.webFindFirstAvailableOnce(selectors, {
             description,
             key,
             parent,
             timeout,
         });
-        return [await this.extractVisibleText(element), index];
+        return [await this.textOf(element, fallbackToTextContent), index];
     }
     async webCheck(type, value, attr, timeout) {
         const element = await this.webFind(type, value, { timeout });
@@ -95,6 +95,13 @@ export class ControllerElementInteraction extends ControllerFinding {
     async webText(type, value, { parent = null, timeout, } = {}) {
         const element = await this.webFind(type, value, { parent, timeout });
         return this.extractVisibleText(element);
+    }
+    async textOf(element, fallbackToTextContent) {
+        const visible = await this.extractVisibleText(element);
+        if (visible || !fallbackToTextContent || !element.textContent) {
+            return visible;
+        }
+        return ((await element.textContent()) ?? "").replace(/\s+/g, " ").trim();
     }
     async extractVisibleText(element) {
         if (element.evaluate) {

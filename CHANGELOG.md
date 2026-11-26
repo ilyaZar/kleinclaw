@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- miniclaw: click the visible Auth0 submit, wait for an identifier-step captcha
+  token before submitting, read the login marker even when the redesigned
+  header is hidden on narrow windows, and treat stale page nodes as a miss
 - miniclaw: after submit, decline either upsell ("Ohne Top-Anzeige weiter" or
   "Ohne Hochschieben weiter"), accept the update success page for the
   submitted ad, recover the ID when the publish success page shows none, and
