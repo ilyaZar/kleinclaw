@@ -38,6 +38,7 @@ const EMBEDDED_REDACTIONS = {
 
 interface HostConfig extends RedactionConfig {
   commandRunner?: unknown;
+  manualActionTimeoutSeconds?: unknown;
   maxOutputChars?: unknown;
   timeoutMs?: unknown;
   workspaceMode?: unknown;
@@ -47,6 +48,7 @@ interface CliConfig {
   commandRunner?: CommandRunner;
   configPath: string;
   cwd: string;
+  manualActionTimeoutSeconds: number;
   maxOutputChars: number;
   timeoutMs: number;
   workspaceMode: "portable" | "xdg";
@@ -66,6 +68,17 @@ function resolveConfigLocation(config: HostConfig): {
   };
 }
 
+export const DEFAULT_MANUAL_ACTION_TIMEOUT_SECONDS = 300;
+
+export function manualActionTimeoutSeconds(config: { manualActionTimeoutSeconds?: unknown }): number {
+  return normalizePositiveInteger(
+    config.manualActionTimeoutSeconds,
+    DEFAULT_MANUAL_ACTION_TIMEOUT_SECONDS,
+    0,
+    1800,
+  );
+}
+
 export function resolveCliConfig(config: HostConfig = {}): CliConfig {
   const { configPath, cwd } = resolveConfigLocation(config);
   if (!configPath || !cwd) {
@@ -81,6 +94,7 @@ export function resolveCliConfig(config: HostConfig = {}): CliConfig {
       1000,
       600000,
     ),
+    manualActionTimeoutSeconds: manualActionTimeoutSeconds(config),
     maxOutputChars: normalizePositiveInteger(
       config.maxOutputChars,
       6000,
@@ -141,9 +155,14 @@ export async function invokeMiniclaw(
   cliConfig: CliConfig,
   redactionConfig: HostConfig = {},
 ) {
+  // Live browser runs may wait for the user to solve a captcha or a device
+  // verification, so their budget includes that wait.
+  const timeoutMs = args.includes("--allow-live-browser")
+    ? cliConfig.timeoutMs + cliConfig.manualActionTimeoutSeconds * 1000
+    : cliConfig.timeoutMs;
   const result = await runRuntime(args, {
     cwd: cliConfig.cwd,
-    timeoutMs: cliConfig.timeoutMs,
+    timeoutMs,
     maxBufferChars: PROTOCOL_OUTPUT_CHARS,
     commandRunner: cliConfig.commandRunner,
   });

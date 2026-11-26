@@ -157,6 +157,7 @@ export async function runLiveBrowserCommand(parsed, createLiveSideEffects, works
                 : createBrowserPublishUpdateSideEffects(loaded.config, {
                     allowLiveBrowser: true,
                     command: parsed.command,
+                    loginOptions: { manualActionTimeout: parsed.manualActionTimeout },
                     configPath: parsed.configPath,
                     diagnosticsDir: workspace.diagnosticsDir,
                     logFilePath: parsed.logfilePath,
@@ -198,6 +199,7 @@ export async function runLiveBrowserCommand(parsed, createLiveSideEffects, works
             : createBrowserPublishUpdateSideEffects(loaded.config, {
                 allowLiveBrowser: true,
                 command: parsed.command,
+                loginOptions: { manualActionTimeout: parsed.manualActionTimeout },
                 configPath: parsed.configPath,
                 diagnosticsDir: workspace?.diagnosticsDir,
                 logFilePath: parsed.logfilePath,

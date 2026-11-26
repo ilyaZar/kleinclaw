@@ -445,6 +445,7 @@ instead of replacing the whole file:
           "adRoots": ["/home/me/kleinanzeigen-ads"],
           "workspaceMode": "portable",
           "timeoutMs": 120000,
+          "manualActionTimeoutSeconds": 300,
           "maxOutputChars": 6000,
           "approvalMode": "all"
         }
@@ -467,6 +468,10 @@ Plugin config fields:
   directories.
 - `timeoutMs`: maximum runtime for one miniclaw command, from `1000` to `600000`
   milliseconds.
+- `manualActionTimeoutSeconds`: how long a live browser run waits for you to
+  solve a captcha or a device verification (SMS code, e-mail) in the browser
+  window, from `0` to `1800` seconds; default `300`. Live runs get this on top
+  of `timeoutMs`. `0` stops at once with a manual-action result.
 - `maxOutputChars`: maximum sanitized stdout or stderr characters returned to
   the agent, from `0` to `20000`.
 - `approvalMode`: `all`, `mutating`, or `none`. `all` is the default; `mutating`

@@ -38,6 +38,7 @@ export interface LoginDiagnosticsContext {
     error?: unknown;
     reason?: LoginDetectionReason;
 }
+export declare const DEFAULT_MANUAL_ACTION_TIMEOUT = 300;
 export interface VerificationPromptContext {
     kind: "sms" | "email";
     message: string;
@@ -52,6 +53,7 @@ export interface LoginOptions {
     captureDiagnostics?: (context: LoginDiagnosticsContext) => Promise<void> | void;
     emailVerificationTimeout?: number;
     loginDetectionTimeout?: number;
+    manualActionTimeout?: number;
     onManualCaptcha?: () => Promise<void> | void;
     onVerificationPrompt?: (context: VerificationPromptContext) => Promise<void> | void;
     pageLoadTimeout?: number;
@@ -60,6 +62,6 @@ export interface LoginOptions {
     rootUrl?: string;
     smsVerificationTimeout?: number;
 }
-export type ResolvedLoginOptions = Required<Pick<LoginOptions, "captchaDetectionTimeout" | "emailVerificationTimeout" | "loginDetectionTimeout" | "pageLoadTimeout" | "pollIntervalMs" | "quickDomTimeout" | "rootUrl" | "smsVerificationTimeout">> & LoginOptions;
+export type ResolvedLoginOptions = Required<Pick<LoginOptions, "captchaDetectionTimeout" | "emailVerificationTimeout" | "loginDetectionTimeout" | "manualActionTimeout" | "pageLoadTimeout" | "pollIntervalMs" | "quickDomTimeout" | "rootUrl" | "smsVerificationTimeout">> & LoginOptions;
 export declare function resolveLoginOptions(options: LoginOptions): ResolvedLoginOptions;
 export declare function isTimeoutLike(error: unknown): boolean;

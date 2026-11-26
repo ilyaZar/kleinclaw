@@ -29,6 +29,10 @@ function resolveConfigLocation(config) {
         cwd: configuredCwd ?? (configPath ? path.dirname(configPath) : undefined),
     };
 }
+export const DEFAULT_MANUAL_ACTION_TIMEOUT_SECONDS = 300;
+export function manualActionTimeoutSeconds(config) {
+    return normalizePositiveInteger(config.manualActionTimeoutSeconds, DEFAULT_MANUAL_ACTION_TIMEOUT_SECONDS, 0, 1800);
+}
 export function resolveCliConfig(config = {}) {
     const { configPath, cwd } = resolveConfigLocation(config);
     if (!configPath || !cwd) {
@@ -39,6 +43,7 @@ export function resolveCliConfig(config = {}) {
         cwd,
         workspaceMode: normalizeWorkspaceMode(config.workspaceMode),
         timeoutMs: normalizePositiveInteger(config.timeoutMs, 120000, 1000, 600000),
+        manualActionTimeoutSeconds: manualActionTimeoutSeconds(config),
         maxOutputChars: normalizePositiveInteger(config.maxOutputChars, 6000, 0, 20000),
         commandRunner: typeof config.commandRunner === "function"
             ? config.commandRunner
@@ -68,9 +73,14 @@ function sanitizeProcessError(result, redactions, maxChars) {
     return sanitizeText(text, redactions, maxChars);
 }
 export async function invokeMiniclaw(command, args, cliConfig, redactionConfig = {}) {
+    // Live browser runs may wait for the user to solve a captcha or a device
+    // verification, so their budget includes that wait.
+    const timeoutMs = args.includes("--allow-live-browser")
+        ? cliConfig.timeoutMs + cliConfig.manualActionTimeoutSeconds * 1000
+        : cliConfig.timeoutMs;
     const result = await runRuntime(args, {
         cwd: cliConfig.cwd,
-        timeoutMs: cliConfig.timeoutMs,
+        timeoutMs,
         maxBufferChars: PROTOCOL_OUTPUT_CHARS,
         commandRunner: cliConfig.commandRunner,
     });
