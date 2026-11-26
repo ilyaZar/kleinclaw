@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
+import { islandSpecialAttributes, } from "./download-extractor-island.js";
 import { elementAttribute } from "./download-extractor-browser-elements.js";
-import { dimensionsFromBelenConf, removeSuffix, textAttribute, visibleText, } from "./download-extractor-page-data.js";
+import { removeSuffix, textAttribute, visibleText, } from "./download-extractor-page-data.js";
 import { By, TimeoutError, } from "../web-primitives.js";
 import { CONDITION_TO_API } from "../condition.js";
 const BREADCRUMB_MIN_DEPTH = 2;
@@ -54,25 +55,32 @@ export async function extractCategoryFromAdPage(controller) {
         throw error;
     }
 }
-export async function extractSpecialAttributesFromAdPage(controller, belenConf) {
-    const dimensions = dimensionsFromBelenConf(belenConf);
+// `versand_s` is modelled as shipping, `seller_badges_s` is tracking data
+// without a form field.
+const IGNORED_ATTRIBUTES = new Set(["versand_s", "seller_badges_s"]);
+export function parseAdAttributes(raw) {
+    const attributes = {};
+    for (const item of raw.split("|")) {
+        const separator = item.indexOf(":");
+        if (separator <= 0) {
+            continue;
+        }
+        const key = item.slice(0, separator);
+        if (!IGNORED_ATTRIBUTES.has(key.split(".").at(-1) ?? key)) {
+            attributes[key] = item.slice(separator + 1);
+        }
+    }
+    return attributes;
+}
+// From the canonical dimensions (BelenConf or the anonymous ad page);
+// without them from the details section, then from the island data.
+export async function extractSpecialAttributesFromAdPage(controller, dimensions, islandProps = {}) {
     const specialAttributesRaw = textAttribute(dimensions, "ad_attributes");
-    if (!specialAttributesRaw) {
-        return extractSpecialAttributesFromDom(controller);
+    if (specialAttributesRaw) {
+        return parseAdAttributes(specialAttributesRaw);
     }
-    const specialAttributes = {};
-    for (const item of specialAttributesRaw.split("|")) {
-        if (!item.includes(":")) {
-            continue;
-        }
-        const [key, ...valueParts] = item.split(":");
-        const value = valueParts.join(":");
-        if (!key || key.endsWith(".versand_s") || key === "versand_s") {
-            continue;
-        }
-        specialAttributes[key] = value;
-    }
-    return specialAttributes;
+    const fromDom = await extractSpecialAttributesFromDom(controller);
+    return Object.keys(fromDom).length > 0 ? fromDom : islandSpecialAttributes(islandProps);
 }
 export async function extractSpecialAttributesFromDom(controller) {
     const attributes = {};

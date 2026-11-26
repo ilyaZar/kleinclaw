@@ -8,6 +8,10 @@ export interface WebReadController {
         parent?: WebLocator | WebElement | null;
         timeout?: number;
     }): Promise<WebElement[]>;
+    webProbe?(type: By, value: string, options?: {
+        parent?: WebLocator | WebElement | null;
+        timeout?: number;
+    }): Promise<WebLocator | null>;
     webRequest(url: string, method?: string, validResponseCodes?: number | Iterable<number>, headers?: Record<string, string> | null, options?: WebRequestOptions): Promise<WebResponse>;
     webText(type: By, value: string, options?: {
         parent?: WebLocator | WebElement | null;

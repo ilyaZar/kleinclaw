@@ -23,7 +23,34 @@ export function extractSellDirectlyFromAdPage(pageUrl, publishedAdsById) {
         return null;
     }
 }
-export async function extractContactFromAdPage(controller) {
+// Classic layout: the name sits in #viewad-contact .iconlist-text. The
+// redesigned layout only shows initials there, so its island name wins.
+async function classicContactName(controller, islandContactName) {
+    if (islandContactName && controller.webProbe &&
+        await controller.webProbe(By.CSS_SELECTOR, "#viewad-contact .iconlist-text") === null) {
+        return null;
+    }
+    try {
+        const contactPersonElement = await controller.webFind(By.ID, "viewad-contact");
+        const nameElement = await controller.webFind(By.CLASS_NAME, "iconlist-text", { parent: contactPersonElement });
+        try {
+            return await controller.webText(By.TAG_NAME, "a", { parent: nameElement });
+        }
+        catch (error) {
+            if (!(error instanceof TimeoutError)) {
+                throw error;
+            }
+            return await controller.webText(By.TAG_NAME, "span", { parent: nameElement });
+        }
+    }
+    catch (error) {
+        if (error instanceof TimeoutError) {
+            return null;
+        }
+        throw error;
+    }
+}
+export async function extractContactFromAdPage(controller, islandContactName = null) {
     const contact = {};
     const addressText = await controller.webText(By.ID, "viewad-locality");
     try {
@@ -38,17 +65,8 @@ export async function extractContactFromAdPage(controller) {
     const [zipcode, ...locationParts] = addressText.split(" ");
     contact.zipcode = zipcode ?? "";
     contact.location = locationParts.join(" ");
-    const contactPersonElement = await controller.webFind(By.ID, "viewad-contact");
-    const nameElement = await controller.webFind(By.CLASS_NAME, "iconlist-text", { parent: contactPersonElement });
-    try {
-        contact.name = await controller.webText(By.TAG_NAME, "a", { parent: nameElement });
-    }
-    catch (error) {
-        if (!(error instanceof TimeoutError)) {
-            throw error;
-        }
-        contact.name = await controller.webText(By.TAG_NAME, "span", { parent: nameElement });
-    }
+    contact.name = await classicContactName(controller, islandContactName) ??
+        islandContactName ?? "";
     if (!("street" in contact)) {
         contact.street = null;
     }

@@ -359,6 +359,18 @@ export const FORM_VALIDATION_ERRORS_SCRIPT = String.raw`() => {
   return [...errors];
 }`;
 
+// The props of the Astro island that holds the ad data on redesigned ad
+// pages, or null.
+export const AD_ISLAND_PROPS_SCRIPT = String.raw`() => {
+  for (const island of document.querySelectorAll("astro-island")) {
+    const props = island.getAttribute("props") || "";
+    if (props.includes("imageDetails") || props.includes("formattedCreationDate") || props.includes("userDetails")) {
+      return props;
+    }
+  }
+  return null;
+}`;
+
 export function callPageScript(source: string, ...args: unknown[]): string {
   return `(${source})(${args.map((arg) => JSON.stringify(arg)).join(", ")})`;
 }

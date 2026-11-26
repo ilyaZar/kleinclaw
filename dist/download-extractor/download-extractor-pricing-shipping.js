@@ -8,10 +8,22 @@ import { By, TimeoutError } from "../web-primitives.js";
 import { parseGermanDecimal, parsePriceAmount, shippingOptionsFromResponse, } from "./download-extractor-page-data.js";
 const SHIPPING_OPTIONS_URL = "https://gateway.kleinanzeigen.de/postad/api/v1/" +
     "shipping-options?posterType=PRIVATE";
-export async function extractPricingInfoFromAdPage(controller) {
+async function classicElementMissing(controller, type, value) {
+    return controller.webProbe !== undefined &&
+        await controller.webProbe(type, value) === null;
+}
+export async function extractPricingInfoFromAdPage(controller, islandPrice = null) {
+    const fallback = (islandPrice ?? [null, "NOT_APPLICABLE"]);
+    if (islandPrice && islandPrice[1] !== "NOT_APPLICABLE" &&
+        await classicElementMissing(controller, By.ID, "viewad-price")) {
+        return fallback;
+    }
     try {
         const priceText = await controller.webText(By.ID, "viewad-price");
         const lastToken = priceText.trim().split(/\s+/).at(-1);
+        if (!priceText.trim()) {
+            return fallback;
+        }
         if (lastToken === "€") {
             return [parsePriceAmount(priceText), "FIXED"];
         }
@@ -26,14 +38,31 @@ export async function extractPricingInfoFromAdPage(controller) {
     }
     catch (error) {
         if (error instanceof TimeoutError) {
-            return [null, "NOT_APPLICABLE"];
+            return fallback;
         }
         throw error;
     }
 }
-export async function extractShippingInfoFromAdPage(config, controller) {
+async function classicShippingText(controller, islandShippingText) {
     try {
-        const shippingText = await controller.webText(By.CLASS_NAME, "boxedarticle--details--shipping");
+        return await controller.webText(By.CLASS_NAME, "boxedarticle--details--shipping");
+    }
+    catch (error) {
+        if (error instanceof TimeoutError) {
+            return islandShippingText;
+        }
+        throw error;
+    }
+}
+export async function extractShippingInfoFromAdPage(config, controller, islandShippingText = null) {
+    try {
+        const shippingText = islandShippingText &&
+            await classicElementMissing(controller, By.CLASS_NAME, "boxedarticle--details--shipping")
+            ? islandShippingText
+            : await classicShippingText(controller, islandShippingText);
+        if (shippingText === null) {
+            return ["NOT_APPLICABLE", null, null];
+        }
         if (shippingText === "Nur Abholung") {
             return ["PICKUP", null, null];
         }

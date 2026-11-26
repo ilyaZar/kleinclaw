@@ -24,6 +24,7 @@ export interface DownloadImageOptions {
 }
 
 export interface DownloadImagesFromAdPageOptions {
+  islandImageUrls?: readonly string[];
   imageDownloadTimeout?: number;
 }
 
@@ -81,14 +82,31 @@ export async function downloadAndSaveImage(
   }
 }
 
+// Island image URLs (redesigned pages) are complete and in order; the classic
+// gallery markup is the fallback.
 export async function downloadImagesFromAdPage(
   controller: DownloadImagesController,
   downloadImage: DownloadImage,
   directory: string,
   adFileStem: string,
-  { imageDownloadTimeout }: DownloadImagesFromAdPageOptions = {},
+  { imageDownloadTimeout, islandImageUrls = [] }: DownloadImagesFromAdPageOptions = {},
 ): Promise<string[]> {
   const imagePaths: string[] = [];
+  if (islandImageUrls.length > 0) {
+    for (const [index, url] of islandImageUrls.entries()) {
+      const imagePath = await downloadImage(
+        url,
+        directory,
+        `${adFileStem}__img`,
+        index + 1,
+        { timeout: imageDownloadTimeout },
+      );
+      if (imagePath) {
+        imagePaths.push(path.basename(imagePath));
+      }
+    }
+    return imagePaths;
+  }
   try {
     const imageBox = await controller.webFind(
       By.CLASS_NAME,
