@@ -8,3 +8,6 @@ export declare class CaptchaEncountered extends Error {
 export declare class PublishSubmissionUncertainError extends Error {
     constructor(message?: string);
 }
+export declare class AdFormValidationError extends Error {
+    constructor(errors: readonly string[]);
+}

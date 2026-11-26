@@ -73,6 +73,7 @@ export async function publishAdForm(
     onPaymentForm,
     quickDomTimeout,
     recoverAdId,
+    recoverIdlessAdId,
     restartDelaySeconds,
     rootUrl,
     saveAdConfig,
@@ -135,10 +136,14 @@ export async function publishAdForm(
 
   await setDeferredTitleField(controller, ad);
   const adId = await submitAdForm(controller, ad, {
+    configuredAdId: ad.id,
     confirmationTimeout,
+    mode,
     onPaymentForm,
     quickDomTimeout,
     recoverAdId,
+    recoverIdlessAdId,
+    rootUrl,
     waitForConfirmation,
   });
 

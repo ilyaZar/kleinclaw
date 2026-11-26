@@ -22,7 +22,7 @@ export declare const CAPTCHA_IFRAME_SELECTOR: string;
 export declare const SUBMIT_BUTTON_XPATH: string;
 export declare const IMPRINT_GUIDANCE_SUBMIT_ID = "imprint-guidance-submit";
 export declare const NO_IMAGE_HINT_BUTTON_XPATH = "//button[contains(., \"Ohne Bild ver\u00F6ffentlichen\")]";
-export declare const VISIBILITY_UPSELL_SKIP_BUTTON_XPATH = "//button[contains(., \"Ohne Hochschieben weiter\")]";
+export declare const VISIBILITY_UPSELL_SKIP_BUTTON_XPATH = "//button[contains(., \"Ohne Top-Anzeige weiter\") or contains(., \"Ohne Hochschieben weiter\")]";
 export declare const PAYMENT_FORM_ID = "myftr-shppngcrt-frm";
 export declare const CONFIRMATION_URL_FRAGMENT = "p-anzeige-aufgeben-bestaetigung.html?adId=";
 export declare const TRACKING_SCRIPT_TEXT_JS = "[...document.querySelectorAll('script')].map(s => s.textContent).join('\\n')";
