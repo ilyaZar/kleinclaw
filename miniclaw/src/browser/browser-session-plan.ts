@@ -15,6 +15,9 @@ import {
   remoteDebuggingPortFromArguments,
 } from "./browser-arguments.js";
 
+const DEFAULT_WINDOW_SIZE_ARG = "--window-size=1366,900";
+const WINDOW_SIZE_ARG_RE = /^--(window-size=|start-maximized|start-fullscreen|kiosk|headless)/;
+
 export const DEFAULT_BROWSER_ARGS = [
   "--disable-crash-reporter",
   "--disable-domain-reliability",
@@ -294,6 +297,11 @@ export function buildBrowserSessionPlan(
       continue;
     }
     browserArgs.push(browserArg);
+  }
+  // Below 768px the redesigned pages hide their desktop header (login state,
+  // navigation); keep a desktop-sized window unless the user sized it.
+  if (!browserConfig.arguments.some((arg) => WINDOW_SIZE_ARG_RE.test(arg))) {
+    browserArgs.push(DEFAULT_WINDOW_SIZE_ARG);
   }
 
   const userDataDirFromArgs = userDataDirFromArguments(

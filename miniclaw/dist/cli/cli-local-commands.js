@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { buildBrowserDiagnosticReport, } from "../browser/browser-chrome-diagnostics.js";
 import { loadConfigFile, saveDataFile } from "../io.js";
-import { AdUpdateStrategy, contentHashForLoadedAd, evaluateAutoPriceReduction, } from "../model/ad-model.js";
+import { AdUpdateStrategy, contentHashForAd, evaluateAutoPriceReduction, } from "../model/ad-model.js";
 import { loadSelectedAds } from "../selection.js";
 import { DEFAULT_CONFIG } from "./cli-help.js";
 import { commandStatus, printDiagnosticLine, setCommandResult, setCountResult, } from "./cli-messages.js";
@@ -75,8 +75,9 @@ export async function updateContentHashes(parsed) {
         return 0;
     }
     let changed = 0;
-    for (const { ad, filePath, raw } of ads) {
-        const contentHash = contentHashForLoadedAd(ad);
+    // hash the raw ad file, exactly like the change detection does
+    for (const { filePath, raw } of ads) {
+        const contentHash = contentHashForAd(raw);
         if (raw.content_hash !== contentHash) {
             raw.content_hash = contentHash;
             await saveDataFile(filePath, raw);
