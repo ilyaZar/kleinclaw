@@ -215,6 +215,7 @@ function isCancellationError(error: unknown): boolean {
 function isTerminalPublishError(error: unknown): boolean {
   return error instanceof CategoryResolutionError ||
     error instanceof PublishSubmissionUncertainError ||
+    hasErrorName(error, "AdFormValidationError") ||
     hasErrorName(error, "CategoryResolutionError") ||
     hasErrorName(error, "PublishSubmissionUncertainError");
 }

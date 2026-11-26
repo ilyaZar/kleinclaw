@@ -10,7 +10,7 @@ import { AdUpdateStrategy, applyAutoPriceReduction, } from "./model/ad-model.js"
 import { saveDataFile } from "./io.js";
 import { publishAdForm, } from "./publish-form.js";
 import { checkPublishingResult, } from "./publish-form/publish-form-submit-flow.js";
-import { fetchPublishedAds, } from "./published-ads.js";
+import { fetchPublishedAds, recoverNewPublishedAdId, } from "./published-ads.js";
 import { extractOwnAdUrls, } from "./publish-side-effects/publish-side-effects-ad-overview.js";
 import { deletePublishedAd, } from "./publish-side-effects/publish-side-effects-delete-hook.js";
 import { downloadAdWithBrowser, navigateToDownloadedAdPage, } from "./publish-side-effects/publish-side-effects-download-hook.js";
@@ -32,12 +32,31 @@ async function runPublishForm(controller, context, mode, { formOptions, now, pub
         mode,
         now: now(),
     });
+    // Snapshot the published IDs, so a success page without an ID can be
+    // resolved to the one new ad afterwards.
+    const fetchStrict = () => fetchPublishedAds((url) => controller.webRequest(url), { rootUrl, strict: true });
+    let knownIds = null;
+    if (mode === AdUpdateStrategy.Replace) {
+        try {
+            knownIds = new Set((await fetchStrict()).map((ad) => Number(ad.id)));
+        }
+        catch {
+            knownIds = null;
+        }
+    }
     await (publishAdFormImpl ?? publishAdForm)(controller, context.ad, {
         ...formOptions,
         adConfig: context.raw,
         adFile: context.adFile,
         mode,
         now,
+        recoverIdlessAdId: async () => knownIds === null
+            ? null
+            : recoverNewPublishedAdId(fetchStrict, {
+                knownIds,
+                sleep: (ms) => controller.webSleep(ms, ms),
+                title: context.ad.title,
+            }),
         rootUrl,
         saveAdConfig,
     });

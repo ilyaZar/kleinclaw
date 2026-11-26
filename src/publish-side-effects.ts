@@ -45,6 +45,7 @@ import {
 } from "./publish-form/publish-form-types.js";
 import {
   fetchPublishedAds,
+  recoverNewPublishedAdId,
   type PublishedAd,
 } from "./published-ads.js";
 import {
@@ -182,6 +183,20 @@ async function runPublishForm(
     mode,
     now: now(),
   });
+  // Snapshot the published IDs, so a success page without an ID can be
+  // resolved to the one new ad afterwards.
+  const fetchStrict = () => fetchPublishedAds(
+    (url) => controller.webRequest(url),
+    { rootUrl, strict: true },
+  );
+  let knownIds: Set<number> | null = null;
+  if (mode === AdUpdateStrategy.Replace) {
+    try {
+      knownIds = new Set((await fetchStrict()).map((ad) => Number(ad.id)));
+    } catch {
+      knownIds = null;
+    }
+  }
   await (publishAdFormImpl ?? publishAdForm)(
     controller,
     context.ad,
@@ -191,6 +206,13 @@ async function runPublishForm(
       adFile: context.adFile,
       mode,
       now,
+      recoverIdlessAdId: async () => knownIds === null
+        ? null
+        : recoverNewPublishedAdId(fetchStrict, {
+          knownIds,
+          sleep: (ms) => controller.webSleep(ms, ms),
+          title: context.ad.title,
+        }),
       rootUrl,
       saveAdConfig,
     },

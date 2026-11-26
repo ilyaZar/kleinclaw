@@ -64,6 +64,7 @@ function isCancellationError(error) {
 function isTerminalPublishError(error) {
     return error instanceof CategoryResolutionError ||
         error instanceof PublishSubmissionUncertainError ||
+        hasErrorName(error, "AdFormValidationError") ||
         hasErrorName(error, "CategoryResolutionError") ||
         hasErrorName(error, "PublishSubmissionUncertainError");
 }

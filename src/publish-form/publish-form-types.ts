@@ -96,7 +96,13 @@ export interface CaptchaOptions {
 }
 
 export interface SubmitAdOptions {
+  // the ad's current ID; an update success page carries none
+  configuredAdId?: number | null;
   confirmationTimeout?: number;
+  mode?: AdUpdateStrategy;
+  // ID of a publish whose success page showed none
+  recoverIdlessAdId?: () => Promise<number | null>;
+  rootUrl?: string;
   onPaymentForm?: () => Promise<void>;
   quickDomTimeout?: number;
   recoverAdId?: () => Promise<number | null>;

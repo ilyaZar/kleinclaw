@@ -43,7 +43,11 @@ export interface CaptchaOptions {
     scrollPageDown?: () => Promise<void>;
 }
 export interface SubmitAdOptions {
+    configuredAdId?: number | null;
     confirmationTimeout?: number;
+    mode?: AdUpdateStrategy;
+    recoverIdlessAdId?: () => Promise<number | null>;
+    rootUrl?: string;
     onPaymentForm?: () => Promise<void>;
     quickDomTimeout?: number;
     recoverAdId?: () => Promise<number | null>;

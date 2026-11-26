@@ -5,4 +5,6 @@ export declare const CATEGORY_TREE_ACTION_SCRIPT: string;
 export declare const SELECT_BUTTON_COMBOBOX_SCRIPT: string;
 export declare const FIND_ASSOCIATED_BUTTON_COMBOBOX_SCRIPT: string;
 export declare const CONDITION_DIALOG_TRIGGER_SCRIPT: string;
+export declare const IDLESS_SUCCESS_PAGE_SCRIPT: string;
+export declare const FORM_VALIDATION_ERRORS_SCRIPT: string;
 export declare function callPageScript(source: string, ...args: unknown[]): string;
