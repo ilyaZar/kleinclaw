@@ -10,7 +10,7 @@ Kleinanzeigen credentials, or tries to work around account checks.
 ```bash
 npm run build
 openclaw plugins install -l \
-  /home/iz/Dropbox/projects/openclaw/own-plugins/kleinclaw
+  /home/iz/Syncthing/projects/openclaw/own-plugins/kleinclaw
 openclaw plugins enable kleinclaw
 ```
 
