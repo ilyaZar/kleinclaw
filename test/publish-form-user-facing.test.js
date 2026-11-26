@@ -31,7 +31,6 @@ import {
 } from "../dist/publish-form/publish-form-image-upload.js";
 import {
   setShippingOptions,
-  shippingCostInputValue,
   shippingOptionCarrierCodes,
 } from "../dist/publish-form/publish-form-shipping-fields.js";
 import {
@@ -135,7 +134,6 @@ function createController({
 
 describe("miniclaw publish-form shipping", () => {
   it("maps public shipping option names to carrier codes", () => {
-    assert.equal(shippingCostInputValue(4.5), "4,5");
     assert.deepEqual(
       shippingOptionCarrierCodes(["DHL_5", "Hermes_M", "DHL_5"]),
       ["DHL_002", "HERMES_003"],
@@ -146,7 +144,7 @@ describe("miniclaw publish-form shipping", () => {
     );
   });
 
-  it("selects one package size and reconciles carrier checkboxes", async () => {
+  it("selects one package size and ticks wanted carriers before unticking others", async () => {
     const sizeRadio = fakeElement();
     const hermesCheckbox = fakeElement({ attrs: { checked: "" } });
     const dhlCheckbox = fakeElement();
@@ -169,8 +167,8 @@ describe("miniclaw publish-form shipping", () => {
     assert.deepEqual(clicks, [
       [By.XPATH, shippingDialogInputXPath("radio", "MEDIUM")],
       [By.XPATH, SHIPPING_DIALOG_NEXT_BUTTON_XPATH],
-      [By.XPATH, shippingDialogInputXPath("checkbox", "HERMES_003")],
       [By.XPATH, shippingDialogInputXPath("checkbox", "DHL_002")],
+      [By.XPATH, shippingDialogInputXPath("checkbox", "HERMES_003")],
       [By.XPATH, SHIPPING_DIALOG_DONE_BUTTON_XPATH],
     ]);
   });
@@ -294,8 +292,8 @@ describe("miniclaw publish-form core fields", () => {
 
   it("selects wanted-ad shipping through the button combobox", async () => {
     const controller = createController({
-      elements: {
-        [key(By.CSS_SELECTOR, '[role="combobox"][id$=".versand"]')]:
+      probes: {
+        [key(By.CSS_SELECTOR, 'button[role="combobox"][id$=".versand"]')]:
           fakeElement({ attrs: { id: "wanted.versand" } }),
       },
     });

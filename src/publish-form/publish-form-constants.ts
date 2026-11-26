@@ -19,10 +19,15 @@ export const CATEGORY_PICKER_RADIO_SELECTOR =
   "#ad-category-picker input[type='radio'][name='category-suggestions']";
 export const CITY_LISTBOX_ID_FALLBACK = "ad-city-menu";
 export const CITY_SELECTED_OPTION_ID = "ad-city-selected-option";
-export const SHIPPING_OTHER_METHODS_BUTTON_XPATH =
-  '//button[contains(., "Andere Versandmethoden")]';
-export const SHIPPING_BACK_BUTTON_XPATH = '//button[contains(., "Zurück")]';
-export const SHIPPING_DONE_BUTTON_XPATH = '//button[contains(., "Fertig")]';
+// The redesigned dialog renders these as any element, not only buttons.
+export const SHIPPING_OTHER_METHODS_XPATH =
+  "//*[normalize-space(text())='Andere Versandmethoden']";
+export const SHIPPING_BACK_BUTTON_XPATH = "//*[normalize-space(text())='Zur\u00fcck']";
+export const VERSAND_COMBOBOX_SELECTORS = [
+  'button[role="combobox"][id="versand"]',
+  'button[role="combobox"][id$=".versand"]',
+  'button[role="combobox"][aria-labelledby$="versand-selected-option"]',
+];
 export const SHIPPING_DIALOG_XPATH = '//*[self::dialog or @role="dialog"]';
 export const SHIPPING_DIALOG_DONE_BUTTON_XPATH =
   `${SHIPPING_DIALOG_XPATH}//button[contains(., "Fertig")]`;
