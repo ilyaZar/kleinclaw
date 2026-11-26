@@ -5,9 +5,12 @@
  */
 import { normalizeComboboxComparisonValue, normalizeComboboxSearchValue, } from "./combobox.js";
 import { ControllerElementInteraction } from "./controller-element-interaction.js";
+import { normalizeRemoteObjectResult } from "../browser/browser-remote-object.js";
+import { isRecord } from "../value-guards.js";
 import { requirePageMethod } from "./controller-support.js";
 import { TimeoutError } from "./errors.js";
 import { By } from "./selector.js";
+import { callPageScript, SELECT_BUTTON_COMBOBOX_SCRIPT } from "./page-scripts.js";
 import { Is } from "./types.js";
 export class ControllerSelectionControls extends ControllerElementInteraction {
     async webSelect(type, value, selectedValue, timeout) {
@@ -60,14 +63,18 @@ export class ControllerSelectionControls extends ControllerElementInteraction {
         return this.confirmComboboxFallback(inputField, searchValue);
     }
     async webSelectButtonCombobox(elementId, selectedValue, timeout) {
-        await this.webClick(By.ID, elementId, timeout);
-        const listbox = await this.webFind(By.ID, `${elementId}-menu`, { timeout });
-        const ok = await this.clickMatchingButtonComboboxOption(listbox, selectedValue);
-        if (!ok) {
-            throw new TimeoutError(`Option '${selectedValue}' not found in button combobox '${elementId}'`);
+        const pollMs = Math.max(1, Math.trunc(this.effectiveTimeout("quickDom", timeout, 0) * 1000));
+        const evaluate = requirePageMethod(this.page.evaluate, "evaluate");
+        const status = normalizeRemoteObjectResult(await evaluate.call(this.page, callPageScript(SELECT_BUTTON_COMBOBOX_SCRIPT, elementId, selectedValue, pollMs)));
+        if (!isRecord(status) || status.ok !== true) {
+            const reason = isRecord(status) ? String(status.reason ?? "unknown") : "unknown";
+            const offered = isRecord(status) && Array.isArray(status.options)
+                ? status.options.join(", ")
+                : "";
+            throw new TimeoutError(`Option '${selectedValue}' not found in button combobox '${elementId}': ` +
+                `${reason}${offered ? ` (offered: ${offered})` : ""}`);
         }
         await this.webSleep();
-        return listbox;
     }
     async selectOption(element, selectedValue) {
         if (element.evaluate) {
@@ -134,29 +141,6 @@ export class ControllerSelectionControls extends ControllerElementInteraction {
       `));
         }
         return false;
-    }
-    async clickMatchingButtonComboboxOption(listbox, selectedValue) {
-        if (!listbox.evaluate) {
-            throw new Error("Element does not support option lookup");
-        }
-        const wanted = JSON.stringify(selectedValue);
-        return Boolean(await listbox.evaluate(`
-      function (element) {
-        const normalize = s => (s ?? '').replace(/\\s+/g, ' ').trim().toLowerCase();
-        const needle = normalize(${wanted});
-        const items = element.querySelectorAll('[role="option"]');
-        for (const li of items) {
-          if (normalize(li.textContent) === needle) {
-            try {
-              li.scrollIntoView({ block: 'nearest' });
-            } catch (e) {}
-            li.click();
-            return true;
-          }
-        }
-        return false;
-      }
-    `));
     }
     async confirmComboboxFallback(inputField, searchValue) {
         await this.dispatchArrowDownAndEnter(inputField);

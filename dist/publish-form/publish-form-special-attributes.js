@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  * SPDX-ArtifactOfProjectHomePage: https://github.com/Second-Hand-Friends/kleinanzeigen-bot/
  */
+import { isRecord } from "../value-guards.js";
 import { By, TimeoutError, } from "../web-primitives.js";
-import { CONDITION_GERMAN_TO_API, CONDITION_TRIGGER_XPATH, } from "./publish-form-constants.js";
+import { callPageScript, CONDITION_DIALOG_TRIGGER_SCRIPT, FIND_ASSOCIATED_BUTTON_COMBOBOX_SCRIPT, } from "../web/page-scripts.js";
+import { CONDITION_GERMAN_TO_API } from "./publish-form-constants.js";
 import { clickElement, elementAttribute, inspectSpecialAttributeElement, stringOrNull, xpathLiteral, } from "./publish-form-element-helpers.js";
 const SPECIAL_ATTRIBUTE_TOKEN_RE = /^[A-Za-z0-9_]+$/;
 const CHECKBOX_TRUTHY_VALUES = new Set([
@@ -119,19 +121,30 @@ function currentCheckboxState(checked) {
         : String(checked).trim().toLowerCase();
     return !CHECKBOX_FALSY_VALUES.has(normalized);
 }
+// The redesigned child-clothing form offers single sizes plus "Andere
+// Größe", but no combined ranges such as 158/164.
+function buttonComboboxValue(key, value) {
+    return key.startsWith("baby_kinderkleidung.") &&
+        normalizeSpecialAttributeKey(key) === "groesse" &&
+        /^\d+\s*\/\s*\d+$/.test(value.trim())
+        ? "andere_groesse"
+        : value;
+}
 export async function setConditionDialog(controller, conditionValue, { quickDomTimeout } = {}) {
-    const conditionTrigger = await controller.webProbe(By.XPATH, CONDITION_TRIGGER_XPATH, { timeout: quickDomTimeout });
-    if (conditionTrigger === null) {
+    const trigger = await controller.webExecute(callPageScript(CONDITION_DIALOG_TRIGGER_SCRIPT));
+    if (!isRecord(trigger) || trigger.found !== true) {
         return false;
     }
-    const triggerId = String(await elementAttribute(conditionTrigger, "id") ?? "");
-    const triggerControls = String(await elementAttribute(conditionTrigger, "aria-controls") ?? "");
+    // Some categories render condition as a combobox; a dialog button found
+    // nearby can then belong to the shipping controls instead.
+    const triggerId = String(trigger.id ?? "");
+    const triggerControls = String(trigger.ariaControls ?? "");
     if (triggerId.toLowerCase().includes("shipping") ||
         triggerControls.toLowerCase().includes("shipping")) {
         return false;
     }
     try {
-        await clickElement(conditionTrigger, "Failed to set attribute 'condition_s'");
+        await controller.webClick(By.CSS_SELECTOR, '[data-miniclaw-condition-trigger="true"]', quickDomTimeout);
         await controller.webFind(By.XPATH, '//*[self::dialog or @role="dialog"]', { timeout: quickDomTimeout });
         let conditionRadio = null;
         for (const candidate of conditionCandidateValues(conditionValue)) {
@@ -212,6 +225,17 @@ export async function setSpecialAttributes(controller, specialAttributes, { setC
         const selectorType = selected.info.id ? By.ID : By.XPATH;
         const selectorValue = selected.info.id ?? xpath;
         try {
+            // A hidden backing input belongs to a nearby button combobox.
+            if (selected.info.type === "hidden") {
+                const buttonId = selected.info.name
+                    ? await controller.webExecute(callPageScript(FIND_ASSOCIATED_BUTTON_COMBOBOX_SCRIPT, selected.info.name))
+                    : null;
+                if (typeof buttonId !== "string" || !buttonId) {
+                    throw new TimeoutError(`Failed to set attribute '${key}'`);
+                }
+                await controller.webSelectButtonCombobox(buttonId, buttonComboboxValue(key, value));
+                continue;
+            }
             if (selected.info.localName === "select") {
                 await controller.webSelect(selectorType, selectorValue, value);
             }
@@ -226,7 +250,7 @@ export async function setSpecialAttributes(controller, specialAttributes, { setC
                 if (!selected.info.id) {
                     throw new TimeoutError(`Failed to set attribute '${key}'`);
                 }
-                await selectButtonComboboxByValue(controller, selected.info.id, value);
+                await controller.webSelectButtonCombobox(selected.info.id, buttonComboboxValue(key, value));
             }
             else if (selected.info.localName === "input" &&
                 selected.info.role === "combobox" &&
@@ -243,38 +267,5 @@ export async function setSpecialAttributes(controller, specialAttributes, { setC
             }
             throw error;
         }
-    }
-}
-async function selectButtonComboboxByValue(controller, elementId, value) {
-    await controller.webClick(By.ID, elementId);
-    const listboxId = `${elementId}-menu`;
-    await controller.webFind(By.ID, listboxId);
-    const jsButtonId = JSON.stringify(elementId);
-    const jsListboxId = JSON.stringify(listboxId);
-    const jsValue = JSON.stringify(value);
-    const ok = await controller.webExecute(`(function() {
-    const listbox = document.getElementById(${jsListboxId});
-    if (!listbox) return false;
-    const liOptions = Array.from(listbox.querySelectorAll('[role="option"]'));
-    const btnEl = document.getElementById(${jsButtonId});
-    if (!btnEl) return false;
-    const fiberKey = Object.keys(btnEl).find(k => k.startsWith('__reactFiber'));
-    let fiber = fiberKey ? btnEl[fiberKey] : null;
-    for (let i = 0; i < 20 && fiber; i++, fiber = fiber.return) {
-      if (fiber.memoizedProps && fiber.memoizedProps.options) {
-        const optionsData = fiber.memoizedProps.options;
-        for (let j = 0; j < optionsData.length; j++) {
-          if (optionsData[j].value === ${jsValue} && liOptions[j]) {
-            liOptions[j].click();
-            return true;
-          }
-        }
-        return false;
-      }
-    }
-    return false;
-  })()`);
-    if (!ok) {
-        throw new TimeoutError(`Option '${value}' not found in button combobox '${elementId}'`);
     }
 }
