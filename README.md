@@ -94,15 +94,17 @@ are recorded in the
 
 ## Development and release
 
-Builds and releases are controlled from the KleinClaw repository root so the
-embedded and standalone artifacts stay aligned:
+Miniclaw builds and tests on its own, both in `ilyaZar/miniclaw` and as the
+`miniclaw/` subtree of KleinClaw:
 
 ```bash
+npm ci --ignore-scripts
 npm run verify
-npm pack --dry-run --json --ignore-scripts ./miniclaw
+npm pack --dry-run --ignore-scripts
 ```
 
-Do not publish directly from an unbuilt `miniclaw/` checkout.
+Inside KleinClaw, the root `npm run verify` also builds miniclaw and runs its
+tests. Commit the rebuilt `dist/` with every source change; CI rejects drift.
 
 ## Source and license
 
