@@ -96,8 +96,8 @@ export async function publishAdForm(
   await setCategory(controller, {
     adFile,
     category: ad.category,
+    productTitle: ad.title,
     quickDomTimeout,
-    rootUrl,
   });
   await controller.webSleep();
   await setSpecialAttributes(controller, ad.specialAttributes);
