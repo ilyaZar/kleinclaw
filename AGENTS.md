@@ -33,3 +33,16 @@ npx --yes clawhub package publish . --dry-run --json \
 ```
 
 **Before publishing, inspect the package file list from `npm pack`.**
+
+## miniclaw subtree
+
+`miniclaw/` is a git subtree of the private `ilyaZar/miniclaw` repo. Both
+directions run in CI with the `MINICLAW_SYNC_TOKEN` secret:
+`miniclaw-mirror.yml` pushes `git subtree split --prefix=miniclaw` to
+miniclaw `main`; `miniclaw-pull.yml` opens a PR for changes made directly in
+miniclaw. Merge sync PRs with a merge commit, never squash. Manual mirror:
+
+```bash
+git subtree split --prefix=miniclaw -b miniclaw-split main
+git push miniclaw miniclaw-split:main && git branch -D miniclaw-split
+```

@@ -1,0 +1,73 @@
+# Bring changes made directly in ilyaZar/miniclaw back into the miniclaw/
+# subtree as a PR. Merge that PR with a merge commit (never squash), or the
+# shared subtree history breaks and the next mirror push is rejected.
+name: miniclaw-pull
+
+on:
+  repository_dispatch:
+    types:
+      - miniclaw-updated
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: miniclaw-sync
+  cancel-in-progress: false
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    env:
+      SYNC_TOKEN: ${{ secrets.MINICLAW_SYNC_TOKEN }}
+    steps:
+      - name: require sync token
+        id: token
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::notice::MINICLAW_SYNC_TOKEN is not set; skipping pull"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.skip != 'true'
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.MINICLAW_SYNC_TOKEN }}
+
+      - name: subtree pull
+        id: pull
+        if: steps.token.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch "https://x-access-token:${SYNC_TOKEN}@github.com/ilyaZar/miniclaw.git" main
+          upstream="$(git rev-parse --short FETCH_HEAD)"
+          branch="sync-miniclaw-${upstream}"
+          before="$(git rev-parse HEAD)"
+          git subtree pull --prefix=miniclaw \
+            "https://x-access-token:${SYNC_TOKEN}@github.com/ilyaZar/miniclaw.git" main \
+            -m "build(miniclaw): sync ilyaZar/miniclaw ${upstream}"
+          if [ "$(git rev-parse HEAD)" = "$before" ]; then
+            echo "miniclaw subtree already up to date"
+            exit 0
+          fi
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "sync branch $branch already exists"
+            exit 0
+          fi
+          git push origin "HEAD:refs/heads/${branch}"
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+          echo "upstream=${upstream}" >> "$GITHUB_OUTPUT"
+
+      - name: open pull request
+        if: steps.pull.outputs.branch != ''
+        env:
+          GH_TOKEN: ${{ secrets.MINICLAW_SYNC_TOKEN }}
+        run: |
+          gh pr create --base main --head "${{ steps.pull.outputs.branch }}" \
+            --title "build(miniclaw): sync ilyaZar/miniclaw ${{ steps.pull.outputs.upstream }}" \
+            --body "Subtree pull from ilyaZar/miniclaw main. Merge with a merge commit, not squash."
