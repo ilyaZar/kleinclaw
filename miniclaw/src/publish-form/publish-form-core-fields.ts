@@ -7,6 +7,7 @@
 import { MAX_DESCRIPTION_LENGTH, type Ad } from "../model/ad-model.js";
 import { By, Is, TimeoutError } from "../web-primitives.js";
 import { WANTED_SHIPPING_LABELS } from "./publish-form-constants.js";
+import { findVersandCombobox } from "./publish-form-shipping-fields.js";
 import {
   type PriceType,
   type PublishingFormController,
@@ -67,7 +68,7 @@ export async function setFrameworkInputValue(
 export async function selectWantedShipping(
   controller: Pick<
     PublishingFormController,
-    "webFind" | "webSelectButtonCombobox"
+    "webProbe" | "webSelectButtonCombobox"
   >,
   shippingType: ShippingType,
   { quickDomTimeout }: PublishingFormOptions = {},
@@ -76,20 +77,14 @@ export async function selectWantedShipping(
     return false;
   }
 
-  const displayText = WANTED_SHIPPING_LABELS[shippingType];
   try {
-    const shippingButton = await controller.webFind(
-      By.CSS_SELECTOR,
-      '[role="combobox"][id$=".versand"]',
-      { timeout: quickDomTimeout },
-    );
-    const buttonId = await shippingButton.getAttribute?.("id");
+    const buttonId = await findVersandCombobox(controller, quickDomTimeout);
     if (!buttonId) {
-      throw new TimeoutError("Shipping combobox button has no id attribute");
+      throw new TimeoutError("Shipping combobox button not found");
     }
     await controller.webSelectButtonCombobox(
       buttonId,
-      displayText,
+      WANTED_SHIPPING_LABELS[shippingType],
       quickDomTimeout,
     );
     return true;

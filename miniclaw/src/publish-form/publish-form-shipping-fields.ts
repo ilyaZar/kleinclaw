@@ -5,7 +5,6 @@
  */
 
 import {
-  AdUpdateStrategy,
   CARRIER_CODE_BY_OPTION,
   CARRIER_CODES_BY_SIZE,
   SIZE_INFO_BY_CARRIER_CODE,
@@ -16,13 +15,13 @@ import {
   SHIPPING_DIALOG_DONE_BUTTON_XPATH,
   SHIPPING_DIALOG_NEXT_BUTTON_XPATH,
   SHIPPING_DIALOG_XPATH,
-  SHIPPING_DONE_BUTTON_XPATH,
-  SHIPPING_OTHER_METHODS_BUTTON_XPATH,
+  SHIPPING_OTHER_METHODS_XPATH,
+  VERSAND_COMBOBOX_SELECTORS,
+  WANTED_SHIPPING_LABELS,
 } from "./publish-form-constants.js";
 import {
-  setFrameworkInputValue,
-} from "./publish-form-core-fields.js";
-import {
+  clickElement,
+  elementAttribute,
   elementHasAttribute,
   xpathLiteral,
 } from "./publish-form-element-helpers.js";
@@ -32,9 +31,7 @@ import {
   type SetShippingOptions,
 } from "./publish-form-types.js";
 
-export function shippingCostInputValue(value: number | string): string {
-  return String(value).replace(".", ",");
-}
+const SHIPPING_SIZE_RADIO_VALUES = ["SMALL", "MEDIUM", "LARGE"];
 
 function shippingSizeRadioXPath(radioValue: string): string {
   return (
@@ -86,6 +83,13 @@ async function setPickupShipping(
     timeout: quickDomTimeout,
   });
   if (pickupRadio === null) {
+    // Categories without shipping have no fieldset; a fieldset without the
+    // radio means the page is not loaded yet.
+    if (await controller.webProbe(By.ID, "ad-shipping-enabled", { timeout: quickDomTimeout })) {
+      throw new TimeoutError(
+        "Shipping fieldset is rendered, but the pickup radio is missing; page may not be fully loaded.",
+      );
+    }
     return;
   }
 
@@ -99,88 +103,6 @@ async function setPickupShipping(
       await controller.webClick(By.ID, "ad-shipping-enabled-no", quickDomTimeout);
     }
   }, "Failed to set shipping attribute for type 'PICKUP'!");
-}
-
-async function setIndividualShippingPrice(
-  controller: Pick<
-    PublishingFormController,
-    "webExecute" | "webFind" | "webSleep"
-  >,
-  shippingCosts: number | string,
-): Promise<void> {
-  const priceText = shippingCostInputValue(shippingCosts);
-  const maxAttempts = 3;
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      await setFrameworkInputValue(
-        controller,
-        "ad-individual-shipping-price",
-        priceText,
-      );
-      const actual = await controller.webExecute(
-        "document.getElementById('ad-individual-shipping-price')?.value",
-      );
-      if (actual === priceText) {
-        return;
-      }
-    } catch (error) {
-      if (!(error instanceof TimeoutError)) {
-        throw error;
-      }
-      if (attempt >= maxAttempts) {
-        throw new TimeoutError("Unable to set shipping price!");
-      }
-      await controller.webSleep(300, 500);
-      continue;
-    }
-
-    if (attempt >= maxAttempts) {
-      throw new TimeoutError("Unable to set shipping price!");
-    }
-    await controller.webSleep(300, 500);
-  }
-}
-
-async function setIndividualShipping(
-  controller: Pick<
-    PublishingFormController,
-    "webClick" | "webExecute" | "webFind" | "webProbe" | "webSleep"
-  >,
-  ad: Pick<PublishingShippingAd, "shippingCosts">,
-  quickDomTimeout?: number,
-): Promise<void> {
-  try {
-    await controller.webClick(
-      By.XPATH,
-      SHIPPING_OTHER_METHODS_BUTTON_XPATH,
-      quickDomTimeout,
-    );
-  } catch (error) {
-    if (!(error instanceof TimeoutError)) {
-      throw error;
-    }
-  }
-
-  const individualPrice = await controller.webProbe(
-    By.ID,
-    "ad-individual-shipping-price",
-    { timeout: quickDomTimeout },
-  );
-  if (individualPrice === null) {
-    await withTimeoutMessage(
-      () => controller.webClick(By.ID, "ad-individual-shipping-checkbox-control"),
-      "Unable to select individual shipping option!",
-    );
-  }
-
-  if (ad.shippingCosts !== null && ad.shippingCosts !== undefined) {
-    await setIndividualShippingPrice(controller, ad.shippingCosts);
-  }
-
-  await withTimeoutMessage(
-    () => controller.webClick(By.XPATH, SHIPPING_DONE_BUTTON_XPATH),
-    "Unable to close shipping dialog!",
-  );
 }
 
 export function shippingOptionCarrierCodes(options: string[]): string[] {
@@ -261,7 +183,11 @@ export async function setShippingOptions(
     );
     await controller.webSleep(500, 800);
 
-    for (const carrierCode of carrierCodesForSize) {
+    // Tick wanted carriers first: the dialog empties its carrier list as soon
+    // as nothing is ticked.
+    const ordered = [...carrierCodesForSize].sort((left, right) =>
+      Number(!wantedCodes.has(left)) - Number(!wantedCodes.has(right)));
+    for (const carrierCode of ordered) {
       const checkboxXPath = shippingCarrierCheckboxXPath(carrierCode);
       const checkbox = await controller.webFind(
         By.XPATH,
@@ -286,23 +212,104 @@ export async function setShippingOptions(
   );
 }
 
+async function shippingSizeRadioVisible(
+  controller: Pick<PublishingFormController, "webProbe">,
+  quickDomTimeout?: number,
+): Promise<boolean> {
+  for (const size of SHIPPING_SIZE_RADIO_VALUES) {
+    if (await controller.webProbe(By.XPATH, shippingSizeRadioXPath(size), {
+      timeout: quickDomTimeout,
+    })) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Reach the package-size pane across dialog variants: it may be shown
+// directly, sit behind "Andere Versandmethoden" (any element), or need at
+// most two "Zurück" steps out of a nested carrier pane.
+export async function openShippingSizeSelection(
+  controller: Pick<PublishingFormController, "webProbe" | "webSleep">,
+  quickDomTimeout?: number,
+): Promise<void> {
+  const maxBackSteps = 2;
+  for (let backSteps = 0; backSteps <= maxBackSteps; backSteps += 1) {
+    if (await shippingSizeRadioVisible(controller, quickDomTimeout)) {
+      return;
+    }
+    const otherMethods = await controller.webProbe(By.XPATH, SHIPPING_OTHER_METHODS_XPATH, {
+      timeout: quickDomTimeout,
+    });
+    if (otherMethods) {
+      await clickElement(otherMethods, "Failed to configure shipping options in dialog!");
+      await controller.webSleep(300, 500);
+      if (await shippingSizeRadioVisible(controller, quickDomTimeout)) {
+        return;
+      }
+    }
+    if (backSteps === maxBackSteps) {
+      break;
+    }
+    const back = await controller.webProbe(By.XPATH, SHIPPING_BACK_BUTTON_XPATH, {
+      timeout: quickDomTimeout,
+    });
+    if (!back) {
+      break;
+    }
+    await clickElement(back, "Failed to configure shipping options in dialog!");
+    await controller.webSleep(300, 500);
+  }
+  throw new TimeoutError("Failed to configure shipping options in dialog!");
+}
+
+export async function findVersandCombobox(
+  controller: Pick<PublishingFormController, "webProbe">,
+  quickDomTimeout?: number,
+): Promise<string | null> {
+  for (const selector of VERSAND_COMBOBOX_SELECTORS) {
+    const element = await controller.webProbe(By.CSS_SELECTOR, selector, {
+      timeout: quickDomTimeout,
+    });
+    if (element) {
+      const id = await elementAttribute(element, "id");
+      if (typeof id !== "string" || !id) {
+        throw new TimeoutError("Shipping combobox button has no id attribute");
+      }
+      return id;
+    }
+  }
+  return null;
+}
+
 export async function setShipping(
   controller: Pick<
     PublishingFormController,
     | "webCheck"
     | "webClick"
-    | "webExecute"
     | "webFind"
     | "webProbe"
+    | "webSelectButtonCombobox"
     | "webSleep"
   >,
   ad: PublishingShippingAd,
-  {
-    mode = AdUpdateStrategy.Replace,
-    quickDomTimeout,
-  }: SetShippingOptions = {},
+  { quickDomTimeout }: SetShippingOptions = {},
 ): Promise<void> {
   if (ad.shippingType === "NOT_APPLICABLE") {
+    return;
+  }
+
+  // PRO accounts choose shipping through a "Versand" combobox.
+  const versandId = await findVersandCombobox(controller, quickDomTimeout);
+  if (versandId) {
+    await withTimeoutMessage(
+      () => controller.webSelectButtonCombobox(
+        versandId,
+        WANTED_SHIPPING_LABELS[ad.shippingType as keyof typeof WANTED_SHIPPING_LABELS],
+        quickDomTimeout,
+      ),
+      `Failed to set shipping attribute for type '${ad.shippingType}'!`,
+    );
     return;
   }
 
@@ -311,47 +318,20 @@ export async function setShipping(
     return;
   }
 
-  const shippingOptions = ad.shippingOptions ?? [];
-  if (shippingOptions.length > 0) {
+  if ((ad.shippingOptions ?? []).length > 0) {
     await enableShippingIfAvailable(controller, quickDomTimeout);
     await controller.webClick(By.ID, "ad-shipping-options");
-
-    if (mode === AdUpdateStrategy.Modify) {
-      try {
-        await controller.webFind(
-          By.XPATH,
-          SHIPPING_OTHER_METHODS_BUTTON_XPATH,
-          { timeout: quickDomTimeout },
-        );
-      } catch (error) {
-        if (!(error instanceof TimeoutError)) {
-          throw error;
-        }
-        await controller.webClick(By.XPATH, SHIPPING_BACK_BUTTON_XPATH);
-        try {
-          await controller.webFind(
-            By.XPATH,
-            SHIPPING_OTHER_METHODS_BUTTON_XPATH,
-            { timeout: quickDomTimeout },
-          );
-        } catch (secondError) {
-          if (!(secondError instanceof TimeoutError)) {
-            throw secondError;
-          }
-          await controller.webClick(By.XPATH, SHIPPING_BACK_BUTTON_XPATH);
-        }
-      }
-    }
-
-    await controller.webClick(By.XPATH, SHIPPING_OTHER_METHODS_BUTTON_XPATH);
+    await openShippingSizeSelection(controller, quickDomTimeout);
     await setShippingOptions(controller, ad, { quickDomTimeout });
     return;
   }
 
+  if (ad.shippingCosts !== null && ad.shippingCosts !== undefined) {
+    throw new Error(
+      "Individual shipping (shipping_costs) is no longer supported by Kleinanzeigen. " +
+      "Remove shipping_costs and configure predefined 'shipping_options' instead.",
+    );
+  }
+  // No carrier configured: enable shipping and keep the site's defaults.
   await enableShippingIfAvailable(controller, quickDomTimeout);
-  await withTimeoutMessage(
-    () => controller.webClick(By.ID, "ad-shipping-options"),
-    "Unable to open shipping options dialog!",
-  );
-  await setIndividualShipping(controller, ad, quickDomTimeout);
 }

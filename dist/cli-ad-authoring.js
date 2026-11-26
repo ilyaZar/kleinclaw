@@ -115,9 +115,9 @@ export function getKleinanzeigenAdSchema() {
                 images: "glob patterns relative to the ad config file",
                 special_attributes: "category-specific string key/value pairs",
                 shipping_type: "PICKUP, SHIPPING, or NOT_APPLICABLE",
-                shipping_costs: "numeric custom shipping cost",
+                shipping_costs: "obsolete custom cost; Kleinanzeigen dropped individual shipping, use shipping_options",
                 shipping_options: "predefined package names from the enum list",
-                sell_directly: "works only with SHIPPING plus shipping costs/options",
+                sell_directly: "works only with SHIPPING plus shipping_options",
                 contact: "usually inherited from config ad_defaults; avoid putting secrets in chat",
             },
             template: {
