@@ -2,7 +2,6 @@ export declare const WANTED_SHIPPING_LABELS: {
     readonly SHIPPING: "Versand möglich";
     readonly PICKUP: "Nur Abholung";
 };
-export declare const CONDITION_TRIGGER_XPATH: string;
 export declare const CATEGORY_CHANGE_CONTROL_XPATH = "//a[contains(., 'Kategorie')] | //button[contains(., 'Kategorie')]";
 export declare const CATEGORY_LINK_SELECTOR = "a[aria-describedby=\"ad-category-path\"]";
 export declare const CATEGORY_CHOOSE_TEXT_XPATH = "//*[normalize-space(text())='W\u00E4hle deine Kategorie']";

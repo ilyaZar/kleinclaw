@@ -179,6 +179,107 @@ export const CATEGORY_TREE_ACTION_SCRIPT = String.raw`async (action, body, timeo
   return { statusCode: response.status, data: hydrate(0) };
 }`;
 
+// Open a <button role="combobox"> with the full pointer sequence and click
+// the option matching an API value: React option props first, then option
+// attributes, then normalized text. The listbox may be `#<id>-menu`, inside
+// the parent, linked via aria-controls/aria-owns, or a visible portal.
+export const SELECT_BUTTON_COMBOBOX_SCRIPT = String.raw`async (elemId, value, pollDeadlineMs) => {
+  const btn = document.getElementById(elemId);
+  if (!btn) return { ok: false, reason: "button_not_found" };
+  btn.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+  btn.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+  btn.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+  btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  let options = null;
+  const pollDeadline = Date.now() + pollDeadlineMs;
+  while (Date.now() < pollDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    let candidate = document.getElementById(elemId + "-menu");
+    if (!candidate && btn.parentElement) candidate = btn.parentElement.querySelector('[role="listbox"]');
+    if (!candidate && btn.parentElement) candidate = btn.parentElement.querySelector('[role="menu"]');
+    const controlledId = btn.getAttribute("aria-controls");
+    if (!candidate && controlledId) candidate = document.getElementById(controlledId);
+    const ownedId = btn.getAttribute("aria-owns");
+    if (!candidate && ownedId) candidate = document.getElementById(ownedId);
+    if (!candidate) {
+      for (const portal of document.querySelectorAll('[role="listbox"],[role="menu"]')) {
+        const rect = portal.getBoundingClientRect();
+        const labelledby = portal.getAttribute("aria-labelledby");
+        if (rect.width > 0 && rect.height > 0 && (!labelledby || labelledby === btn.id)) {
+          candidate = portal;
+          break;
+        }
+      }
+    }
+    if (candidate) {
+      options = [...candidate.querySelectorAll('[role="option"]')];
+      if (options.length > 0) break;
+    }
+  }
+  if (!options || options.length === 0) return { ok: false, reason: "no_options_after_opening", options: [] };
+  const normalize = (text) => String(text ?? "").replace(/\s+/g, " ").trim();
+  const fiberKey = Object.keys(btn).find((key) => key.startsWith("__reactFiber"));
+  let fiber = fiberKey ? btn[fiberKey] : null;
+  for (let depth = 0; depth < 20 && fiber; depth += 1, fiber = fiber.return) {
+    if (fiber.memoizedProps && fiber.memoizedProps.options) {
+      const props = fiber.memoizedProps.options;
+      for (let index = 0; index < props.length; index += 1) {
+        if (props[index].value === value && options[index]) {
+          options[index].click();
+          return { ok: true };
+        }
+      }
+      break;
+    }
+  }
+  for (const option of options) {
+    const attributes = ["value", "data-value", "aria-label", "title"].map((name) => option.getAttribute(name));
+    if (attributes.includes(value) || normalize(option.textContent).toLowerCase() === normalize(value).toLowerCase()) {
+      option.click();
+      return { ok: true };
+    }
+  }
+  return { ok: false, reason: "option_not_found", options: options.map((option) => normalize(option.textContent)) };
+}`;
+
+// The id of the <button role="combobox"> that belongs to a hidden
+// `attributeMap[...]` input: the id named in the brackets, else the nearest
+// combobox up to eight ancestors away.
+export const FIND_ASSOCIATED_BUTTON_COMBOBOX_SCRIPT = String.raw`(hiddenInputName) => {
+  const input = document.querySelector("input[type='hidden'][name=" + JSON.stringify(hiddenInputName) + "]");
+  if (!input) return null;
+  const match = hiddenInputName.match(/^attributeMap\[(.+)\]$/);
+  if (match) {
+    const button = document.getElementById(match[1]);
+    if (button && button.tagName === "BUTTON" && button.getAttribute("role") === "combobox") return match[1];
+  }
+  let parent = input.parentElement;
+  for (let depth = 0; depth < 8 && parent; depth += 1, parent = parent.parentElement) {
+    const button = parent.querySelector('button[role="combobox"]');
+    if (button && button.id) return button.id;
+  }
+  return null;
+}`;
+
+// Mark the condition dialog trigger, a dialog button sharing an ancestor with
+// label[for*=".condition"], with data-miniclaw-condition-trigger.
+export const CONDITION_DIALOG_TRIGGER_SCRIPT = String.raw`() => {
+  for (const element of document.querySelectorAll("[data-miniclaw-condition-trigger]")) {
+    element.removeAttribute("data-miniclaw-condition-trigger");
+  }
+  for (const label of document.querySelectorAll('label[for*=".condition"]')) {
+    let ancestor = label.parentElement;
+    for (let depth = 0; depth < 5 && ancestor; depth += 1, ancestor = ancestor.parentElement) {
+      const button = ancestor.querySelector('button[aria-haspopup="dialog"], button[aria-haspopup="true"]');
+      if (button) {
+        button.setAttribute("data-miniclaw-condition-trigger", "true");
+        return { found: true, id: button.id || "", ariaControls: button.getAttribute("aria-controls") || "" };
+      }
+    }
+  }
+  return { found: false };
+}`;
+
 export function callPageScript(source: string, ...args: unknown[]): string {
   return `(${source})(${args.map((arg) => JSON.stringify(arg)).join(", ")})`;
 }

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- miniclaw: select button-combobox attributes on the redesigned form (pointer
+  open, portal listboxes, React/attribute/text matching), fall back from hidden
+  `attributeMap` inputs to their combobox, and find the condition dialog
+  trigger by its label
 - miniclaw: select categories in the redesigned "Kategorie wählen" dialog,
   using the site's own category labels with bundled names as fallback; the
   classic picker no longer reloads the category page

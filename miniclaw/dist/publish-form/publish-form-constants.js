@@ -7,8 +7,6 @@ export const WANTED_SHIPPING_LABELS = {
     SHIPPING: "Versand möglich",
     PICKUP: "Nur Abholung",
 };
-export const CONDITION_TRIGGER_XPATH = "//label[contains(@for, '.condition')]/following::button" +
-    "[@aria-haspopup='dialog' or @aria-haspopup='true'][1]";
 export const CATEGORY_CHANGE_CONTROL_XPATH = "//a[contains(., 'Kategorie')] | //button[contains(., 'Kategorie')]";
 export const CATEGORY_LINK_SELECTOR = 'a[aria-describedby="ad-category-path"]';
 export const CATEGORY_CHOOSE_TEXT_XPATH = "//*[normalize-space(text())='W\u00e4hle deine Kategorie']";
