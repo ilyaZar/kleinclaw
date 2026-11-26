@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- miniclaw: ads are due for republication on the day the interval is reached,
+  `update-content-hash` stores the hash the change detection computes, image
+  uploads that reuse slots of not-quite-removed images are counted, and the
+  browser opens desktop-sized unless you set its window size
 - miniclaw: download redesigned (Astro) ad pages from their embedded island
   data (images, price, shipping, seller name, creation date, attributes), read
   missing category dimensions from the anonymous ad page, drop the

@@ -340,6 +340,33 @@ describe("miniclaw publish-form images", () => {
     assert.equal(waited, true);
   });
 
+  it("counts uploads that reuse the slots of images whose removal left markers", async () => {
+    const sentFiles = [];
+    const slots = [
+      fakeElement({ attrs: { value: "old-1" } }),
+      fakeElement({ attrs: { value: "old-2" } }),
+    ];
+    const controller = createController({
+      elements: {
+        [key(By.CSS_SELECTOR, IMAGE_FILE_INPUT_SELECTOR)]: fakeElement({
+          onSendFile: (file) => {
+            sentFiles.push(file);
+            slots[sentFiles.length - 1].attrs.value = `new-${sentFiles.length}`;
+          },
+        }),
+      },
+      lists: { [key(By.CSS_SELECTOR, IMAGE_MARKER_SELECTOR)]: () => slots },
+    });
+
+    let processed = false;
+    await uploadImages(controller, { images: ["/tmp/a.jpg", "/tmp/b.jpg"] }, {
+      waitForImageUpload: async (condition) => {
+        processed = await condition();
+      },
+    });
+    assert.equal(processed, true);
+  });
+
   it("removes existing image markers before replacement uploads", async () => {
     let removed = 0;
     const controller = createController({

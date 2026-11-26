@@ -71,7 +71,8 @@ export function isDueForRepublication(ad: Ad, now = new Date()): boolean {
   if (!lastUpdated) {
     return true;
   }
-  return wholeDaysSince(lastUpdated, now) > ad.republicationInterval;
+  // due on the day the interval is reached, not one day later
+  return wholeDaysSince(lastUpdated, now) >= ad.republicationInterval;
 }
 
 export function isChangedAd(raw: AdInput, ad: Ad): boolean {
