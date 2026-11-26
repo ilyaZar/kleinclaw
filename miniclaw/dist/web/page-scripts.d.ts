@@ -2,4 +2,7 @@ export declare const CSRF_TOKEN_SCRIPT: string;
 export declare const EXTEND_CHOICE_DIALOG_SCRIPT: string;
 export declare const CATEGORY_DIALOG_SCRIPT: string;
 export declare const CATEGORY_TREE_ACTION_SCRIPT: string;
+export declare const SELECT_BUTTON_COMBOBOX_SCRIPT: string;
+export declare const FIND_ASSOCIATED_BUTTON_COMBOBOX_SCRIPT: string;
+export declare const CONDITION_DIALOG_TRIGGER_SCRIPT: string;
 export declare function callPageScript(source: string, ...args: unknown[]): string;

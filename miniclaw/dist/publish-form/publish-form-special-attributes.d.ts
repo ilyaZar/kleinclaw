@@ -9,5 +9,5 @@ export declare function pickSpecialAttributeCandidate(candidates: WebElement[], 
     element: WebElement;
     info: SpecialAttributeElementInfo;
 }>;
-export declare function setConditionDialog(controller: Pick<PublishingFormController, "webClick" | "webFind" | "webProbe">, conditionValue: string, { quickDomTimeout }?: PublishingFormOptions): Promise<boolean>;
-export declare function setSpecialAttributes(controller: Pick<PublishingFormController, "webClick" | "webExecute" | "webFind" | "webFindAll" | "webInput" | "webProbe" | "webSelect" | "webSelectCombobox">, specialAttributes: Record<string, unknown> | null | undefined, { setCondition }?: SetSpecialAttributesOptions): Promise<void>;
+export declare function setConditionDialog(controller: Pick<PublishingFormController, "webClick" | "webExecute" | "webFind" | "webProbe">, conditionValue: string, { quickDomTimeout }?: PublishingFormOptions): Promise<boolean>;
+export declare function setSpecialAttributes(controller: Pick<PublishingFormController, "webClick" | "webExecute" | "webFind" | "webFindAll" | "webInput" | "webProbe" | "webSelect" | "webSelectButtonCombobox" | "webSelectCombobox">, specialAttributes: Record<string, unknown> | null | undefined, { setCondition }?: SetSpecialAttributesOptions): Promise<void>;
