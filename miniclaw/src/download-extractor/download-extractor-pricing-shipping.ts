@@ -22,18 +22,41 @@ const SHIPPING_OPTIONS_URL =
 
 type PricingShippingController = Pick<
   WebReadController,
-  "webRequest" | "webText"
+  "webProbe" | "webRequest" | "webText"
 >;
+
+async function classicElementMissing(
+  controller: PricingShippingController,
+  type: By,
+  value: string,
+): Promise<boolean> {
+  return controller.webProbe !== undefined &&
+    await controller.webProbe(type, value) === null;
+}
 
 export async function extractPricingInfoFromAdPage(
   controller: PricingShippingController,
+  islandPrice: [number | null, string] | null = null,
 ): Promise<[
   AdInput["price"],
   NonNullable<AdInput["price_type"]>,
 ]> {
+  const fallback = (islandPrice ?? [null, "NOT_APPLICABLE"]) as [
+    AdInput["price"],
+    NonNullable<AdInput["price_type"]>,
+  ];
+  if (
+    islandPrice && islandPrice[1] !== "NOT_APPLICABLE" &&
+    await classicElementMissing(controller, By.ID, "viewad-price")
+  ) {
+    return fallback;
+  }
   try {
     const priceText = await controller.webText(By.ID, "viewad-price");
     const lastToken = priceText.trim().split(/\s+/).at(-1);
+    if (!priceText.trim()) {
+      return fallback;
+    }
     if (lastToken === "€") {
       return [parsePriceAmount(priceText), "FIXED"];
     }
@@ -47,7 +70,21 @@ export async function extractPricingInfoFromAdPage(
     return [null, "NOT_APPLICABLE"];
   } catch (error) {
     if (error instanceof TimeoutError) {
-      return [null, "NOT_APPLICABLE"];
+      return fallback;
+    }
+    throw error;
+  }
+}
+
+async function classicShippingText(
+  controller: PricingShippingController,
+  islandShippingText: string | null,
+): Promise<string | null> {
+  try {
+    return await controller.webText(By.CLASS_NAME, "boxedarticle--details--shipping");
+  } catch (error) {
+    if (error instanceof TimeoutError) {
+      return islandShippingText;
     }
     throw error;
   }
@@ -56,16 +93,20 @@ export async function extractPricingInfoFromAdPage(
 export async function extractShippingInfoFromAdPage(
   config: Config,
   controller: PricingShippingController,
+  islandShippingText: string | null = null,
 ): Promise<[
   NonNullable<AdInput["shipping_type"]>,
   number | null,
   string[] | null,
 ]> {
   try {
-    const shippingText = await controller.webText(
-      By.CLASS_NAME,
-      "boxedarticle--details--shipping",
-    );
+    const shippingText = islandShippingText &&
+        await classicElementMissing(controller, By.CLASS_NAME, "boxedarticle--details--shipping")
+      ? islandShippingText
+      : await classicShippingText(controller, islandShippingText);
+    if (shippingText === null) {
+      return ["NOT_APPLICABLE", null, null];
+    }
     if (shippingText === "Nur Abholung") {
       return ["PICKUP", null, null];
     }

@@ -279,11 +279,7 @@ describe("miniclaw download contact and classification", () => {
   it("extracts special attributes from analytics dimensions before DOM fallback", async () => {
     assert.deepEqual(
       await extractSpecialAttributesFromAdPage(createController(), {
-        universalAnalyticsOpts: {
-          dimensions: {
-            ad_attributes: "condition_s:new|foo.versand_s:skip|color:red:blue",
-          },
-        },
+        ad_attributes: "condition_s:new|foo.versand_s:skip|seller_badges_s:x|color:red:blue",
       }),
       {
         color: "red:blue",

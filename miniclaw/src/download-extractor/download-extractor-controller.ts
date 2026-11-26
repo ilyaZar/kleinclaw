@@ -17,6 +17,13 @@ export interface WebReadController {
     value: string,
     options?: { parent?: WebLocator | WebElement | null; timeout?: number },
   ): Promise<WebElement[]>;
+  // single quick lookup without retries; lets island data replace classic
+  // markup that redesigned pages lack
+  webProbe?(
+    type: By,
+    value: string,
+    options?: { parent?: WebLocator | WebElement | null; timeout?: number },
+  ): Promise<WebLocator | null>;
   webRequest(
     url: string,
     method?: string,

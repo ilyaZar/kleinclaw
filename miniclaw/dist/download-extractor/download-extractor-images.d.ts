@@ -4,9 +4,10 @@ export interface DownloadImageOptions {
     timeout?: number;
 }
 export interface DownloadImagesFromAdPageOptions {
+    islandImageUrls?: readonly string[];
     imageDownloadTimeout?: number;
 }
 type DownloadImagesController = Pick<WebReadController, "webFind" | "webFindAll">;
 export declare function downloadAndSaveImage(url: string, directory: string, filenamePrefix: string, imageNumber: number, { timeout }?: DownloadImageOptions): Promise<string | null>;
-export declare function downloadImagesFromAdPage(controller: DownloadImagesController, downloadImage: DownloadImage, directory: string, adFileStem: string, { imageDownloadTimeout }?: DownloadImagesFromAdPageOptions): Promise<string[]>;
+export declare function downloadImagesFromAdPage(controller: DownloadImagesController, downloadImage: DownloadImage, directory: string, adFileStem: string, { imageDownloadTimeout, islandImageUrls }?: DownloadImagesFromAdPageOptions): Promise<string[]>;
 export {};

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- miniclaw: download redesigned (Astro) ad pages from their embedded island
+  data (images, price, shipping, seller name, creation date, attributes), read
+  missing category dimensions from the anonymous ad page, drop the
+  `seller_badges_s` tracking attribute, and keep a download batch going when
+  one ad cannot be read
 - give you time to solve a captcha or a device verification during live runs:
   without a terminal, miniclaw now polls the browser for up to
   `manualActionTimeoutSeconds` (default 300, new plugin setting and
