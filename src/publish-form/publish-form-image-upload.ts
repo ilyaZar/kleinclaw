@@ -26,22 +26,30 @@ export async function imageMarkerValue(marker: WebElement): Promise<string> {
   return String(value ?? "").trim();
 }
 
-async function countImageMarkers(
+async function imageMarkerValues(
   controller: Pick<PublishingFormController, "webFindAll">,
   quickDomTimeout?: number,
-): Promise<number> {
+): Promise<string[]> {
   const markers = await controller.webFindAll(
     By.CSS_SELECTOR,
     IMAGE_MARKER_SELECTOR,
     { timeout: quickDomTimeout },
   );
-  let count = 0;
+  const values: string[] = [];
   for (const marker of markers) {
-    if (await imageMarkerValue(marker)) {
-      count += 1;
+    const value = await imageMarkerValue(marker);
+    if (value) {
+      values.push(value);
     }
   }
-  return count;
+  return values;
+}
+
+async function countImageMarkers(
+  controller: Pick<PublishingFormController, "webFindAll">,
+  quickDomTimeout?: number,
+): Promise<number> {
+  return (await imageMarkerValues(controller, quickDomTimeout)).length;
 }
 
 async function uploadFileToInput(
@@ -90,9 +98,11 @@ export async function uploadImages(
     return;
   }
 
-  let baselineMarkerCount = 0;
+  // A removal can leave its marker behind and an upload can reuse the slot,
+  // so count markers whose server URL is new rather than a marker delta.
+  let baselineValues = new Set<string>();
   try {
-    baselineMarkerCount = await countImageMarkers(controller, quickDomTimeout);
+    baselineValues = new Set(await imageMarkerValues(controller, quickDomTimeout));
   } catch (error) {
     if (!(error instanceof TimeoutError)) {
       throw error;
@@ -111,8 +121,8 @@ export async function uploadImages(
   const expectedCount = ad.images.length;
   const countProcessedImages = async () => {
     try {
-      const markerCount = await countImageMarkers(controller, quickDomTimeout);
-      return Math.max(0, markerCount - baselineMarkerCount);
+      return (await imageMarkerValues(controller, quickDomTimeout))
+        .filter((value) => !baselineValues.has(value)).length;
     } catch (error) {
       if (error instanceof TimeoutError) {
         return 0;
@@ -141,9 +151,16 @@ export async function uploadImages(
       throw error;
     }
     const currentCount = await countProcessedImages();
+    let populated = 0;
+    try {
+      populated = await countImageMarkers(controller, quickDomTimeout);
+    } catch {
+      // keep the processed count only
+    }
     throw new TimeoutError(
       "Not all images were uploaded within timeout. " +
-      `Expected ${expectedCount}, found ${currentCount} processed images.`,
+      `Expected ${expectedCount}, found ${currentCount} processed images ` +
+      `(${populated} image markers populated, ${baselineValues.size} before upload).`,
     );
   }
 }

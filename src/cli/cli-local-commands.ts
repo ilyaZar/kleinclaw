@@ -7,7 +7,7 @@ import {
 import { loadConfigFile, saveDataFile } from "../io.js";
 import {
   AdUpdateStrategy,
-  contentHashForLoadedAd,
+  contentHashForAd,
   evaluateAutoPriceReduction,
 } from "../model/ad-model.js";
 import { loadSelectedAds } from "../selection.js";
@@ -99,8 +99,9 @@ export async function updateContentHashes(parsed: ParsedArgs): Promise<number> {
   }
 
   let changed = 0;
-  for (const { ad, filePath, raw } of ads) {
-    const contentHash = contentHashForLoadedAd(ad);
+  // hash the raw ad file, exactly like the change detection does
+  for (const { filePath, raw } of ads) {
+    const contentHash = contentHashForAd(raw);
     if (raw.content_hash !== contentHash) {
       raw.content_hash = contentHash;
       await saveDataFile(filePath, raw);
