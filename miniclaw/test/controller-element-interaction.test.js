@@ -140,4 +140,36 @@ describe("miniclaw controller element interaction", () => {
       },
     ]);
   });
+
+  it("falls back to textContent for text hidden from rendering when asked", async () => {
+    const element = {
+      first() {
+        return this;
+      },
+      async evaluate() {
+        return "";
+      },
+      async textContent() {
+        return "  angemeldet als:\n user@example.test ";
+      },
+      async waitFor() {},
+    };
+    const controller = new WebController({
+      locator() {
+        return element;
+      },
+    }, { sleepRangeMs: [0, 0] });
+
+    assert.deepEqual(
+      await controller.webTextFirstAvailableOnce([[By.CLASS_NAME, "mr-medium"]], {
+        fallbackToTextContent: true,
+        timeout: 0.1,
+      }),
+      ["angemeldet als: user@example.test", 0],
+    );
+    assert.deepEqual(
+      await controller.webTextFirstAvailableOnce([[By.CLASS_NAME, "mr-medium"]], { timeout: 0.1 }),
+      ["", 0],
+    );
+  });
 });

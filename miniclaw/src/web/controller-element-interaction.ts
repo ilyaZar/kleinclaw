@@ -14,15 +14,22 @@ import { requirePageMethod } from "./controller-support.js";
 import { By, type WebSelector } from "./selector.js";
 import { Is, type WebElement, type WebLocator } from "./types.js";
 
+// Selection-based visible text is empty for unrendered subtrees (e.g. a header
+// hidden below 768px viewport width); textContent still carries the text.
+type FirstAvailableTextOptions = FirstAvailableOptions & {
+  fallbackToTextContent?: boolean;
+};
+
 export class ControllerElementInteraction extends ControllerFinding {
   async webTextFirstAvailable(
     selectors: readonly WebSelector[],
     {
       description,
+      fallbackToTextContent = false,
       key = "default",
       parent = null,
       timeout,
-    }: FirstAvailableOptions = {},
+    }: FirstAvailableTextOptions = {},
   ): Promise<[string, number]> {
     const [element, index] = await this.webFindFirstAvailable(selectors, {
       description,
@@ -30,17 +37,18 @@ export class ControllerElementInteraction extends ControllerFinding {
       parent,
       timeout,
     });
-    return [await this.extractVisibleText(element), index];
+    return [await this.textOf(element, fallbackToTextContent), index];
   }
 
   async webTextFirstAvailableOnce(
     selectors: readonly WebSelector[],
     {
       description,
+      fallbackToTextContent = false,
       key = "default",
       parent = null,
       timeout,
-    }: FirstAvailableOptions = {},
+    }: FirstAvailableTextOptions = {},
   ): Promise<[string, number]> {
     const [element, index] = await this.webFindFirstAvailableOnce(selectors, {
       description,
@@ -48,7 +56,7 @@ export class ControllerElementInteraction extends ControllerFinding {
       parent,
       timeout,
     });
-    return [await this.extractVisibleText(element), index];
+    return [await this.textOf(element, fallbackToTextContent), index];
   }
 
   async webCheck(type: By, value: string, attr: Is, timeout?: number): Promise<boolean> {
@@ -140,6 +148,14 @@ export class ControllerElementInteraction extends ControllerFinding {
   ): Promise<string> {
     const element = await this.webFind(type, value, { parent, timeout });
     return this.extractVisibleText(element);
+  }
+
+  private async textOf(element: WebElement, fallbackToTextContent: boolean): Promise<string> {
+    const visible = await this.extractVisibleText(element);
+    if (visible || !fallbackToTextContent || !element.textContent) {
+      return visible;
+    }
+    return ((await element.textContent()) ?? "").replace(/\s+/g, " ").trim();
   }
 
   async extractVisibleText(element: WebElement): Promise<string> {

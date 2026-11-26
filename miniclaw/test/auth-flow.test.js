@@ -85,112 +85,129 @@ describe("miniclaw auth", () => {
     assert.equal(helperCalls[0].options.timeout, 0.1);
   });
 
-  it("stops at captcha before submitting the username step", async () => {
-    const expected = new Error("manual captcha boundary");
-    let manualCaptchaCalls = 0;
-    let submitClicks = 0;
-    const controller = {
-      page: { url: "https://login.kleinanzeigen.de/u/login/identifier" },
-      async webInput(type, value, text) {
-        assert.equal(type, By.ID);
-        assert.equal(value, "username");
-        assert.equal(text, "user@example.invalid");
-      },
-      async webClick() {
-        submitClicks += 1;
-      },
-      async webProbe(type) {
-        if (type === By.CSS_SELECTOR) {
-          return {};
-        }
-        return null;
-      },
-      async webSleep() {},
-      async webText() {
-        return "";
+  it("reads the login marker through textContent and treats stale nodes as a miss", async () => {
+    const seen = [];
+    const hiddenHeader = {
+      page: { url: "https://www.kleinanzeigen.de/" },
+      async webTextFirstAvailableOnce(selectors, options = {}) {
+        seen.push(options.fallbackToTextContent);
+        return ["angemeldet als: user@example.test", 0];
       },
     };
+    const visible = await getLoginState(
+      hiddenHeader,
+      new Config({ login: { username: "user@example.test" } }).login,
+      { quickDomTimeout: 0.1 },
+    );
+    assert.equal(visible.isLoggedIn, true);
+    assert.deepEqual(seen, [true]);
+
+    const rerendering = {
+      page: { url: "https://www.kleinanzeigen.de/" },
+      async webTextFirstAvailableOnce(selectors) {
+        if (selectors.some(([, value]) => value === "mr-medium")) {
+          throw new Error("Could not find node with given id");
+        }
+        return ["Einloggen", 0];
+      },
+    };
+    const stale = await getLoginState(
+      rerendering,
+      new Config({ login: { username: "user@example.test" } }).login,
+      { quickDomTimeout: 0.1 },
+    );
+    assert.equal(stale.isLoggedIn, false);
+    assert.equal(stale.reason, LoginDetectionReason.CTA_MATCH);
+  });
+
+  it("submits the e-mail step again once the captcha token appears", async () => {
+    const { clicks, controller } = identifierController({ tokenAfter: 1 });
+
+    await fillLoginDataAndSend(controller, CREDENTIALS, FAST);
+
+    assert.deepEqual(clicks, ["identifier", "identifier", "password"]);
+    assert.ok(controller.selectors.every((selector) => selector === AUTH0_SUBMIT));
+  });
+
+  it("hands an unresolved identifier captcha to the user", async () => {
+    const expected = new Error("manual captcha boundary");
+    let manualCalls = 0;
+    const { clicks, controller } = identifierController({ tokenAfter: Infinity });
 
     await assert.rejects(
-      () => fillLoginDataAndSend(
-        controller,
-        { username: "user@example.invalid", password: "secret" },
-        {
-          captchaDetectionTimeout: 0.1,
-          onManualCaptcha: () => {
-            manualCaptchaCalls += 1;
-            throw expected;
-          },
+      () => fillLoginDataAndSend(controller, CREDENTIALS, {
+        ...FAST,
+        onManualCaptcha: () => {
+          manualCalls += 1;
+          throw expected;
         },
-      ),
+      }),
       expected,
     );
+    assert.equal(manualCalls, 1);
+    assert.deepEqual(clicks, ["identifier"]);
+
+    const fresh = identifierController({ tokenAfter: Infinity });
     await assert.rejects(
-      () => fillLoginDataAndSend(
-        controller,
-        { username: "user@example.invalid", password: "secret" },
-        { captchaDetectionTimeout: 0.1 },
-      ),
+      () => fillLoginDataAndSend(fresh.controller, CREDENTIALS, FAST),
       (error) => error instanceof ManualActionRequiredError,
     );
-
-    assert.equal(manualCaptchaCalls, 1);
-    assert.equal(submitClicks, 0);
   });
 
-  it("does not submit username again if captcha reaches password step", async () => {
-    let manualCaptchaCalls = 0;
-    let usernameSubmitClicks = 0;
-    let passwordSubmitClicks = 0;
-    const controller = {
-      page: { url: "https://login.kleinanzeigen.de/u/login/identifier" },
-      async webInput(type, value, text) {
-        if (value === "username") {
-          assert.equal(type, By.ID);
-          assert.equal(text, "user@example.invalid");
-          return;
-        }
-        assert.equal(type, By.CSS_SELECTOR);
-        assert.equal(value, "input[type='password']");
-        assert.equal(text, "secret");
-      },
-      async webClick() {
-        if (this.page.url.includes("/identifier")) {
-          usernameSubmitClicks += 1;
-          return;
-        }
-        passwordSubmitClicks += 1;
-        this.page.url = "https://www.kleinanzeigen.de/";
-      },
-      async webProbe(type) {
-        if (
-          type === By.CSS_SELECTOR &&
-            this.page.url.includes("/identifier")
-        ) {
-          return {};
-        }
-        return null;
-      },
-      async webSleep() {},
-      async webText() {
-        return "";
-      },
-    };
+  it("continues on the password step after the user solved the captcha", async () => {
+    let manualCalls = 0;
+    const { clicks, controller } = identifierController({ tokenAfter: Infinity });
 
-    await fillLoginDataAndSend(
-      controller,
-      { username: "user@example.invalid", password: "secret" },
-      {
-        captchaDetectionTimeout: 0.1,
-        onManualCaptcha: () => {
-          manualCaptchaCalls += 1;
-          controller.page.url = "https://login.kleinanzeigen.de/u/login/password";
-        },
+    await fillLoginDataAndSend(controller, CREDENTIALS, {
+      ...FAST,
+      onManualCaptcha: () => {
+        manualCalls += 1;
+        controller.page.url = "https://login.kleinanzeigen.de/u/login/password";
       },
-    );
+    });
 
-    assert.equal(manualCaptchaCalls, 1);
-    assert.equal(usernameSubmitClicks, 0);
-    assert.equal(passwordSubmitClicks, 1);
+    assert.equal(manualCalls, 1);
+    assert.deepEqual(clicks, ["identifier", "password"]);
   });
 });
+
+const AUTH0_SUBMIT =
+  "button[type='submit'][data-action-button-primary='true']" +
+  ":not([disabled]):not([aria-disabled='true'])";
+const CREDENTIALS = { username: "user@example.invalid", password: "secret" };
+const FAST = { captchaDetectionTimeout: 0.05, pollIntervalMs: 1, quickDomTimeout: 0.05 };
+
+// Auth0 identifier page with a captcha whose token appears after N checks.
+function identifierController({ tokenAfter }) {
+  const clicks = [];
+  let tokenChecks = 0;
+  const controller = {
+    page: { url: "https://login.kleinanzeigen.de/u/login/identifier" },
+    selectors: [],
+    async webClick(type, value) {
+      this.selectors.push(value);
+      if (this.page.url.includes("/identifier")) {
+        clicks.push("identifier");
+        if (tokenChecks > tokenAfter) {
+          this.page.url = "https://login.kleinanzeigen.de/u/login/password";
+        }
+        return;
+      }
+      clicks.push("password");
+      this.page.url = "https://www.kleinanzeigen.de/";
+    },
+    async webExecute() {
+      tokenChecks += 1;
+      return tokenChecks > tokenAfter;
+    },
+    async webInput() {},
+    async webProbe(type) {
+      return type === By.CSS_SELECTOR && this.page.url.includes("/identifier") ? {} : null;
+    },
+    async webSleep() {},
+    async webText() {
+      return "";
+    },
+  };
+  return { clicks, controller };
+}

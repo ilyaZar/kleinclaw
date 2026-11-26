@@ -48,6 +48,12 @@ interface TextMatch {
   text: string;
 }
 
+// A re-rendering page can drop the node between lookup and read.
+export function isStaleNodeError(error: unknown): boolean {
+  return error instanceof Error &&
+    error.message.trim().toLowerCase().includes("could not find node with given id");
+}
+
 export function currentPageUrl(controller: LoginController): string {
   const url = controller.page?.url;
   if (!url) {
@@ -84,9 +90,11 @@ async function textFirstAvailable(
   selectors: readonly [By, string][],
   timeout: number,
   key: "quickDom" | "loginDetection",
+  fallbackToTextContent = false,
 ): Promise<TextMatch> {
   if (controller.webTextFirstAvailableOnce) {
     const [text, index] = await controller.webTextFirstAvailableOnce(selectors, {
+      fallbackToTextContent,
       key,
       timeout,
     });
@@ -95,6 +103,7 @@ async function textFirstAvailable(
 
   if (controller.webTextFirstAvailable) {
     const [text, index] = await controller.webTextFirstAvailable(selectors, {
+      fallbackToTextContent,
       timeout,
     });
     return { index, text };
@@ -144,12 +153,13 @@ export async function hasLoggedInMarker(
       LOGIN_DETECTION_SELECTORS,
       quickDomTimeout,
       "quickDom",
+      true,
     );
     if (quickMatch.text.toLowerCase().includes(username)) {
       return true;
     }
   } catch (error) {
-    if (!isTimeoutLike(error)) {
+    if (!isTimeoutLike(error) && !isStaleNodeError(error)) {
       throw error;
     }
   }
@@ -160,10 +170,11 @@ export async function hasLoggedInMarker(
       LOGIN_DETECTION_SELECTORS,
       loginDetectionTimeout,
       "loginDetection",
+      true,
     );
     return match.text.toLowerCase().includes(username);
   } catch (error) {
-    if (isTimeoutLike(error)) {
+    if (isTimeoutLike(error) || isStaleNodeError(error)) {
       return false;
     }
     throw error;
