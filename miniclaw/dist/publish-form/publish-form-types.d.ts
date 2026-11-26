@@ -22,7 +22,7 @@ export interface SetSpecialAttributesOptions {
 export interface SetCategoryOptions extends PublishingFormOptions {
     adFile: string;
     category: string | null;
-    rootUrl: string;
+    productTitle?: string | null;
 }
 export interface SetShippingOptions extends PublishingFormOptions {
     mode?: AdUpdateStrategy;

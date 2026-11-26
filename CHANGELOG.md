@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- miniclaw: select categories in the redesigned "Kategorie wählen" dialog,
+  using the site's own category labels with bundled names as fallback; the
+  classic picker no longer reloads the category page
 - ci: keep the `miniclaw/` subtree and `ilyaZar/miniclaw` in sync in both
   directions
 - miniclaw: build, test, and CI on its own (own tsconfig, scripts, lockfile,
