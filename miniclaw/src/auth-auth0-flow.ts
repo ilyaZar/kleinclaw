@@ -12,6 +12,8 @@ import {
 } from "./auth-login-state.js";
 import {
   captchaResolved,
+  SMS_VERIFICATION_XPATH,
+  waitForManualAction,
   waitForManualCaptcha,
 } from "./auth-manual-verification.js";
 import {
@@ -112,6 +114,44 @@ async function waitForAuth0PasswordStep(
   });
 }
 
+const SEND_CODE_BUTTON_XPATH =
+  "//button[normalize-space(.)='Code senden' or normalize-space(.)='Send code']";
+
+// The SMS step can follow the password submit (Auth0 custom prompt). On the
+// request screen, ask Kleinanzeigen once to text the code to the phone; the
+// user types it in the browser, miniclaw never reads or enters it.
+async function handleSmsVerification(
+  controller: LoginController,
+  options: ResolvedLoginOptions,
+): Promise<boolean> {
+  const smsScreen = await controller.webProbe(By.XPATH, SMS_VERIFICATION_XPATH, {
+    timeout: options.quickDomTimeout,
+  });
+  if (smsScreen === null) {
+    return false;
+  }
+  const sendCode = await controller.webProbe(By.XPATH, SEND_CODE_BUTTON_XPATH, {
+    timeout: options.quickDomTimeout,
+  });
+  if (sendCode?.click) {
+    await sendCode.click();
+    await controller.webSleep();
+  }
+  const message = "# SMS verification: the code was requested for your phone. " +
+    "Please type it in the browser window.";
+  if (options.onVerificationPrompt) {
+    await options.onVerificationPrompt({ kind: "sms", message });
+  } else {
+    await waitForManualAction(
+      controller,
+      message,
+      async () => isValidPostAuth0Destination(currentPageUrl(controller)),
+      { timeoutSeconds: options.manualActionTimeout },
+    );
+  }
+  return true;
+}
+
 function isValidPostAuth0Destination(url: string): boolean {
   if (!url || url === "unknown" || url === "about:blank") {
     return false;
@@ -162,6 +202,10 @@ async function waitForPostAuth0SubmitTransition(
     if (!isTimeoutLike(error)) {
       throw error;
     }
+  }
+
+  if (await handleSmsVerification(controller, options)) {
+    return;
   }
 
   if (await hasLoggedInMarker(controller, credentials, options)) {
