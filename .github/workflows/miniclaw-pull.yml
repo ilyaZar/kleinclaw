@@ -46,6 +46,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch "https://x-access-token:${SYNC_TOKEN}@github.com/ilyaZar/miniclaw.git" main
           upstream="$(git rev-parse --short FETCH_HEAD)"
+          # a mirror push brings back kleinclaw's own content; nothing to sync
+          if [ "$(git rev-parse 'FETCH_HEAD^{tree}')" = "$(git rev-parse HEAD:miniclaw)" ]; then
+            echo "miniclaw subtree already has this content"
+            exit 0
+          fi
           branch="sync-miniclaw-${upstream}"
           before="$(git rev-parse HEAD)"
           git subtree pull --prefix=miniclaw \
