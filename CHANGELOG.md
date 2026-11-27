@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- miniclaw: package links point at its own public repository,
+  `ilyaZar/miniclaw`
 - miniclaw: ads are due for republication on the day the interval is reached,
   `update-content-hash` stores the hash the change detection computes, image
   uploads that reuse slots of not-quite-removed images are counted, and the
