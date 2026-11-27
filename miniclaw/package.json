@@ -1,6 +1,6 @@
 {
   "name": "@ilyazar/miniclaw",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "TypeScript CLI package for local Kleinanzeigen listing workflows",
   "license": "AGPL-3.0-or-later",
   "repository": {

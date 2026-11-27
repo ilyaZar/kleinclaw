@@ -1,5 +1,5 @@
 const CONFIG_SCHEMA_URL = "miniclaw://schemas/config.schema.json";
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0";
 export const DEFAULT_CONFIG = `# yaml-language-server: $schema=${CONFIG_SCHEMA_URL}
 ad_files:
   - "./**/ad_*.{json,yml,yaml}"

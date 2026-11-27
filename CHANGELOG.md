@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
+
+Adapts KleinClaw and miniclaw to Kleinanzeigen's redesigned (Astro) pages,
+verified live on 2026-11-27 (login with SMS code, publish, update, download).
 
 - miniclaw: when the SMS step follows the password, request the code once
   ("Code senden") so it is texted to your phone, then wait for you to type it
