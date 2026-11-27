@@ -98,7 +98,9 @@ are recorded in the
 
 Source and issues live in [ilyaZar/miniclaw](https://github.com/ilyaZar/miniclaw).
 The same code is bundled in [KleinClaw](https://github.com/ilyaZar/kleinclaw)
-as its `miniclaw/` subtree; both stay in sync.
+as its `miniclaw/` subtree; both stay in sync. Changes merged in KleinClaw are
+mirrored here automatically, and changes merged here come back to KleinClaw as
+a sync pull request.
 
 ## Development and release
 
