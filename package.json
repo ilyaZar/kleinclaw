@@ -5,13 +5,12 @@
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ilyaZar/kleinclaw.git",
-    "directory": "miniclaw"
+    "url": "git+https://github.com/ilyaZar/miniclaw.git"
   },
   "bugs": {
-    "url": "https://github.com/ilyaZar/kleinclaw/issues"
+    "url": "https://github.com/ilyaZar/miniclaw/issues"
   },
-  "homepage": "https://github.com/ilyaZar/kleinclaw/tree/main/miniclaw#readme",
+  "homepage": "https://github.com/ilyaZar/miniclaw#readme",
   "keywords": [
     "kleinanzeigen",
     "cli",

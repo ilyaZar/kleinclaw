@@ -92,6 +92,12 @@ documented exports may still change in a minor release. Supported API changes
 are recorded in the
 [KleinClaw changelog](https://github.com/ilyaZar/kleinclaw/blob/main/CHANGELOG.md).
 
+## Repository
+
+Source and issues live in [ilyaZar/miniclaw](https://github.com/ilyaZar/miniclaw).
+The same code is bundled in [KleinClaw](https://github.com/ilyaZar/kleinclaw)
+as its `miniclaw/` subtree; both stay in sync.
+
 ## Development and release
 
 Miniclaw builds and tests on its own, both in `ilyaZar/miniclaw` and as the
