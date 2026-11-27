@@ -36,6 +36,8 @@ jobs:
         if: steps.token.outputs.skip != 'true'
         with:
           fetch-depth: 0
+          # otherwise the job's own token header overrides the sync token
+          persist-credentials: false
 
       - name: split and push
         if: steps.token.outputs.skip != 'true'
