@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- miniclaw: when the SMS step follows the password, request the code once
+  ("Code senden") so it is texted to your phone, then wait for you to type it
+  in the browser instead of failing the login as inconclusive
 - miniclaw: package links point at its own public repository,
   `ilyaZar/miniclaw`
 - miniclaw: ads are due for republication on the day the interval is reached,

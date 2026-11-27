@@ -120,6 +120,51 @@ describe("miniclaw auth", () => {
     assert.equal(stale.reason, LoginDetectionReason.CTA_MATCH);
   });
 
+  it("requests the SMS code once after the password and waits for the user", async () => {
+    let sendClicks = 0;
+    let sleepsAfterRequest = 0;
+    let submits = 0;
+    const controller = {
+      page: { url: "https://login.kleinanzeigen.de/u/login/password" },
+      async webClick() {
+        // e-mail submit, then password submit leading to the SMS screen
+        if ((submits += 1) === 2) {
+          this.page.url = "https://login.kleinanzeigen.de/u/custom-prompt/ap_test";
+        }
+      },
+      async webExecute() {
+        return false;
+      },
+      async webInput() {},
+      async webProbe(type, value) {
+        if (!this.page.url.includes("/custom-prompt/")) return null;
+        if (value.includes("Wir senden dir")) return {};
+        if (value.includes("Code senden")) {
+          return { async click() { sendClicks += 1; } };
+        }
+        return null;
+      },
+      async webSleep() {
+        if (sendClicks > 0 && (sleepsAfterRequest += 1) === 3) {
+          // the user typed the code from the phone
+          this.page.url = "https://www.kleinanzeigen.de/";
+        }
+      },
+      async webText() {
+        return "";
+      },
+    };
+
+    await fillLoginDataAndSend(controller, CREDENTIALS, {
+      ...FAST,
+      loginDetectionTimeout: 0.05,
+      manualActionTimeout: 30,
+    });
+
+    assert.equal(sendClicks, 1);
+    assert.equal(controller.page.url, "https://www.kleinanzeigen.de/");
+  });
+
   it("submits the e-mail step again once the captcha token appears", async () => {
     const { clicks, controller } = identifierController({ tokenAfter: 1 });
 
