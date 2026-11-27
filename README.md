@@ -1,5 +1,7 @@
 # miniclaw
 
+[![ci](https://github.com/ilyaZar/miniclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/ilyaZar/miniclaw/actions/workflows/ci.yml)
+
 `miniclaw` is a TypeScript CLI for managing local Kleinanzeigen listing files
 and running explicitly gated browser workflows.
 
